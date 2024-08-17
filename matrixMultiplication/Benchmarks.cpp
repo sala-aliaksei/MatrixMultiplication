@@ -98,16 +98,16 @@ static void BM_MatrixMulParam_Naive_TP(benchmark::State& state)
 }
 //////////////////////////////////////////////////////////////////////////////
 
-// Multithreads
-BENCHMARK(BM_MatrixMul_MT_VT_BL_TP);
-BENCHMARK(BM_MatrixMulParam_MT_VT_BL_TP);
-BENCHMARK(BM_MatrixMul_MT_VT_BL);
-
 //// Naive
-BENCHMARK(BM_MatrixMulNaiveTransposed);
 BENCHMARK(BM_MatrixMulNaive);
+BENCHMARK(BM_MatrixMulNaiveTransposed);
 BENCHMARK(BM_MatrixMulParam_Naive);
 BENCHMARK(BM_MatrixMulParam_Naive_TP);
+
+// Multithreads
+BENCHMARK(BM_MatrixMul_MT_VT_BL);
+BENCHMARK(BM_MatrixMul_MT_VT_BL_TP);
+BENCHMARK(BM_MatrixMulParam_MT_VT_BL_TP);
 
 //// OpenBLAS
 BENCHMARK(BM_MatrixMulOpenBLAS_TP);
