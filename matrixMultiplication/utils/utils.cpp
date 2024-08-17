@@ -4,12 +4,12 @@
 
 Profiler::Profiler()
 {
-    _start = std::chrono::steady_clock::now();
+    _start = std::chrono::high_resolution_clock::now();
     _name  = "deafult";
 }
 
 Profiler::Profiler(std::string name)
-  : _start(std::chrono::steady_clock::now())
+  : _start(std::chrono::high_resolution_clock::now())
   , _name(std::move(name))
 {
     std::atomic_thread_fence(std::memory_order_seq_cst);
@@ -19,7 +19,7 @@ Profiler::~Profiler()
 {
     std::cout << "[Profiling] " << _name << ". Took "
               << std::chrono::duration_cast<std::chrono::milliseconds>(
-                   std::chrono::steady_clock::now() - _start)
+                   std::chrono::high_resolution_clock::now() - _start)
                    .count()
               << " ms" << std::endl;
 }
