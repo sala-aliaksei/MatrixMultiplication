@@ -28,6 +28,12 @@ struct MulMatrixOnThread
             static_assert(enable_manual_vectorization == false,
                           "vectorization is not available for block_size == 1");
         }
+        else if constexpr (enable_manual_vectorization == true)
+        {
+            // sizeof(T) ?
+            static_assert(block_size % 8 == 0,
+                          "vectorization is not available for block_size %8 != 0");
+        }
     }
 
     template<typename T>
@@ -57,7 +63,7 @@ struct MulMatrixOnThread
                 {
                     if constexpr (is_transposed)
                     {
-                        if constexpr (enable_manual_vectorization && block_size % 8 == 0)
+                        if constexpr (enable_manual_vectorization)
                         {
                             kernelMulMatrix_VT_BL_TP(&c[i * j_size + j],
                                                      &a[i * k_size + k],
