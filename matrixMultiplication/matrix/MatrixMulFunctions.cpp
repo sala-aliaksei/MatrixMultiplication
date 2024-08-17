@@ -57,10 +57,6 @@ static void kernelMulMatrix_VT_BL_TP(double*       r,
                                      const double* m_mul2,
                                      std::size_t   block_size)
 {
-    // DOUBLE version only
-    // block_size == 1 to disable block opt
-    // block size affect which func we can use
-
     const double* b;
     for (auto i = 0; i < block_size; ++i, r += N, a += N)
     {

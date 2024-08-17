@@ -113,7 +113,6 @@ struct MatrixMul
 
     {
         // TODO: add runtime asserts
-        // TODO: use hardware_destructive_interference_size ?
 
         if ((_block_size != 1) && _manual_vectorization == false && (_block_size % 8 != 0))
         {
