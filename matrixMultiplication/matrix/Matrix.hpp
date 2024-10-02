@@ -163,9 +163,17 @@ bool operator==(const Matrix<T>& s1, const Matrix<T>& s2)
     auto N = row_cnt * col_cnt;
     for (auto idx = 0; idx < N; ++idx)
     {
-        if (std::abs(s1[idx] - s2[idx]) > __DBL_EPSILON__)
+        if constexpr (std::is_floating_point_v<T>)
         {
-            return false;
+            // TODO: Could be optimized
+            if (std::abs(s1[idx] - s2[idx]) > __DBL_EPSILON__)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return s1[idx] == s2[idx];
         }
     }
     return true;
