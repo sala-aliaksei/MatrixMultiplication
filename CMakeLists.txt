@@ -25,6 +25,7 @@ find_package(benchmark REQUIRED)
 find_package(GTest REQUIRED)
 find_package(OpenBLAS REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system ) # for aligment allocator
+find_package(Eigen3)
 
 #if(ENABLE_GPU_BUILD)
 #    find_package(CUDA REQUIRED)
@@ -47,6 +48,14 @@ add_library(matrix_c
 add_library(${PROJECT_NAME}
     STATIC # speedup mine, slow down openBlas?
     #SHARED
+    matrixMultiplication/matrix/MatrixMulEigen.cpp
+    matrixMultiplication/matrix/MatrixMulEigen.hpp
+    matrixMultiplication/matrix/MatrixMulOpenBlas.hpp
+    matrixMultiplication/matrix/MatrixMulOpenBlas.cpp
+    matrixMultiplication/matrix/MatrixMulGpt.cpp
+    matrixMultiplication/matrix/MatrixMulGpt.hpp
+    matrixMultiplication/matrix/kernels.cpp
+    matrixMultiplication/matrix/kernels.hpp
     matrixMultiplication/matrix/MatrixMul.cpp
     matrixMultiplication/matrix/MatrixMul.hpp
     matrixMultiplication/matrix/MatrixMulFunctions.cpp
@@ -69,6 +78,7 @@ target_link_libraries(${PROJECT_NAME} # PRIVATE
     -lpthread
     -lstdc++fs
     matrix_c
+    Eigen3::Eigen
     #tensorflow::tensorflowlite
     #std::linalg
 )

@@ -5,7 +5,7 @@
 Profiler::Profiler()
 {
     _start = std::chrono::high_resolution_clock::now();
-    _name  = "deafult";
+    _name  = "default";
 }
 
 Profiler::Profiler(std::string name)

@@ -1,19 +1,11 @@
 #pragma once
 #include "Matrix.hpp"
+#include "kernels.hpp"
 #include <vector>
 #include <future>
 #include <optional>
 
-// Kernels, wrap to namespace.
-void kernelMulMatrix_BL_NV(double* r, const double* a, const double* b, std::size_t block_size);
-
-void kernelMulMatrix_TP_BL_NV(double* r, const double* a, const double* b, std::size_t block_size);
-
-void kernelMulMatrix_VT_BL_TP(double* r, const double* a, const double* b, std::size_t block_size);
-
-void kernelMulMatrix_VT_BL(double* r, const double* a, const double* b, std::size_t block_size);
-
-// should take compiletime param only, optimized, parametrized matrix mul
+// should take compile-time param only, optimized, parametrized matrix mul
 template<bool is_transposed, std::size_t block_size, bool enable_manual_vectorization = true>
 struct MulMatrixOnThread
 {
@@ -22,7 +14,6 @@ struct MulMatrixOnThread
     MulMatrixOnThread(std::size_t num_threads)
       : _num_threads(num_threads)
     {
-        // TODO: add more static_assert
         if constexpr (block_size == 1)
         {
             static_assert(enable_manual_vectorization == false,
@@ -65,34 +56,42 @@ struct MulMatrixOnThread
                     {
                         if constexpr (enable_manual_vectorization)
                         {
-                            kernelMulMatrix_VT_BL_TP(&c[i * j_size + j],
-                                                     &a[i * k_size + k],
-                                                     &b[j * k_size + k],
-                                                     block_size);
+                            kernels::kernelMulMatrix_VT_BL_TP(&c[i * j_size + j],
+                                                              &a[i * k_size + k],
+                                                              &b[j * k_size + k],
+                                                              block_size,
+                                                              j_size,
+                                                              k_size);
                         }
                         else
                         {
-                            kernelMulMatrix_TP_BL_NV(&c[i * j_size + j],
-                                                     &a[i * k_size + k],
-                                                     &b[j * k_size + k],
-                                                     block_size);
+                            kernels::kernelMulMatrix_TP_BL_NV(&c[i * j_size + j],
+                                                              &a[i * k_size + k],
+                                                              &b[j * k_size + k],
+                                                              block_size,
+                                                              j_size,
+                                                              k_size);
                         }
                     }
                     else
                     {
                         if constexpr (enable_manual_vectorization)
                         {
-                            kernelMulMatrix_VT_BL(&c[i * j_size + j],
-                                                  &a[i * k_size + k],
-                                                  &b[k * j_size + j],
-                                                  block_size);
+                            kernels::kernelMulMatrix_VT_BL(&c[i * j_size + j],
+                                                           &a[i * k_size + k],
+                                                           &b[k * j_size + j],
+                                                           block_size,
+                                                           j_size,
+                                                           k_size);
                         }
                         else
                         {
-                            kernelMulMatrix_BL_NV(&c[i * j_size + j],
-                                                  &a[i * k_size + k],
-                                                  &b[k * j_size + j],
-                                                  block_size);
+                            kernels::kernelMulMatrix_BL_NV(&c[i * j_size + j],
+                                                           &a[i * k_size + k],
+                                                           &b[k * j_size + j],
+                                                           block_size,
+                                                           j_size,
+                                                           k_size);
                         }
                     }
                 }
@@ -102,16 +101,17 @@ struct MulMatrixOnThread
 };
 
 // cast runtime param to compiletime param
-struct MatrixMul
+// TODO: measure the cost
+struct DynamicMatrixMul
 {
     std::size_t _num_threads;
     std::size_t _block_size;
     bool        _transpose_matrix;
     bool        _manual_vectorization;
-    MatrixMul(std::size_t num_threads,
-              std::size_t block_size,
-              bool        transpose_matrix,
-              bool        manual_vectorization)
+    DynamicMatrixMul(std::size_t num_threads,
+                     std::size_t block_size,
+                     bool        transpose_matrix,
+                     bool        manual_vectorization)
       : _num_threads(num_threads)
       , _block_size(block_size)
       , _transpose_matrix(transpose_matrix)
@@ -133,8 +133,9 @@ struct MatrixMul
         std::size_t step = a.row() / _num_threads;
         if ((step % _block_size) != 0)
         {
+            // TODO: All param from equation
             throw std::runtime_error(
-              "Invalid block size per thread (N/thread_cnt)%block size must be zero, block_size= "
+              "Invalid block size per thread, (N/thread_cnt)%block_size must be zero, block_size= "
               + std::to_string(_block_size));
         }
 
@@ -185,35 +186,6 @@ struct MatrixMul
             }
         }
 
-        // TODO: Move to dctor?
         fret.resize(0); // wait all threads
     }
-};
-
-// TODO: Check how amount of args affect performance(don't pass j_size, k_size )
-struct Kernels final
-{
-  private:
-    void mulMatrix_128VL_BL(double* c, const double* a, const double* b);
-    void mulMatrix_256VL_BL(double* c, const double* a, const double* b);
-
-    std::size_t _block_size;
-    std::size_t _j_size;
-    std::size_t _k_size;
-
-  public:
-    Kernels(std::size_t block_size, std::size_t j_size, std::size_t k_size)
-      : _block_size(block_size)
-      , _j_size(j_size)
-      , _k_size(k_size)
-    {
-    }
-
-    void kernelMulMatrix_BL_NV(double* r, double* a, double* b);
-
-    void kernelMulMatrix_TP_BL_NV(double* r, double* a, double* b);
-
-    void kernelMulMatrix_VT_BL_TP(double* r, double* a, double* b);
-
-    void kernelMulMatrix_VT_BL(double* r, double* a, double* b);
 };

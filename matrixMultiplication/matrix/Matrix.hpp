@@ -12,11 +12,16 @@ constexpr std::size_t hardware_constructive_interference_size = 64;
 constexpr std::size_t hardware_destructive_interference_size  = 64;
 #endif
 
-constexpr std::size_t N = 256;
+// Align data to 32 bytes
+constexpr size_t      ALIGN_SIZE = hardware_destructive_interference_size; // 32;
+constexpr std::size_t THRED_NUM  = 4;
+constexpr std::size_t N          = 256;
+// constexpr std::size_t N = 64 * 4 * 40;
+
+// constexpr std::size_t N = BLOCK_SIZE*THRED_NUM; //8*4=256
 
 template<typename T>
-using aligned_vector =
-  std::vector<T, boost::alignment::aligned_allocator<T, hardware_destructive_interference_size>>;
+using aligned_vector = std::vector<T, boost::alignment::aligned_allocator<T, ALIGN_SIZE>>;
 
 template<typename Fun>
 constexpr aligned_vector<double> initAlignedVector(const std::size_t row_size,
@@ -42,16 +47,16 @@ class Matrix
     using value_type = T;
 
     Matrix()
-      : _row_cnt(N)
-      , _col_cnt(N)
-      , _matrix(_row_cnt * _col_cnt, 0)
+      : rows(N)
+      , cols(N)
+      , _matrix(rows * cols, 0)
     {
     }
 
     Matrix(std::size_t row_cnt, std::size_t col_cnt)
-      : _row_cnt(row_cnt)
-      , _col_cnt(col_cnt)
-      , _matrix(_row_cnt * _col_cnt, 0)
+      : rows(row_cnt)
+      , cols(col_cnt)
+      , _matrix(rows * cols, 0)
     {
     }
 
@@ -77,23 +82,33 @@ class Matrix
 
     [[__nodiscard__]] std::size_t size() const noexcept
     {
-        return _col_cnt * _row_cnt;
+        return cols * rows;
     }
 
     [[__nodiscard__]] std::size_t col() const noexcept
     {
-        return _col_cnt;
+        return cols;
     }
 
     [[__nodiscard__]] std::size_t row() const noexcept
     {
-        return _row_cnt;
+        return rows;
     }
 
-  private:
-    std::size_t _row_cnt;
-    std::size_t _col_cnt;
+    const double& operator()(std::size_t i, std::size_t j) const noexcept
+    {
+        return _matrix[i * cols + j];
+    }
 
+    double& operator()(std::size_t i, std::size_t j)
+    {
+        return _matrix[i * cols + j];
+    }
+
+    std::size_t rows;
+    std::size_t cols;
+
+  private:
     aligned_vector<double> _matrix;
 };
 

@@ -1,10 +1,10 @@
 [requires]
-benchmark/1.6.0
+benchmark/1.8.4
 gtest/1.15.0
 boost/1.83.0
 #tensorflow-lite/2.12.0
 openblas/0.3.20
-
+eigen/3.4.0
 
 [generators]
 CMakeDeps

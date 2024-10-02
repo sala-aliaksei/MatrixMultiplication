@@ -1,5 +1,8 @@
 #include "matrixMultiplication/matrix/MatrixMul.hpp"
 #include "matrixMultiplication/matrix/MatrixMulFunctions.hpp"
+#include "matrixMultiplication/matrix/MatrixMulGpt.hpp"
+#include "matrixMultiplication/matrix/MatrixMulOpenBlas.hpp"
+#include "matrixMultiplication/matrix/MatrixMulEigen.hpp"
 
 #include <gtest/gtest.h>
 
@@ -36,7 +39,7 @@ class MatrixMulTest : public testing::Test
     Matrix<double> valid_res;
 };
 
-TEST_F(MatrixMulTest, MT_VT_BL_TP_INLINE)
+TEST_F(MatrixMulTest, MT_VT_BL_TP_STATIC)
 {
     auto matrices = initMatrix();
 
@@ -44,11 +47,21 @@ TEST_F(MatrixMulTest, MT_VT_BL_TP_INLINE)
     EXPECT_EQ((valid_res == matrices.res), true);
 }
 
+TEST_F(MatrixMulTest, MT_VT_BL)
+{
+    auto matrices = initMatrix();
+
+    DynamicMatrixMul mul(std::thread::hardware_concurrency(), 8, false, true);
+    mul(matrices.a, matrices.b, matrices.res);
+
+    EXPECT_EQ((valid_res == matrices.res), true);
+}
+
 TEST_F(MatrixMulTest, MT_VT_BL_TP)
 {
     auto matrices = initMatrix();
 
-    MatrixMul mul(std::thread::hardware_concurrency(), 8, true, true);
+    DynamicMatrixMul mul(std::thread::hardware_concurrency(), 8, true, true);
     mul(matrices.a, matrices.b, matrices.res);
 
     EXPECT_EQ((valid_res == matrices.res), true);
@@ -58,7 +71,7 @@ TEST_F(MatrixMulTest, Naive_TP)
 {
     auto matrices = initMatrix();
 
-    MatrixMul mul(1, 1, true, false);
+    DynamicMatrixMul mul(1, 1, true, false);
     mul(matrices.a, matrices.b, matrices.res);
 
     EXPECT_EQ((valid_res == matrices.res), true);
@@ -68,10 +81,32 @@ TEST_F(MatrixMulTest, Naive)
 {
     auto matrices = initMatrix();
 
-    MatrixMul mul(1, 1, false, false);
+    DynamicMatrixMul mul(1, 1, false, false);
     mul(matrices.a, matrices.b, matrices.res);
 
     EXPECT_EQ((valid_res == matrices.res), true);
+}
+
+TEST_F(MatrixMulTest, GPT)
+{
+    auto matrices = initMatrix();
+
+    gpt_matrix_multiply(matrices.a, matrices.b, matrices.res);
+    EXPECT_EQ((valid_res == matrices.res), true);
+}
+
+TEST_F(MatrixMulTest, Eigen)
+{
+    auto ms = initEigenMatrix();
+
+    matrixMulEigen(ms);
+    for (auto row = 0; row < N; ++row)
+    {
+        for (auto col = 0; col < N; ++col)
+        {
+            EXPECT_EQ((valid_res(row, col) == ms.c(row, col)), true);
+        }
+    }
 }
 
 int main(int argc, char** argv)
