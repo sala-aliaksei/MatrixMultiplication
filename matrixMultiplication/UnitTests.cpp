@@ -6,17 +6,19 @@
 #include <gtest/gtest.h>
 
 // TODO: create matrices with fixed size, decouple from global N
+constexpr std::size_t M = 256;
+constexpr std::size_t N = 256;
 
 class MatrixMulTest : public testing::Test
 {
   protected:
     MatrixMulTest()
-      : matrices(initMatrix(N, N))
+      : matrices(initMatrix(N, M))
     {
         // You can do set-up work for each test here.
         matrixMulOpenBlas(matrices);
         valid_res  = std::move(matrices.c);
-        matrices.c = Matrix<double>(N, N);
+        matrices.c = Matrix<double>(N, M);
     }
 
     ~MatrixMulTest() override

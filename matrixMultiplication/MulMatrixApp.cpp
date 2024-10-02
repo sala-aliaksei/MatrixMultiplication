@@ -8,8 +8,9 @@ int main()
 {
     try
     {
-
-        auto matrices = initMatrix();
+        constexpr std::size_t M        = 256;
+        constexpr std::size_t N        = 256;
+        auto                  matrices = initMatrix(N, M);
 
         // TODO: Select algorithm by analyzing cmdline args
         auto block_size           = 8u;

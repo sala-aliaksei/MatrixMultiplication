@@ -11,10 +11,12 @@ benchmark::TimeUnit   TIME_UNIT = benchmark::kMillisecond;
 
 // TODO: Pass runtimer args: num_of_thread, block_size, etc...
 // Provide matrix size to benchmarks
+constexpr std::size_t M = 256;
+constexpr std::size_t N = 256;
 
 static void BM_MatrixMulOpenBLAS_TP(benchmark::State& state)
 {
-    auto set = initMatrix();
+    auto set = initMatrix(N, M);
     for (auto _ : state)
     {
         matrixMulOpenBlas_TP(set);
@@ -23,7 +25,7 @@ static void BM_MatrixMulOpenBLAS_TP(benchmark::State& state)
 
 static void BM_MatrixMulOpenBLAS(benchmark::State& state)
 {
-    auto set = initMatrix();
+    auto set = initMatrix(N, M);
     for (auto _ : state)
     {
         matrixMulOpenBlas(set);
@@ -32,7 +34,7 @@ static void BM_MatrixMulOpenBLAS(benchmark::State& state)
 
 static void BM_MatrixMulParam_MT_VT_BL_TP(benchmark::State& state)
 {
-    auto             matrices = initMatrix();
+    auto             matrices = initMatrix(N, M);
     DynamicMatrixMul mul(MatrixMulConfig{std::thread::hardware_concurrency(), 8, true, true});
 
     for (auto _ : state)
@@ -43,7 +45,7 @@ static void BM_MatrixMulParam_MT_VT_BL_TP(benchmark::State& state)
 
 static void BM_MatrixMulParam_Naive(benchmark::State& state)
 {
-    auto             matrices = initMatrix();
+    auto             matrices = initMatrix(N, M);
     DynamicMatrixMul mul(MatrixMulConfig{1, 1, false, false});
 
     for (auto _ : state)
@@ -54,7 +56,7 @@ static void BM_MatrixMulParam_Naive(benchmark::State& state)
 
 static void BM_MatrixMulParam_Naive_TP(benchmark::State& state)
 {
-    auto             matrices = initMatrix();
+    auto             matrices = initMatrix(N, M);
     DynamicMatrixMul mul(MatrixMulConfig{1, 1, true, false});
 
     for (auto _ : state)
@@ -65,7 +67,7 @@ static void BM_MatrixMulParam_Naive_TP(benchmark::State& state)
 
 static void BM_MatrixMulParam_GPT(benchmark::State& state)
 {
-    auto matrices = initMatrix();
+    auto matrices = initMatrix(N, M);
 
     for (auto _ : state)
     {
@@ -75,7 +77,7 @@ static void BM_MatrixMulParam_GPT(benchmark::State& state)
 
 static void BM_MatrixMulParam_GPT_v2(benchmark::State& state)
 {
-    auto matrices = initMatrix();
+    auto matrices = initMatrix(N, M);
 
     for (auto _ : state)
     {
@@ -85,7 +87,7 @@ static void BM_MatrixMulParam_GPT_v2(benchmark::State& state)
 
 static void BM_MatrixMulParam_Eigen(benchmark::State& state)
 {
-    auto matrices = initEigenMatrix(N, N);
+    auto matrices = initEigenMatrix(N, M);
 
     for (auto _ : state)
     {

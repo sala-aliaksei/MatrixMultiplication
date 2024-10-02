@@ -13,12 +13,7 @@ constexpr std::size_t hardware_destructive_interference_size  = 64;
 #endif
 
 // Align data to 32 bytes
-constexpr size_t      ALIGN_SIZE = hardware_destructive_interference_size; // 32;
-constexpr std::size_t THRED_NUM  = 4;
-constexpr std::size_t N          = 10 * 256;
-// constexpr std::size_t N = 64 * 4 * 40;
-
-// constexpr std::size_t N = BLOCK_SIZE*THRED_NUM; //8*4=256
+constexpr size_t ALIGN_SIZE = hardware_destructive_interference_size; // 32;
 
 template<typename T>
 using aligned_vector = std::vector<T, boost::alignment::aligned_allocator<T, ALIGN_SIZE>>;
@@ -29,12 +24,7 @@ class Matrix
   public:
     using value_type = T;
 
-    Matrix()
-      : rows(N)
-      , cols(N)
-      , _matrix(rows * cols, 0)
-    {
-    }
+    Matrix() = default;
 
     Matrix(std::size_t row_cnt, std::size_t col_cnt)
       : rows(row_cnt)
@@ -109,7 +99,7 @@ Matrix<T> transpose(const Matrix<T> m)
         {
             // TODO: vectorize transpose
             //_mm_prefetch(&ms.b[(j + 1) * N], _MM_HINT_NTA);
-            // we don't need b in cache, transposed shuold be in cache,
+            // we don't need b in cache, transposed should be in cache,
             // reading from b can be streamed
             transposed[i * col_cnt + j] = m[j * row_cnt + i];
         }

@@ -25,8 +25,8 @@ static void gpt_kernel(const Matrix<double>& A,
                        size_t                end_row)
 {
     size_t i_max = std::min(ii + BLOCK_SIZE, end_row);
-    size_t j_max = std::min(jj + BLOCK_SIZE, N);
-    size_t k_max = std::min(kk + BLOCK_SIZE, N);
+    size_t j_max = std::min(jj + BLOCK_SIZE, C.col());
+    size_t k_max = std::min(kk + BLOCK_SIZE, A.col());
     for (size_t i = ii; i < i_max; ++i)
     {
         for (size_t j = jj; j < j_max; ++j)
