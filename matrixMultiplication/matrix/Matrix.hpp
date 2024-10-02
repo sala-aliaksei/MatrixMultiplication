@@ -176,15 +176,16 @@ struct MatrixSet
     using value_type = double;
     Matrix<value_type> a;
     Matrix<value_type> b;
-    Matrix<value_type> res;
+    Matrix<value_type> c;
 };
 
 MatrixSet initMatrix();
+MatrixSet initMatrix(int n, int m);
 
 template<typename Stream>
 Stream& operator<<(Stream& os, MatrixSet& s1)
 {
-    os << s1.res;
+    os << s1.c;
     return os;
 }
 

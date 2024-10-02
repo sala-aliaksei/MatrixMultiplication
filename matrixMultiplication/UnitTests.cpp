@@ -16,7 +16,7 @@ class MatrixMulTest : public testing::Test
         // You can do set-up work for each test here.
         auto matrices = initMatrix();
         matrixMulOpenBlas(matrices);
-        valid_res = std::move(matrices.res);
+        valid_res = std::move(matrices.c);
     }
 
     ~MatrixMulTest() override
@@ -44,7 +44,7 @@ TEST_F(MatrixMulTest, MT_VT_BL_TP_STATIC)
     auto matrices = initMatrix();
 
     matrixMul_MT_VT_BL_TP(matrices);
-    EXPECT_EQ((valid_res == matrices.res), true);
+    EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, MT_VT_BL)
@@ -52,9 +52,9 @@ TEST_F(MatrixMulTest, MT_VT_BL)
     auto matrices = initMatrix();
 
     DynamicMatrixMul mul(std::thread::hardware_concurrency(), 8, false, true);
-    mul(matrices.a, matrices.b, matrices.res);
+    mul(matrices.a, matrices.b, matrices.c);
 
-    EXPECT_EQ((valid_res == matrices.res), true);
+    EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, MT_VT_BL_TP)
@@ -62,9 +62,9 @@ TEST_F(MatrixMulTest, MT_VT_BL_TP)
     auto matrices = initMatrix();
 
     DynamicMatrixMul mul(std::thread::hardware_concurrency(), 8, true, true);
-    mul(matrices.a, matrices.b, matrices.res);
+    mul(matrices.a, matrices.b, matrices.c);
 
-    EXPECT_EQ((valid_res == matrices.res), true);
+    EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, Naive_TP)
@@ -72,9 +72,9 @@ TEST_F(MatrixMulTest, Naive_TP)
     auto matrices = initMatrix();
 
     DynamicMatrixMul mul(1, 1, true, false);
-    mul(matrices.a, matrices.b, matrices.res);
+    mul(matrices.a, matrices.b, matrices.c);
 
-    EXPECT_EQ((valid_res == matrices.res), true);
+    EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, Naive)
@@ -82,17 +82,17 @@ TEST_F(MatrixMulTest, Naive)
     auto matrices = initMatrix();
 
     DynamicMatrixMul mul(1, 1, false, false);
-    mul(matrices.a, matrices.b, matrices.res);
+    mul(matrices.a, matrices.b, matrices.c);
 
-    EXPECT_EQ((valid_res == matrices.res), true);
+    EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, GPT)
 {
     auto matrices = initMatrix();
 
-    gpt_matrix_multiply(matrices.a, matrices.b, matrices.res);
-    EXPECT_EQ((valid_res == matrices.res), true);
+    gpt_matrix_multiply(matrices.a, matrices.b, matrices.c);
+    EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, Eigen)

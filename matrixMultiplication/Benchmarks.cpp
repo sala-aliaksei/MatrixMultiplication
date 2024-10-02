@@ -74,7 +74,7 @@ static void BM_MatrixMulParam_MT_VT_BL_TP(benchmark::State& state)
 
     for (auto _ : state)
     {
-        mul(matrices.a, matrices.b, matrices.res);
+        mul(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -85,7 +85,7 @@ static void BM_MatrixMulParam_Naive(benchmark::State& state)
 
     for (auto _ : state)
     {
-        mul(matrices.a, matrices.b, matrices.res);
+        mul(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -96,7 +96,7 @@ static void BM_MatrixMulParam_Naive_TP(benchmark::State& state)
 
     for (auto _ : state)
     {
-        mul(matrices.a, matrices.b, matrices.res);
+        mul(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -106,7 +106,7 @@ static void BM_MatrixMulParam_GPT(benchmark::State& state)
 
     for (auto _ : state)
     {
-        gpt_matrix_multiply(matrices.a, matrices.b, matrices.res);
+        gpt_matrix_multiply(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -116,7 +116,7 @@ static void BM_MatrixMulParam_GPT_v2(benchmark::State& state)
 
     for (auto _ : state)
     {
-        matrix_multiply(matrices.a, matrices.b, matrices.res);
+        matrix_multiply(matrices.a, matrices.b, matrices.c);
     }
 }
 

@@ -19,8 +19,8 @@ void matrixMulOpenBlas_TP(MatrixSet& ms)
                 ms.b.data(),
                 ms.b.row(),
                 1.0,
-                ms.res.data(),
-                ms.res.row());
+                ms.c.data(),
+                ms.c.row());
 }
 
 void matrixMulOpenBlas(MatrixSet& ms)
@@ -37,6 +37,6 @@ void matrixMulOpenBlas(MatrixSet& ms)
                 ms.b.data(),
                 ms.b.row(),
                 1.0,
-                ms.res.data(),
-                ms.res.row());
+                ms.c.data(),
+                ms.c.row());
 }

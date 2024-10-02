@@ -233,7 +233,7 @@ static void mulTransposedPerThreadOld(double*     m_res,
 
 void matrixMul_Naive(MatrixSet& ms)
 {
-    auto res = ms.res.data();
+    auto res = ms.c.data();
     auto a   = ms.a.data();
     auto b   = ms.b.data();
 
@@ -247,7 +247,7 @@ void matrixMul_Naive(MatrixSet& ms)
 
 void matrixMul_Naive_TP(MatrixSet& set)
 {
-    auto res = set.res.data();
+    auto res = set.c.data();
     auto a   = set.a.data();
 
     auto transposed = transpose(set.b);
@@ -266,7 +266,7 @@ void matrixMul_MT_VT_BL(MatrixSet& ms)
     std::vector<std::future<void>> fret(std::thread::hardware_concurrency());
     for (int tid = 0; tid < fret.size(); ++tid)
     {
-        fret[tid] = std::async(mulPerThread, ms.res.data(), ms.a.data(), ms.b.data(), tid);
+        fret[tid] = std::async(mulPerThread, ms.c.data(), ms.a.data(), ms.b.data(), tid);
     }
 
     fret.resize(0); // wait all threads
@@ -280,7 +280,7 @@ void matrixMul_MT_VT_BL_TP(MatrixSet& ms)
     for (int tid = 0; tid < fret.size(); ++tid)
     {
         fret[tid] =
-          std::async(mulTransposedPerThread, ms.res.data(), ms.a.data(), transposed.data(), tid);
+          std::async(mulTransposedPerThread, ms.c.data(), ms.a.data(), transposed.data(), tid);
     }
 
     fret.resize(0);
