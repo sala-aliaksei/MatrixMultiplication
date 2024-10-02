@@ -16,7 +16,9 @@ set(CMAKE_C_STANDARD 11)
 #-fprofile-generate=${CMAKE_CURRENT_SOURCE_DIR}
 #-fprofile-use=${CMAKE_CURRENT_SOURCE_DIR}
 #-fsanitize=address
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -flto -O3  -g -march=native -masm=intel")
+#-fsanitize=undefined
+# -g
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -flto -O3   -march=native -masm=intel")
 set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -O3  -g -march=native -masm=intel")
 #set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} --no-relax")
 
@@ -58,8 +60,6 @@ add_library(${PROJECT_NAME}
     matrixMultiplication/matrix/kernels.hpp
     matrixMultiplication/matrix/MatrixMul.cpp
     matrixMultiplication/matrix/MatrixMul.hpp
-    matrixMultiplication/matrix/MatrixMulFunctions.cpp
-    matrixMultiplication/matrix/MatrixMulFunctions.hpp
     matrixMultiplication/matrix/Matrix.cpp
     matrixMultiplication/matrix/Matrix.hpp
     matrixMultiplication/utils/utils.cpp

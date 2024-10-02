@@ -15,30 +15,13 @@ constexpr std::size_t hardware_destructive_interference_size  = 64;
 // Align data to 32 bytes
 constexpr size_t      ALIGN_SIZE = hardware_destructive_interference_size; // 32;
 constexpr std::size_t THRED_NUM  = 4;
-constexpr std::size_t N          = 256;
+constexpr std::size_t N          = 10 * 256;
 // constexpr std::size_t N = 64 * 4 * 40;
 
 // constexpr std::size_t N = BLOCK_SIZE*THRED_NUM; //8*4=256
 
 template<typename T>
 using aligned_vector = std::vector<T, boost::alignment::aligned_allocator<T, ALIGN_SIZE>>;
-
-template<typename Fun>
-constexpr aligned_vector<double> initAlignedVector(const std::size_t row_size,
-                                                   const std::size_t col_size,
-                                                   Fun&&             fun)
-{
-    aligned_vector<double> matrix;
-    matrix.resize(row_size * col_size);
-    for (auto col = 0; col < col_size; ++col)
-    {
-        for (auto row = 0; row < row_size; ++row)
-        {
-            matrix[col * col_size + row] = fun(row, col);
-        }
-    }
-    return matrix;
-}
 
 template<typename T>
 class Matrix

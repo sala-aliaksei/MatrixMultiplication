@@ -1,5 +1,4 @@
 #include "matrixMultiplication/matrix/MatrixMul.hpp"
-#include "matrixMultiplication/matrix/MatrixMulFunctions.hpp"
 #include "matrixMultiplication/matrix/MatrixMulGpt.hpp"
 #include "matrixMultiplication/matrix/MatrixMulOpenBlas.hpp"
 #include "matrixMultiplication/matrix/MatrixMulEigen.hpp"
@@ -12,11 +11,12 @@ class MatrixMulTest : public testing::Test
 {
   protected:
     MatrixMulTest()
+      : matrices(initMatrix(N, N))
     {
         // You can do set-up work for each test here.
-        auto matrices = initMatrix();
         matrixMulOpenBlas(matrices);
-        valid_res = std::move(matrices.c);
+        valid_res  = std::move(matrices.c);
+        matrices.c = Matrix<double>(N, N);
     }
 
     ~MatrixMulTest() override
@@ -36,22 +36,13 @@ class MatrixMulTest : public testing::Test
         // before the destructor).
     }
 
+    MatrixSet      matrices;
     Matrix<double> valid_res;
 };
 
-TEST_F(MatrixMulTest, MT_VT_BL_TP_STATIC)
-{
-    auto matrices = initMatrix();
-
-    matrixMul_MT_VT_BL_TP(matrices);
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
-
 TEST_F(MatrixMulTest, MT_VT_BL)
 {
-    auto matrices = initMatrix();
-
-    DynamicMatrixMul mul(std::thread::hardware_concurrency(), 8, false, true);
+    DynamicMatrixMul mul(MatrixMulConfig{std::thread::hardware_concurrency(), 8, false, true});
     mul(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
@@ -59,9 +50,7 @@ TEST_F(MatrixMulTest, MT_VT_BL)
 
 TEST_F(MatrixMulTest, MT_VT_BL_TP)
 {
-    auto matrices = initMatrix();
-
-    DynamicMatrixMul mul(std::thread::hardware_concurrency(), 8, true, true);
+    DynamicMatrixMul mul(MatrixMulConfig{std::thread::hardware_concurrency(), 8, true, true});
     mul(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
@@ -69,9 +58,7 @@ TEST_F(MatrixMulTest, MT_VT_BL_TP)
 
 TEST_F(MatrixMulTest, Naive_TP)
 {
-    auto matrices = initMatrix();
-
-    DynamicMatrixMul mul(1, 1, true, false);
+    DynamicMatrixMul mul(MatrixMulConfig{1, 1, true, false});
     mul(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
@@ -79,9 +66,7 @@ TEST_F(MatrixMulTest, Naive_TP)
 
 TEST_F(MatrixMulTest, Naive)
 {
-    auto matrices = initMatrix();
-
-    DynamicMatrixMul mul(1, 1, false, false);
+    DynamicMatrixMul mul(MatrixMulConfig{1, 1, false, false});
     mul(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
@@ -89,20 +74,21 @@ TEST_F(MatrixMulTest, Naive)
 
 TEST_F(MatrixMulTest, GPT)
 {
-    auto matrices = initMatrix();
-
     gpt_matrix_multiply(matrices.a, matrices.b, matrices.c);
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, Eigen)
 {
-    auto ms = initEigenMatrix();
+    auto ms = initEigenMatrix(N, N);
 
     matrixMulEigen(ms);
-    for (auto row = 0; row < N; ++row)
+
+    auto rows = ms.c.rows();
+    auto cols = ms.c.cols();
+    for (auto row = 0; row < rows; ++row)
     {
-        for (auto col = 0; col < N; ++col)
+        for (auto col = 0; col < cols; ++col)
         {
             EXPECT_EQ((valid_res(row, col) == ms.c(row, col)), true);
         }

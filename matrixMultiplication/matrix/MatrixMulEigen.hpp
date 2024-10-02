@@ -9,4 +9,4 @@ struct MatrixEigenSet
 };
 
 void           matrixMulEigen(MatrixEigenSet& ms);
-MatrixEigenSet initEigenMatrix();
+MatrixEigenSet initEigenMatrix(std::size_t rows, std::size_t cols);

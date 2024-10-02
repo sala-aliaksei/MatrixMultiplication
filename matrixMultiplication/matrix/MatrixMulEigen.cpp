@@ -1,12 +1,9 @@
 #include "MatrixMulEigen.hpp"
 #include "Matrix.hpp"
 
-MatrixEigenSet initEigenMatrix()
+MatrixEigenSet initEigenMatrix(std::size_t rows, std::size_t cols)
 {
     MatrixEigenSet ms;
-
-    auto rows = N;
-    auto cols = N;
 
     ms.a = Eigen::MatrixXd(rows, cols);
     ms.b = Eigen::MatrixXd(rows, cols);

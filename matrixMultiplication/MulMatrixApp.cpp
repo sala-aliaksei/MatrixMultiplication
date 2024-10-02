@@ -1,5 +1,4 @@
 #include "matrixMultiplication/matrix/MatrixMul.hpp"
-#include "matrixMultiplication/matrix/MatrixMulFunctions.hpp"
 
 #include <iostream>
 
@@ -9,26 +8,18 @@ int main()
 {
     try
     {
-        bool dynamic  = true;
+
         auto matrices = initMatrix();
-        if (dynamic == true)
-        {
-            // TODO: Select algorithm by analyzing cmdline args
-            auto block_size           = 8u;
-            bool transpose_matrix     = true;
-            bool manual_vectorization = true;
 
-            DynamicMatrixMul mul(std::thread::hardware_concurrency(),
-                                 block_size,
-                                 transpose_matrix,
-                                 manual_vectorization);
+        // TODO: Select algorithm by analyzing cmdline args
+        auto block_size           = 8u;
+        bool transpose_matrix     = true;
+        bool manual_vectorization = true;
 
-            mul(matrices.a, matrices.b, matrices.c);
-        }
-        else
-        {
-            matrixMul_MT_VT_BL_TP(matrices);
-        }
+        DynamicMatrixMul mul(MatrixMulConfig{
+          std::thread::hardware_concurrency(), block_size, transpose_matrix, manual_vectorization});
+
+        mul(matrices.a, matrices.b, matrices.c);
 
         // std::cout << matrices.b;
     }
