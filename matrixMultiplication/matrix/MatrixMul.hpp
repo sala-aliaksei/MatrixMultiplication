@@ -5,7 +5,6 @@
 #include <future>
 #include <optional>
 
-// should take compile-time param only, optimized, parametrized matrix mul
 template<bool is_transposed>
 struct MulMatrixOnThread
 {

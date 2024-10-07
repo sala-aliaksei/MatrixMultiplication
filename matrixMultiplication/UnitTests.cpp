@@ -82,7 +82,7 @@ TEST_F(MatrixMulTest, GPT)
 
 TEST_F(MatrixMulTest, Eigen)
 {
-    auto ms = initEigenMatrix(N, N);
+    auto ms = initEigenMatrix(N, M);
 
     matrixMulEigen(ms);
 
