@@ -74,15 +74,15 @@ void kernelMulMatrix_VT_BL_TP(double*           r,
     // TODO: change constants to vars
 
     const double* b;
-    for (auto i = 0; i < SM; ++i, r += j_size, a += k_size)
+    for (auto i = 0; i < block_size; ++i, r += j_size, a += k_size)
     {
         b = mul2;
-        for (auto j = 0; j < SM; ++j, b += k_size)
+        for (auto j = 0; j < block_size; ++j, b += k_size)
         {
             //_mm_prefetch(&b[N], _MM_HINT_NTA);
 
             __m256d rk = _mm256_setzero_pd();
-            for (auto k = 0; k < SM; k += 4)
+            for (auto k = 0; k < block_size; k += 4)
             {
                 __m256d m1 = _mm256_loadu_pd(&a[k]);
                 __m256d m2 = _mm256_loadu_pd(&b[k]);
