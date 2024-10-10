@@ -11,8 +11,8 @@ benchmark::TimeUnit   TIME_UNIT = benchmark::kMillisecond;
 
 // TODO: Pass runtimer args: num_of_thread, block_size, etc...
 // Provide matrix size to benchmarks
-constexpr std::size_t M = 256;
-constexpr std::size_t N = 256;
+constexpr std::size_t M = 256; // * 8 * 4;
+constexpr std::size_t N = 256; // * 8 * 4;
 
 static void BM_MatrixMulOpenBLAS_TP(benchmark::State& state)
 {
