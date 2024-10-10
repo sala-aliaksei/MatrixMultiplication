@@ -40,14 +40,14 @@ static void gpt_kernel(const Matrix<double>& A,
                 c_vec         = _mm256_fmadd_pd(a_vec, b_vec, c_vec);
             }
             // Handle remaining elements
-            //            double c_sum = 0.0;
-            //            for (; k < k_max; ++k)
-            //            {
-            //                c_sum += A(i, k) * B(j, k);
-            //            }
+            double c_sum = 0.0;
+            for (; k < k_max; ++k)
+            {
+                c_sum += A(i, k) * B(j, k);
+            }
 
             // Horizontal addition of c_vec
-            double c_sum = sumElemFromReg(c_vec);
+            c_sum += sumElemFromReg(c_vec);
             C(i, j) += c_sum;
         }
     }
