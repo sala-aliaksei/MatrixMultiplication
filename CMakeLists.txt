@@ -6,6 +6,10 @@ option(ENABLE_GPU_BUILD "Enable GPU build" ON)
 option(ENABLE_UNIT_TESTS "Enable Unit Tests" ON)
 option(ENABLE_BENCHMARKS "Enable Benchmarks" ON)
 
+
+#set("CMAKE_C_COMPILER" "/usr/bin/clang" CACHE "STRING" "" FORCE)
+#set("CMAKE_CXX_COMPILER" "/usr/bin/clang++" CACHE "STRING" "" FORCE)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 
@@ -18,6 +22,7 @@ set(CMAKE_C_STANDARD 11)
 #-fsanitize=address
 #-fsanitize=undefined
 # -g
+# -fsave-optimization-record
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -flto -O3   -march=native -masm=intel")
 set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -O3  -g -march=native -masm=intel")
 #set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} --no-relax")
@@ -58,7 +63,6 @@ add_library(${PROJECT_NAME}
     matrixMultiplication/matrix/MatrixMulGpt.hpp
     matrixMultiplication/matrix/kernels.cpp
     matrixMultiplication/matrix/kernels.hpp
-    matrixMultiplication/matrix/MatrixMul.cpp
     matrixMultiplication/matrix/MatrixMul.hpp
     matrixMultiplication/matrix/Matrix.cpp
     matrixMultiplication/matrix/Matrix.hpp

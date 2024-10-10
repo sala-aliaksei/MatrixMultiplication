@@ -8,8 +8,8 @@ int main()
 {
     try
     {
-        constexpr std::size_t M        = 256;
-        constexpr std::size_t N        = 256;
+        constexpr std::size_t M        = 8 * 4 * 256;
+        constexpr std::size_t N        = 8 * 4 * 256;
         auto                  matrices = initMatrix(N, M);
 
         // TODO: Select algorithm by analyzing cmdline args

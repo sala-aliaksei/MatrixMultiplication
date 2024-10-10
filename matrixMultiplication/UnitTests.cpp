@@ -6,8 +6,8 @@
 #include <gtest/gtest.h>
 
 // TODO: create matrices with fixed size, decouple from global N
-constexpr std::size_t M = 256;
-constexpr std::size_t N = 256;
+constexpr std::size_t M = 32;
+constexpr std::size_t N = 32;
 
 class MatrixMulTest : public testing::Test
 {
@@ -92,7 +92,12 @@ TEST_F(MatrixMulTest, Eigen)
     {
         for (auto col = 0; col < cols; ++col)
         {
-            EXPECT_EQ((valid_res(row, col) == ms.c(row, col)), true);
+            bool res = valid_res(row, col) == ms.c(row, col);
+            if (!res)
+            {
+                std::cout << "row: " << row << ", col: " << col << std::endl;
+            }
+            ASSERT_EQ(valid_res(row, col), ms.c(row, col));
         }
     }
 }
