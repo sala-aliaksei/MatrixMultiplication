@@ -148,7 +148,7 @@ struct DynamicMatrixMul
 
         for (std::size_t tid = 0; tid < fret.size() - 1; ++tid)
         {
-            exec(tid, std::launch::async); //  | std::launch::deferred
+            exec(tid, std::launch::async);
         }
 
         exec(fret.size() - 1, std::launch::deferred);
