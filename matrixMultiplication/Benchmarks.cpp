@@ -32,6 +32,17 @@ static void BM_MatrixMulOpenBLAS(benchmark::State& state)
     }
 }
 
+static void BM_MatrixMulParam_MT_VT_BL(benchmark::State& state)
+{
+    auto             matrices = initMatrix(N, M);
+    DynamicMatrixMul mul(MatrixMulConfig{std::thread::hardware_concurrency(), 8, false, true});
+
+    for (auto _ : state)
+    {
+        mul(matrices.a, matrices.b, matrices.c);
+    }
+}
+
 static void BM_MatrixMulParam_MT_VT_BL_TP(benchmark::State& state)
 {
     auto             matrices = initMatrix(N, M);
@@ -102,6 +113,7 @@ BENCHMARK(BM_MatrixMulParam_Naive);
 BENCHMARK(BM_MatrixMulParam_Naive_TP);
 
 // Multithreads
+BENCHMARK(BM_MatrixMulParam_MT_VT_BL);
 BENCHMARK(BM_MatrixMulParam_MT_VT_BL_TP);
 
 //// OpenBLAS

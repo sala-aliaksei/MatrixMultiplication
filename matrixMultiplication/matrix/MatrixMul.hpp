@@ -37,7 +37,7 @@ struct MulMatrixOnThread
         std::size_t last  = thread_num == (_num_threads - 1) ? i_size : (thread_num + 1) * step;
 
         // block_size must be constant, significantly impact on performance
-        constexpr std::size_t block_size = 8;
+        constexpr std::size_t block_size = 8; // 256 bit, 64bit*8_block = 512
 
         // TODO: Check if compiler inline kernels
         for (int i = start; i < last; i += block_size)

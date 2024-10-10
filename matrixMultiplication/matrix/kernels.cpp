@@ -130,38 +130,40 @@ static void mulMatrix_128VL_BL(double*           rres,
     }
 }
 
-static void mulMatrix_256VL_BL(double*           rres,
-                               const double*     rmul1,
-                               const double*     m_mul2,
+static void mulMatrix_256VL_BL(double*           c,
+                               const double*     a,
+                               const double*     mb,
                                const std::size_t block_size,
                                const std::size_t j_size,
                                const std::size_t k_size)
 {
+    // kernel must be inlined, block can be arg?
+    // const std::size_t block_size = 4;
+    // analyze data dependencies
 
-    const double* rmul2 = m_mul2;
-    for (int i2 = 0; i2 < block_size; ++i2, rres += j_size, rmul1 += j_size)
+    const double* b = mb;
+    for (int i2 = 0; i2 < block_size; ++i2, c += j_size, a += j_size)
     {
         // _mm_prefetch(&rres[N], _MM_HINT_NTA);
         // _mm_prefetch(&rmul1[N], _MM_HINT_NTA);
 
-        _mm_prefetch(&rres[block_size], _MM_HINT_T0);
-        _mm_prefetch(&rmul1[block_size], _MM_HINT_T0);
+        b = mb;
 
-        rmul2 = m_mul2;
+        __m256d r20 = _mm256_loadu_pd(&c[0]);
+        __m256d r22 = _mm256_loadu_pd(&c[4]);
 
-        __m256d r20 = _mm256_loadu_pd(&rres[0]);
-        __m256d r22 = _mm256_loadu_pd(&rres[4]);
-
-        for (int k2 = 0; k2 < block_size; ++k2, rmul2 += k_size)
+        // #pragma GCC unroll 2
+        for (int k2 = 0; k2 < block_size; ++k2, b += k_size)
         {
-            __m256d m20 = _mm256_loadu_pd(&rmul2[0]);
-            __m256d m22 = _mm256_loadu_pd(&rmul2[4]);
-            __m256d m1d = _mm256_broadcast_sd(&rmul1[k2]);
+            __m256d m1d = _mm256_broadcast_sd(&a[k2]);
+            __m256d m20 = _mm256_loadu_pd(&b[0]);
             r20         = _mm256_add_pd(r20, _mm256_mul_pd(m20, m1d));
+
+            __m256d m22 = _mm256_loadu_pd(&b[4]);
             r22         = _mm256_add_pd(r22, _mm256_mul_pd(m22, m1d));
         }
-        _mm256_storeu_pd(&rres[0], r20);
-        _mm256_storeu_pd(&rres[4], r22);
+        _mm256_storeu_pd(&c[0], r20);
+        _mm256_storeu_pd(&c[4], r22);
     }
 }
 
