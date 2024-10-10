@@ -4,13 +4,6 @@
 #include <immintrin.h>
 #include <array>
 
-constexpr auto nthreads = 4u;
-constexpr auto SM       = (64 / sizeof(double));
-
-// TODO:
-// 2. initMatrix with diff values
-// 3. add support of arbitrary matrix size
-
 /*****************     KERNELS     *******************/
 namespace kernels
 {
@@ -148,7 +141,6 @@ static void mulMatrix_256VL_BL(double*           rres,
     const double* rmul2 = m_mul2;
     for (int i2 = 0; i2 < block_size; ++i2, rres += j_size, rmul1 += j_size)
     {
-        // _mm_prefetch(&rmul1[SM], _MM_HINT_NTA);
         // _mm_prefetch(&rres[N], _MM_HINT_NTA);
         // _mm_prefetch(&rmul1[N], _MM_HINT_NTA);
 
