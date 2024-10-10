@@ -8,12 +8,12 @@
 template<bool is_transposed>
 struct MulMatrixOnThread
 {
-    std::size_t _block_size;
+
     std::size_t _num_threads;
 
-    MulMatrixOnThread(std::size_t num_threads, std::size_t block_size)
+    MulMatrixOnThread(std::size_t num_threads)
       : _num_threads(num_threads)
-      , _block_size(block_size)
+
     {
     }
 
@@ -36,10 +36,10 @@ struct MulMatrixOnThread
         std::size_t start = thread_num * step;
         std::size_t last  = thread_num == (_num_threads - 1) ? i_size : (thread_num + 1) * step;
 
-        // const 8 doesn't help compiler to optimize
-        // but block_size as constexpr does
-        constexpr std::size_t block_size = 8; // * _block_cnt;
+        // block_size must be constant, significantly impact on performance
+        constexpr std::size_t block_size = 8;
 
+        // TODO: Check if compiler inline kernels
         for (int i = start; i < last; i += block_size)
         {
             for (int j = 0; j < j_size; j += block_size)
@@ -72,8 +72,8 @@ struct MulMatrixOnThread
 
 struct MatrixMulConfig
 {
-    std::size_t num_threads;
-    std::size_t block_size;
+    std::size_t num_threads; // get from runtime
+    std::size_t block_size;  // TODO: change to bool
     bool        transpose_matrix;
     bool        manual_vectorization;
 };
@@ -84,28 +84,12 @@ struct DynamicMatrixMul
     DynamicMatrixMul(MatrixMulConfig cfg)
       : _cfg(std::move(cfg))
     {
-        // TODO: add runtime asserts
-
-        if ((_cfg.block_size != 1) && _cfg.manual_vectorization == false
-            && (_cfg.block_size % 8 != 0))
-        {
-            throw std::runtime_error("Invalid block size for matrix = "
-                                     + std::to_string(_cfg.block_size));
-        }
     }
 
     template<typename T = double>
     void operator()(Matrix<T>& a, Matrix<T>& b, Matrix<T>& c) const
     {
-        std::size_t step = a.row() / _cfg.num_threads;
-        if ((step % _cfg.block_size) != 0)
-        {
-            // TODO: All param from equation
-            throw std::runtime_error(
-              "Invalid block size per thread, (N/thread_cnt)%block_size must be zero, block_size= "
-              + std::to_string(_cfg.block_size));
-        }
-
+        std::size_t              step = a.row() / _cfg.num_threads;
         std::optional<Matrix<T>> transposed;
         if (_cfg.transpose_matrix)
         {
@@ -115,24 +99,27 @@ struct DynamicMatrixMul
         auto& bb = _cfg.transpose_matrix ? *transposed : b;
 
         std::vector<std::future<void>> fret(_cfg.num_threads);
-        for (std::size_t tid = 0; tid < fret.size(); ++tid)
+
+        auto exec = [&](const std::size_t tid, const std::launch policy)
         {
             if (_cfg.block_size != 1 && _cfg.manual_vectorization)
             {
                 if (_cfg.transpose_matrix)
                 {
-                    MulMatrixOnThread<true> mt(_cfg.num_threads, _cfg.block_size);
+                    MulMatrixOnThread<true> mt(_cfg.num_threads);
 
                     fret[tid] =
-                      std::async([mt = std::move(mt), &a, &bb, &c, tid]()
+                      std::async(policy,
+                                 [mt = std::move(mt), &a, &bb, &c, tid]()
                                  { mt.run(c, a, bb, tid, kernels::kernelMulMatrix_VT_BL_TP); });
                 }
                 else
                 {
-                    MulMatrixOnThread<false> mt(_cfg.num_threads, _cfg.block_size);
+                    MulMatrixOnThread<false> mt(_cfg.num_threads);
 
                     fret[tid] =
-                      std::async([mt = std::move(mt), &a, &bb, &c, tid]()
+                      std::async(policy,
+                                 [mt = std::move(mt), &a, &bb, &c, tid]()
                                  { mt.run(c, a, bb, tid, kernels::kernelMulMatrix_VT_BL); });
                 }
             }
@@ -140,23 +127,31 @@ struct DynamicMatrixMul
             {
                 if (_cfg.transpose_matrix)
                 {
-                    MulMatrixOnThread<true> mt(_cfg.num_threads, _cfg.block_size);
+                    MulMatrixOnThread<true> mt(_cfg.num_threads);
 
                     fret[tid] =
-                      std::async([mt = std::move(mt), &a, &bb, &c, tid]()
+                      std::async(policy,
+                                 [mt = std::move(mt), &a, &bb, &c, tid]()
                                  { mt.run(c, a, bb, tid, kernels::kernelMulMatrix_TP_BL_NV); });
                 }
                 else
                 {
-                    MulMatrixOnThread<false> mt(_cfg.num_threads, _cfg.block_size);
+                    MulMatrixOnThread<false> mt(_cfg.num_threads);
 
                     fret[tid] =
-                      std::async([mt = std::move(mt), &a, &bb, &c, tid]()
+                      std::async(policy,
+                                 [mt = std::move(mt), &a, &bb, &c, tid]()
                                  { mt.run(c, a, bb, tid, kernels::kernelMulMatrix_BL_NV); });
                 }
             }
+        };
+
+        for (std::size_t tid = 0; tid < fret.size() - 1; ++tid)
+        {
+            exec(tid, std::launch::async); //  | std::launch::deferred
         }
 
-        fret.resize(0); // wait all threads
+        exec(fret.size() - 1, std::launch::deferred);
+        fret[fret.size() - 1].wait();
     }
 };
