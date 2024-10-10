@@ -185,7 +185,7 @@ void kernelMulMatrix_VT_BL(double*           c,
 #ifdef __AVX2__
     mulMatrix_256VL_BL(c, a, b, block_size, j_size, k_size);
 #elif __SSE2__
-    mulMatrix_128VL_BL(c, a, b, block_size);
+    mulMatrix_128VL_BL(c, a, b, block_size, j_size, k_size);
 #else
 #error "Manual vectorization is not supported for current cpu!"
 #endif
