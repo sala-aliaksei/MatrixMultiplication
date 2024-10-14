@@ -41,8 +41,7 @@ void mulMatrix_x(double*           c,
 
             for (int j2 = 0, idx = 0; j2 < block_size; j2 += 4, ++idx)
             {
-                //__m256d m2 = _mm256_loadu_pd(&b[j2]);;
-                res[idx] = _mm256_add_pd(res[idx], _mm256_mul_pd(breg[idx], m1d));
+                res[idx] = _mm256_fmadd_pd(m1d, breg[idx], res[idx]);
             }
         }
 
