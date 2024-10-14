@@ -1,8 +1,9 @@
 #include <cstddef> // for size_t
 
 // TODO: Should be private info
-constexpr std::size_t block_size   = 32;
+constexpr std::size_t block_size_i = 32;
 constexpr std::size_t block_size_j = 32; // bigger than 32 lead to bad asm, fma reading mem
+constexpr std::size_t block_size_k = 32;
 
 namespace kernels
 {

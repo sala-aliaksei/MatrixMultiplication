@@ -30,6 +30,7 @@ void mulMatrix_x(double*           c,
     for (int i2 = 0; i2 < block_size_i; ++i2, c += j_size, a += j_size)
     {
         b = mb;
+        // ukernel(c, a, b, j_size, k_size);
 
         std::array<__m256d, block_size_j / 4> res;
         std::array<__m256d, block_size_j / 4> breg;
@@ -41,13 +42,14 @@ void mulMatrix_x(double*           c,
         }
 
         _mm_prefetch(&a[64 / sizeof(double)], _MM_HINT_NTA); // prefetch next cache line
+
         for (int k2 = 0; k2 < block_size_k; ++k2, b += k_size)
         {
-            __m256d m1d = _mm256_broadcast_sd(&a[k2]);
+            __m256d areg = _mm256_broadcast_sd(&a[k2]);
 
             for (int j2 = 0, idx = 0; j2 < block_size_j; j2 += 4, ++idx)
             {
-                res[idx] = _mm256_fmadd_pd(m1d, breg[idx], res[idx]);
+                res[idx] = _mm256_fmadd_pd(areg, breg[idx], res[idx]);
             }
         }
 
@@ -110,7 +112,7 @@ static void mulMatrix_256VL_BL(double*           c,
     // const std::size_t block_size = 4;
     // analyze data dependencies
 
-    mulMatrix_x<block_size, block_size_j, block_size>(c, a, mb, j_size, k_size);
+    mulMatrix_x<block_size_i, block_size_j, block_size_k>(c, a, mb, j_size, k_size);
 
     //    if (block_size == 8)
     //    {
@@ -168,8 +170,8 @@ void kernelMulMatrix_BL_NV(double*           res,
     int i2{}, k2{}, j2{};
 
     double* r;
-    for (i2 = 0, r = res, a = mul1; i2 < block_size; ++i2, r += j_size, a += j_size)
-        for (k2 = 0, b = mul2; k2 < block_size; ++k2, b += k_size)
+    for (i2 = 0, r = res, a = mul1; i2 < block_size_i; ++i2, r += j_size, a += j_size)
+        for (k2 = 0, b = mul2; k2 < block_size_k; ++k2, b += k_size)
             for (j2 = 0; j2 < block_size_j; ++j2)
                 r[j2] += a[k2] * b[j2];
 }
@@ -182,13 +184,13 @@ void kernelMulMatrix_TP_BL_NV(double*           r,
 {
     const double* b;
 
-    for (auto i = 0; i < block_size; ++i, r += j_size, a += k_size)
+    for (auto i = 0; i < block_size_i; ++i, r += j_size, a += k_size)
     {
         b = mul2;
         for (auto j = 0; j < block_size_j; ++j, b += k_size)
         {
             double t = 0;
-            for (auto k = 0; k < block_size; ++k)
+            for (auto k = 0; k < block_size_k; ++k)
             {
                 t += a[k] * b[k];
             }
@@ -206,7 +208,7 @@ void kernelMulMatrix_VT_BL_TP(double*           r,
     // TODO: change constants to vars
 
     const double* b;
-    for (auto i = 0; i < block_size; ++i, r += j_size, a += k_size)
+    for (auto i = 0; i < block_size_i; ++i, r += j_size, a += k_size)
     {
         b = mul2;
         for (auto j = 0; j < block_size_j; ++j, b += k_size)
@@ -214,7 +216,7 @@ void kernelMulMatrix_VT_BL_TP(double*           r,
             //_mm_prefetch(&b[N], _MM_HINT_NTA);
 
             __m256d rk = _mm256_setzero_pd();
-            for (auto k = 0; k < block_size; k += 4)
+            for (auto k = 0; k < block_size_k; k += 4)
             {
                 __m256d m1 = _mm256_loadu_pd(&a[k]);
                 __m256d m2 = _mm256_loadu_pd(&b[k]);
@@ -236,9 +238,9 @@ static void mulMatrix_128VL_BL(double*           rres,
 {
     // hardhoded blockszie for j == 8
     const double* rmul2 = m_mul2;
-    for (int i2 = 0; i2 < block_size; ++i2, rres += j_size, rmul1 += k_size)
+    for (int i2 = 0; i2 < block_size_i; ++i2, rres += j_size, rmul1 += k_size)
     {
-        _mm_prefetch(&rmul1[block_size], _MM_HINT_NTA);
+        _mm_prefetch(&rmul1[block_size_i], _MM_HINT_NTA);
         rmul2 = m_mul2;
 
         __m128d r20 = _mm_load_pd(&rres[0]);
@@ -246,7 +248,7 @@ static void mulMatrix_128VL_BL(double*           rres,
         __m128d r22 = _mm_load_pd(&rres[4]);
         __m128d r23 = _mm_load_pd(&rres[6]);
 
-        for (int k2 = 0; k2 < block_size; ++k2, rmul2 += j_size)
+        for (int k2 = 0; k2 < block_size_k; ++k2, rmul2 += j_size)
         {
             __m128d m20 = _mm_load_pd(&rmul2[0]);
             __m128d m21 = _mm_load_pd(&rmul2[2]);

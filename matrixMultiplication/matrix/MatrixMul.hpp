@@ -42,11 +42,11 @@ struct MulMatrixOnThread
         // TODO: Check if compiler inline kernels
         // TODO : add tail computation
         // TODO: block=1 is broken
-        for (int i = start; i < last; i += block_size)
+        for (int i = start; i < last; i += block_size_i)
         {
             for (int j = 0; j < j_size; j += block_size_j)
             {
-                for (int k = 0; k < k_size; k += block_size)
+                for (int k = 0; k < k_size; k += block_size_k)
                 {
                     if constexpr (is_transposed)
                     {
