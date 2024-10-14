@@ -37,13 +37,14 @@ struct MulMatrixOnThread
         std::size_t last  = thread_num == (_num_threads - 1) ? i_size : (thread_num + 1) * step;
 
         // block_size must be constant, significantly impact on performance
-        constexpr std::size_t block_size = 32; // 256 bit, 64bit*8_block = 512
+        // 256 bit, 64bit*8_block = 512
 
         // TODO: Check if compiler inline kernels
         // TODO : add tail computation
+        // TODO: block=1 is broken
         for (int i = start; i < last; i += block_size)
         {
-            for (int j = 0; j < j_size; j += block_size)
+            for (int j = 0; j < j_size; j += block_size_j)
             {
                 for (int k = 0; k < k_size; k += block_size)
                 {
@@ -52,7 +53,6 @@ struct MulMatrixOnThread
                         kernel_mul(&c[i * j_size + j],
                                    &a[i * k_size + k],
                                    &b[j * k_size + k],
-                                   block_size,
                                    j_size,
                                    k_size);
                     }
@@ -61,7 +61,6 @@ struct MulMatrixOnThread
                         kernel_mul(&c[i * j_size + j],
                                    &a[i * k_size + k],
                                    &b[k * j_size + j],
-                                   block_size,
                                    j_size,
                                    k_size);
                     }

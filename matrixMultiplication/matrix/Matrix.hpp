@@ -138,7 +138,6 @@ bool operator==(const Matrix<T>& s1, const Matrix<T>& s2)
     {
         if constexpr (std::is_floating_point_v<T>)
         {
-            // TODO: Could be optimized
             if (std::abs(s1[idx] - s2[idx]) > __DBL_EPSILON__)
             {
                 return false;
@@ -152,6 +151,7 @@ bool operator==(const Matrix<T>& s1, const Matrix<T>& s2)
     return true;
 }
 
+// TODO: What if we have matrix<float>?
 struct MatrixSet
 {
     using value_type = double;
@@ -160,7 +160,6 @@ struct MatrixSet
     Matrix<value_type> c;
 };
 
-MatrixSet initMatrix();
 MatrixSet initMatrix(int n, int m);
 
 template<typename Stream>
