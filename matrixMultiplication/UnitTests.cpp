@@ -6,8 +6,8 @@
 #include <gtest/gtest.h>
 
 // TODO: create matrices with fixed size, decouple from global N
-constexpr std::size_t M = 32;
-constexpr std::size_t N = 32;
+constexpr std::size_t M = 256;
+constexpr std::size_t N = 256;
 
 class MatrixMulTest : public testing::Test
 {

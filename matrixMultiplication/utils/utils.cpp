@@ -18,10 +18,10 @@ Profiler::Profiler(std::string name)
 Profiler::~Profiler()
 {
     std::cout << "[Profiling] " << _name << ". Took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
+              << std::chrono::duration_cast<std::chrono::microseconds>(
                    std::chrono::high_resolution_clock::now() - _start)
                    .count()
-              << " ms" << std::endl;
+              << " us" << std::endl;
 }
 
 std::ostream& operator<<(std::ostream& os, std::vector<std::string> array)
