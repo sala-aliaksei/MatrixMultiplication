@@ -44,11 +44,12 @@ struct MulMatrixOnThread
         // TODO: block=1 is broken
         for (int i = start; i < last; i += block_size_i)
         {
-            for (int j = 0; j < j_size; j += block_size_j)
+
+            if constexpr (is_transposed)
             {
-                for (int k = 0; k < k_size; k += block_size_k)
+                for (int j = 0; j < j_size; j += block_size_j)
                 {
-                    if constexpr (is_transposed)
+                    for (int k = 0; k < k_size; k += block_size_k)
                     {
                         kernel_mul(&c[i * j_size + j],
                                    &a[i * k_size + k],
@@ -56,7 +57,13 @@ struct MulMatrixOnThread
                                    j_size,
                                    k_size);
                     }
-                    else
+                }
+            }
+            else
+            {
+                for (int k = 0; k < k_size; k += block_size_k)
+                {
+                    for (int j = 0; j < j_size; j += block_size_j)
                     {
                         kernel_mul(&c[i * j_size + j],
                                    &a[i * k_size + k],
