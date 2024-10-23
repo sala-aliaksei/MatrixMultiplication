@@ -13,7 +13,7 @@ constexpr std::size_t hardware_destructive_interference_size  = 64;
 #endif
 
 // Align data to 32 bytes
-constexpr size_t ALIGN_SIZE = hardware_destructive_interference_size; // 32;
+constexpr size_t ALIGN_SIZE = hardware_destructive_interference_size;
 
 template<typename T>
 using aligned_vector = std::vector<T, boost::alignment::aligned_allocator<T, ALIGN_SIZE>>;

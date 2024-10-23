@@ -14,8 +14,8 @@ MatrixEigenSet initEigenMatrix(std::size_t rows, std::size_t cols)
     {
         for (int j = 0; j < cols; ++j)
         {
-            ms.a(i, j) = i;
-            ms.b(i, j) = j;
+            ms.a(i, j) = i + j;
+            ms.b(i, j) = j - i;
             ms.c(i, j) = 0;
         }
     }

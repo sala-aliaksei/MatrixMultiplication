@@ -17,8 +17,8 @@ MatrixSet initMatrix(int n, int m)
     {
         for (auto j = 0; j < col_cnt; ++j)
         {
-            set.a[i * col_cnt + j] = i;
-            set.b[i * col_cnt + j] = j;
+            set.a[i * col_cnt + j] = i + j;
+            set.b[i * col_cnt + j] = j - i;
         }
     }
     return set;
