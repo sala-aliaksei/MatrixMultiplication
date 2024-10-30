@@ -8,15 +8,6 @@
 template<bool is_transposed>
 struct MulMatrixOnThread
 {
-
-    std::size_t _num_threads;
-
-    MulMatrixOnThread(std::size_t num_threads)
-      : _num_threads(num_threads)
-
-    {
-    }
-
     template<typename T, typename Kernel>
     void run(Matrix<T>&       cc,
              const Matrix<T>& aa,
@@ -24,6 +15,8 @@ struct MulMatrixOnThread
              std::size_t      thread_num,
              Kernel&&         kernel_mul) const
     {
+        std::size_t num_threads = std::thread::hardware_concurrency();
+
         double*       c = cc.data();
         const double* b = bb.data();
         const double* a = aa.data();
@@ -32,19 +25,14 @@ struct MulMatrixOnThread
         auto k_size = aa.col();
         auto j_size = bb.col();
 
-        std::size_t step  = i_size / _num_threads;
-        std::size_t start = thread_num * step;
-        std::size_t last  = thread_num == (_num_threads - 1) ? i_size : (thread_num + 1) * step;
-
-        // block_size must be constant, significantly impact on performance
-        // 256 bit, 64bit*8_block = 512
-
-        // TODO: Check if compiler inline kernels
         // TODO : add tail computation
         // TODO: block=1 is broken
-        for (int i = start; i < last; i += block_size_i)
-        {
 
+        auto block_inc = block_size_i * num_threads;
+
+        int i = block_size_i * thread_num;
+        for (; i < i_size; i += block_inc)
+        {
             if constexpr (is_transposed)
             {
                 for (int j = 0; j < j_size; j += block_size_j)
@@ -79,10 +67,10 @@ struct MulMatrixOnThread
 
 struct MatrixMulConfig
 {
-    std::size_t num_threads; // get from runtime
-    std::size_t block_size;  // TODO: change to bool
-    bool        transpose_matrix;
-    bool        manual_vectorization;
+    bool enable_par_opt;
+    bool enable_block_opt;
+    bool transpose_matrix;
+    bool enable_vectorization;
 };
 
 struct DynamicMatrixMul
@@ -96,7 +84,6 @@ struct DynamicMatrixMul
     template<typename T = double>
     void operator()(Matrix<T>& a, Matrix<T>& b, Matrix<T>& c) const
     {
-        std::size_t              step = a.row() / _cfg.num_threads;
         std::optional<Matrix<T>> transposed;
         if (_cfg.transpose_matrix)
         {
@@ -105,15 +92,18 @@ struct DynamicMatrixMul
 
         auto& bb = _cfg.transpose_matrix ? *transposed : b;
 
-        std::vector<std::future<void>> fret(_cfg.num_threads);
+        // TODO: Use enable_par_opt
+        std::size_t num_threads = std::thread::hardware_concurrency();
+
+        std::vector<std::future<void>> fret(num_threads);
 
         auto exec = [&](const std::size_t tid, const std::launch policy)
         {
-            if (_cfg.block_size != 1 && _cfg.manual_vectorization)
+            if (_cfg.enable_block_opt && _cfg.enable_vectorization)
             {
                 if (_cfg.transpose_matrix)
                 {
-                    MulMatrixOnThread<true> mt(_cfg.num_threads);
+                    MulMatrixOnThread<true> mt;
 
                     fret[tid] =
                       std::async(policy,
@@ -122,7 +112,7 @@ struct DynamicMatrixMul
                 }
                 else
                 {
-                    MulMatrixOnThread<false> mt(_cfg.num_threads);
+                    MulMatrixOnThread<false> mt;
 
                     fret[tid] =
                       std::async(policy,
@@ -130,11 +120,11 @@ struct DynamicMatrixMul
                                  { mt.run(c, a, bb, tid, kernels::kernelMulMatrix_VT_BL); });
                 }
             }
-            else // vectorization isn't possible for block_size == 1
+            else // vectorization isn't possible without block optimization
             {
                 if (_cfg.transpose_matrix)
                 {
-                    MulMatrixOnThread<true> mt(_cfg.num_threads);
+                    MulMatrixOnThread<true> mt;
 
                     fret[tid] =
                       std::async(policy,
@@ -143,7 +133,7 @@ struct DynamicMatrixMul
                 }
                 else
                 {
-                    MulMatrixOnThread<false> mt(_cfg.num_threads);
+                    MulMatrixOnThread<false> mt;
 
                     fret[tid] =
                       std::async(policy,

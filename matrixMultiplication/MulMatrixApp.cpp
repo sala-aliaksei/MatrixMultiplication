@@ -8,17 +8,19 @@ int main()
 {
     try
     {
-        constexpr std::size_t M        = 8 * 4 * 256;
-        constexpr std::size_t N        = 8 * 4 * 256;
-        auto                  matrices = initMatrix(N, M);
+        constexpr std::size_t I = 768;
+        constexpr std::size_t J = 768;
+        constexpr std::size_t K = 768;
+
+        auto matrices = initMatrix(I, J, K);
 
         // TODO: Select algorithm by analyzing cmdline args
-        auto block_size           = 8u;
-        bool transpose_matrix     = true;
+        auto enable_block_opt     = true;
+        bool transpose_matrix     = false;
         bool manual_vectorization = true;
 
-        DynamicMatrixMul mul(MatrixMulConfig{
-          std::thread::hardware_concurrency(), block_size, transpose_matrix, manual_vectorization});
+        DynamicMatrixMul mul(
+          MatrixMulConfig{true, enable_block_opt, transpose_matrix, manual_vectorization});
 
         mul(matrices.a, matrices.b, matrices.c);
 

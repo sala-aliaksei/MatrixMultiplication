@@ -1,10 +1,12 @@
 
 #include "matrixMultiplication/matrix/kernels.hpp"
+#include <math.h>
 
 #include <immintrin.h>
 #include <array>
 #include <stdexcept>
 
+#include <iostream>
 /*****************     KERNELS     *******************/
 namespace kernels
 {
@@ -12,44 +14,131 @@ namespace kernels
 // KERNEL4x12_I
 // 12 - y reg cnt,  block_size_j = 48 -> 48/4=12
 
+template<int M, int N>
+std::array<double, M * N> packMatrix(const double* b, int col)
+{
+    int idx = 0;
+
+    std::array<double, M * N> b_packed;
+    for (int k = 0; k < M; k++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            b_packed[idx++] = b[k * col + j];
+        }
+    }
+    return b_packed;
+}
+
+void matmul_NV(double* __restrict c,
+               const double* __restrict a,
+               const double* __restrict mb,
+               const std::size_t i_size,
+               const std::size_t j_size,
+               const std::size_t k_size)
+{
+    //
+    const double* b = mb;
+    for (int i2 = 0; i2 < i_size; ++i2, c += j_size, a += k_size)
+    {
+        b = mb;
+        for (int k2 = 0; k2 < k_size; ++k2, b += j_size)
+        {
+            for (int j2 = 0; j2 < j_size; ++j2)
+            {
+                c[j2] += a[k2] * b[j2];
+            }
+        }
+    }
+}
+
+void matmul_TP_NV(double* __restrict c,
+                  const double* __restrict a,
+                  const double* __restrict mb,
+                  const std::size_t i_size,
+                  const std::size_t j_size,
+                  const std::size_t k_size)
+{
+    const double* b = mb;
+    for (int i2 = 0; i2 < i_size; ++i2, c += j_size, a += k_size)
+    {
+        b = mb;
+        for (int j2 = 0; j2 < j_size; ++j2)
+        {
+            for (int k2 = 0; k2 < k_size; ++k2, b += k_size)
+            {
+                c[j2] += a[k2] * b[k2];
+            }
+        }
+    }
+}
+
+void kernelMulMatrix_BL_NV(double* __restrict c,
+                           const double* __restrict a,
+                           const double* __restrict mb,
+                           const std::size_t j_size,
+                           const std::size_t k_size)
+{
+    const double* b = mb;
+    for (int i2 = 0; i2 < block_size_i; ++i2, c += j_size, a += k_size)
+    {
+        b = mb;
+        for (int k2 = 0; k2 < block_size_k; ++k2, b += j_size)
+        {
+            for (int j2 = 0; j2 < block_size_j; ++j2)
+            {
+                c[j2] = std::fma(a[k2], b[j2], c[j2]);
+                // c[j2] += a[k2] * b[j2];
+            }
+        }
+    }
+}
+
 // reach openblas perf
 // add tail calculation
 // add usage of x register if block size is less than 256bit
 template<int block_size_i, int block_size_j, int block_size_k>
-void mulMatrix_x(double*           c,
-                 const double*     a,
-                 const double*     mb,
-                 const std::size_t j_size,
-                 const std::size_t k_size)
+static void mulMatrix_x(double* __restrict c,
+                        const double* __restrict ma,
+                        const double* __restrict mb,
+                        const std::size_t j_size,
+                        const std::size_t k_size)
 {
-    //    size_t i_max = std::min(ii + block_size, end_row);
-    //    size_t j_max = std::min(jj + block_size, C.col());
-    //    size_t k_max = std::min(kk + block_size, A.col());
+    //    size_t i_max = std::min(ii + BLOCK_SIZE, end_row);
+    //    size_t j_max = std::min(jj + BLOCK_SIZE, C.col());
+    //    size_t k_max = std::min(kk + BLOCK_SIZE, A.col());
 
-    const double* b = mb;
-    for (int i2 = 0; i2 < block_size_i; ++i2, c += j_size, a += j_size)
+    // block_J - amount of b,c registers
+    // block_K - amount of b registers
+    // amount of y registers - 16
+
+    constexpr int doubles_in_jblock{block_size_j / 4};
+
+    const auto packed_a = packMatrix<block_size_i, block_size_k>(ma, k_size);
+    const auto packed_b = packMatrix<block_size_k, block_size_j>(mb, j_size);
+
+    const double* a = packed_a.data();
+    const double* b = packed_b.data();
+
+    for (int i2 = 0; i2 < block_size_i; ++i2, c += j_size, a += block_size_k)
     {
-        b = mb;
-        // ukernel(c, a, b, j_size, k_size);
+        b = packed_b.data();
 
-        std::array<__m256d, block_size_j / 4> res;
-        std::array<__m256d, block_size_j / 4> breg;
-
+        std::array<__m256d, doubles_in_jblock> res;
         for (int j2 = 0, idx = 0; j2 < block_size_j; j2 += 4, ++idx)
         {
-            res[idx]  = _mm256_loadu_pd(&c[j2]);
-            breg[idx] = _mm256_loadu_pd(&b[j2]);
+            res[idx] = _mm256_loadu_pd(&c[j2]);
         }
 
-        _mm_prefetch(&a[64 / sizeof(double)], _MM_HINT_NTA); // prefetch next cache line
+        //_mm_prefetch(&a[8], _MM_HINT_NTA); // prefetch next cache line
 
-        for (int k2 = 0; k2 < block_size_k; ++k2, b += k_size)
+        for (int k2 = 0; k2 < block_size_k; ++k2, b += block_size_j)
         {
             __m256d areg = _mm256_broadcast_sd(&a[k2]);
 
             for (int j2 = 0, idx = 0; j2 < block_size_j; j2 += 4, ++idx)
             {
-                res[idx] = _mm256_fmadd_pd(areg, breg[idx], res[idx]);
+                res[idx] = _mm256_fmadd_pd(areg, _mm256_loadu_pd(&b[j2]), res[idx]);
             }
         }
 
@@ -102,78 +191,14 @@ void mulMatrix_256VL_BL_v2(double*           c,
     }
 }
 
-static void mulMatrix_256VL_BL(double*           c,
-                               const double*     a,
-                               const double*     mb,
+static void mulMatrix_256VL_BL(double* __restrict c,
+                               const double* __restrict a,
+                               const double* __restrict mb,
                                const std::size_t j_size,
                                const std::size_t k_size)
 {
-    // kernel must be inlined, block can be arg?
-    // const std::size_t block_size = 4;
-    // analyze data dependencies
-
+    // kernelMulMatrix_BL_NV(c, a, mb, j_size, k_size);
     mulMatrix_x<block_size_i, block_size_j, block_size_k>(c, a, mb, j_size, k_size);
-
-    //    if (block_size == 8)
-    //    {
-    //        mulMatrix_x<8, 8, 8>(c, a, mb, j_size, k_size);
-    //    }
-    //    else if (block_size == 16)
-    //    {
-    //        mulMatrix_x<16, 16, 16>(c, a, mb, j_size, k_size);
-    //    }
-    //    else if (block_size == 24)
-    //    {
-    //        mulMatrix_x<24, 24, 24>(c, a, mb, j_size, k_size);
-    //    }
-    //    else if (block_size == 32)
-    //    {
-    //        mulMatrix_x<32, 32, 32>(c, a, mb, j_size, k_size);
-    //    }
-    //    else if (block_size == 64)
-    //    {
-    //        mulMatrix_x<64, 64, 64>(c, a, mb, j_size, k_size);
-    //    }
-    //    else
-    //    {
-    //        throw std::runtime_error("Unsupported block size");
-    //    }
-
-    //    const double* b = mb;
-    //    for (int i2 = 0; i2 < block_size; ++i2, c += j_size, a += j_size)
-    //    {
-    //        b = mb;
-
-    //        for (int k2 = 0; k2 < block_size; ++k2, b += k_size)
-    //        {
-    //            __m256d m1d = _mm256_broadcast_sd(&a[k2]);
-
-    //            for (int j2 = 0; j2 < block_size; j2 += 4)
-    //            {
-    //                __m256d b_reg = _mm256_loadu_pd(&b[j2]);
-    //                __m256d c_reg = _mm256_loadu_pd(&c[j2]);
-    //                c_reg         = _mm256_add_pd(c_reg, _mm256_mul_pd(b_reg, m1d));
-    //                _mm256_storeu_pd(&c[j2], c_reg);
-    //            }
-    //        }
-    //    }
-}
-
-void kernelMulMatrix_BL_NV(double*           res,
-                           const double*     mul1,
-                           const double*     mul2,
-                           const std::size_t j_size,
-                           const std::size_t k_size)
-{
-    const double *a, *b;
-
-    int i2{}, k2{}, j2{};
-
-    double* r;
-    for (i2 = 0, r = res, a = mul1; i2 < block_size_i; ++i2, r += j_size, a += j_size)
-        for (k2 = 0, b = mul2; k2 < block_size_k; ++k2, b += k_size)
-            for (j2 = 0; j2 < block_size_j; ++j2)
-                r[j2] += a[k2] * b[j2];
 }
 
 void kernelMulMatrix_TP_BL_NV(double*           r,
@@ -282,10 +307,10 @@ void kernelMulMatrix_VT_BL(double*           c,
 #elif __SSE2__
     mulMatrix_128VL_BL(c, a, b, j_size, k_size);
 #else
-#error "Manual vectorization is not supported for current cpu!"
+#error "Vectorization is not implemented for current cpu arch!"
 #endif
 #elif defined(__ARM_ARCH)
-#error "Manual vectorization is not supported for ARM arch!"
+#error "Manual vectorization is not implemented for ARM arch!"
 #endif
 }
 

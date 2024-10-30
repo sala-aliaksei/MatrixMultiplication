@@ -15,12 +15,12 @@ void matrixMulOpenBlas_TP(MatrixSet& ms)
                 ms.a.col(),
                 1.0,
                 ms.a.data(),
-                ms.a.row(),
+                ms.a.col(),
                 ms.b.data(),
-                ms.b.row(),
+                ms.b.col(),
                 1.0,
                 ms.c.data(),
-                ms.c.row());
+                ms.c.col());
 }
 
 void matrixMulOpenBlas(MatrixSet& ms)
@@ -33,10 +33,10 @@ void matrixMulOpenBlas(MatrixSet& ms)
                 ms.a.col(),
                 1.0,
                 ms.a.data(),
-                ms.a.row(),
+                ms.a.col(),
                 ms.b.data(),
-                ms.b.row(),
+                ms.b.col(),
                 1.0,
                 ms.c.data(),
-                ms.c.row());
+                ms.c.col());
 }

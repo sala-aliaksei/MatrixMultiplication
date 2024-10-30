@@ -1,22 +1,28 @@
 #include "MatrixMulEigen.hpp"
 #include "Matrix.hpp"
 
-MatrixEigenSet initEigenMatrix(std::size_t rows, std::size_t cols)
+MatrixEigenSet initEigenMatrix(std::size_t isize, std::size_t jsize, std::size_t ksize)
 {
     MatrixEigenSet ms;
 
-    ms.a = Eigen::MatrixXd(rows, cols);
-    ms.b = Eigen::MatrixXd(rows, cols);
-    ms.c = Eigen::MatrixXd(rows, cols);
+    ms.a = Eigen::MatrixXd(isize, ksize);
+    ms.b = Eigen::MatrixXd(ksize, jsize);
+    ms.c = Eigen::MatrixXd(isize, jsize);
 
     // Populate the matrix using two for loops
-    for (int i = 0; i < rows; ++i)
+    for (int i = 0; i < isize; ++i)
     {
-        for (int j = 0; j < cols; ++j)
+        for (int j = 0; j < ksize; ++j)
         {
             ms.a(i, j) = i + j;
+        }
+    }
+
+    for (int i = 0; i < ksize; ++i)
+    {
+        for (int j = 0; j < jsize; ++j)
+        {
             ms.b(i, j) = j - i;
-            ms.c(i, j) = 0;
         }
     }
     return ms;

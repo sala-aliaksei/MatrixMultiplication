@@ -9,14 +9,28 @@
 constexpr std::size_t ITER_NUM  = 1;
 benchmark::TimeUnit   TIME_UNIT = benchmark::kMillisecond;
 
-// TODO: Pass runtimer args: num_of_thread, block_size, etc...
 // Provide matrix size to benchmarks
-constexpr std::size_t M = 256; // * 8 * 4;
-constexpr std::size_t N = 256; // * 8 * 4;
+constexpr std::size_t M = 768 * 4; // 256 * 8; // * 8 * 4; //* 8 * 4 * 2;
+constexpr std::size_t N = 768 * 4; // 256 * 8; // * 8 * 4; //* 8 * 4 * 2;
+constexpr std::size_t K = 768 * 4;
+
+//---------------------------------------------------------------------
+// Benchmark                           Time             CPU   Iterations
+//---------------------------------------------------------------------
+// BM_MatrixMulParam_MT_VT_BL        658 ms          638 ms            1
+// BM_MatrixMulOpenBLAS              409 ms          407 ms            2
+
+// When work only one thread (matmul was broken)
+// constexpr std::size_t M = 768 * 4;
+// constexpr std::size_t N = 768 * 4;
+// Benchmark                           Time             CPU   Iterations
+//---------------------------------------------------------------------
+// BM_MatrixMulParam_MT_VT_BL        556 ms          552 ms            1
+// BM_MatrixMulOpenBLAS              407 ms          404 ms            2
 
 static void BM_MatrixMulOpenBLAS_TP(benchmark::State& state)
 {
-    auto set = initMatrix(N, M);
+    auto set = initMatrix(M, N, K);
     for (auto _ : state)
     {
         matrixMulOpenBlas_TP(set);
@@ -25,7 +39,7 @@ static void BM_MatrixMulOpenBLAS_TP(benchmark::State& state)
 
 static void BM_MatrixMulOpenBLAS(benchmark::State& state)
 {
-    auto set = initMatrix(N, M);
+    auto set = initMatrix(M, N, K);
     for (auto _ : state)
     {
         matrixMulOpenBlas(set);
@@ -34,8 +48,8 @@ static void BM_MatrixMulOpenBLAS(benchmark::State& state)
 
 static void BM_MatrixMulParam_MT_VT_BL(benchmark::State& state)
 {
-    auto             matrices = initMatrix(N, M);
-    DynamicMatrixMul mul(MatrixMulConfig{std::thread::hardware_concurrency(), 8, false, true});
+    auto             matrices = initMatrix(M, N, K);
+    DynamicMatrixMul mul(MatrixMulConfig{true, true, false, true});
 
     for (auto _ : state)
     {
@@ -45,8 +59,8 @@ static void BM_MatrixMulParam_MT_VT_BL(benchmark::State& state)
 
 static void BM_MatrixMulParam_MT_VT_BL_TP(benchmark::State& state)
 {
-    auto             matrices = initMatrix(N, M);
-    DynamicMatrixMul mul(MatrixMulConfig{std::thread::hardware_concurrency(), 8, true, true});
+    auto             matrices = initMatrix(M, N, K);
+    DynamicMatrixMul mul(MatrixMulConfig{true, true, true, true});
 
     for (auto _ : state)
     {
@@ -56,8 +70,19 @@ static void BM_MatrixMulParam_MT_VT_BL_TP(benchmark::State& state)
 
 static void BM_MatrixMulParam_Naive(benchmark::State& state)
 {
-    auto             matrices = initMatrix(N, M);
-    DynamicMatrixMul mul(MatrixMulConfig{1, 1, false, false});
+    auto             matrices = initMatrix(M, N, K);
+    DynamicMatrixMul mul(MatrixMulConfig{false, false, false, false});
+
+    for (auto _ : state)
+    {
+        mul(matrices.a, matrices.b, matrices.c);
+    }
+}
+
+static void BM_MatrixMulParam_Naive_MT(benchmark::State& state)
+{
+    auto             matrices = initMatrix(M, N, K);
+    DynamicMatrixMul mul(MatrixMulConfig{true, false, false, false});
 
     for (auto _ : state)
     {
@@ -67,8 +92,8 @@ static void BM_MatrixMulParam_Naive(benchmark::State& state)
 
 static void BM_MatrixMulParam_Naive_TP(benchmark::State& state)
 {
-    auto             matrices = initMatrix(N, M);
-    DynamicMatrixMul mul(MatrixMulConfig{1, 1, true, false});
+    auto             matrices = initMatrix(M, N, K);
+    DynamicMatrixMul mul(MatrixMulConfig{false, false, true, false});
 
     for (auto _ : state)
     {
@@ -78,7 +103,7 @@ static void BM_MatrixMulParam_Naive_TP(benchmark::State& state)
 
 static void BM_MatrixMulParam_GPT(benchmark::State& state)
 {
-    auto matrices = initMatrix(N, M);
+    auto matrices = initMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -88,7 +113,7 @@ static void BM_MatrixMulParam_GPT(benchmark::State& state)
 
 static void BM_MatrixMulParam_GPT_v2(benchmark::State& state)
 {
-    auto matrices = initMatrix(N, M);
+    auto matrices = initMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -98,7 +123,7 @@ static void BM_MatrixMulParam_GPT_v2(benchmark::State& state)
 
 static void BM_MatrixMulParam_Eigen(benchmark::State& state)
 {
-    auto matrices = initEigenMatrix(N, M);
+    auto matrices = initEigenMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -109,20 +134,23 @@ static void BM_MatrixMulParam_Eigen(benchmark::State& state)
 //////////////////////////////////////////////////////////////////////////////
 
 //// Naive
+#ifdef ENABLE_TEST_NAIVE
 BENCHMARK(BM_MatrixMulParam_Naive);
 BENCHMARK(BM_MatrixMulParam_Naive_TP);
+BENCHMARK(BM_MatrixMulParam_Naive_MT);
+#endif
 
 // Multithreads
 BENCHMARK(BM_MatrixMulParam_MT_VT_BL);
-BENCHMARK(BM_MatrixMulParam_MT_VT_BL_TP);
+// BENCHMARK(BM_MatrixMulParam_MT_VT_BL_TP);
 
 //// OpenBLAS
-BENCHMARK(BM_MatrixMulOpenBLAS_TP);
+// BENCHMARK(BM_MatrixMulOpenBLAS_TP);
 BENCHMARK(BM_MatrixMulOpenBLAS);
 
 // Others
-BENCHMARK(BM_MatrixMulParam_GPT);
-BENCHMARK(BM_MatrixMulParam_Eigen);
+// BENCHMARK(BM_MatrixMulParam_GPT);
+// BENCHMARK(BM_MatrixMulParam_Eigen);
 
 // TODO:
 // Single threaded

@@ -6,20 +6,28 @@ bool operator==(const MatrixSet& s1, const MatrixSet& s2)
 }
 
 // TODO: What if we have matrix<float>?
-MatrixSet initMatrix(int n, int m)
+// we need i,j,k for matrix init
+MatrixSet initMatrix(int isize, int jsize, int ksize)
 {
-    MatrixSet set{.a = Matrix<double>(n, m), .b = Matrix<double>(n, m), .c = Matrix<double>(n, m)};
+    MatrixSet set{.a = Matrix<double>(isize, ksize),
+                  .b = Matrix<double>(ksize, jsize),
+                  .c = Matrix<double>(isize, jsize)};
 
-    auto row_cnt = set.a.row();
-    auto col_cnt = set.a.col();
-
-    for (auto i = 0; i < row_cnt; ++i)
+    for (auto i = 0; i < set.a.row(); ++i)
     {
-        for (auto j = 0; j < col_cnt; ++j)
+        for (auto j = 0; j < set.a.col(); ++j)
         {
-            set.a[i * col_cnt + j] = i + j;
-            set.b[i * col_cnt + j] = j - i;
+            set.a[i * set.a.col() + j] = i + j;
         }
     }
+
+    for (auto i = 0; i < set.b.row(); ++i)
+    {
+        for (auto j = 0; j < set.b.col(); ++j)
+        {
+            set.b[i * set.b.col() + j] = j - i;
+        }
+    }
+
     return set;
 }

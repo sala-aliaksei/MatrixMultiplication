@@ -5,20 +5,22 @@
 
 #include <gtest/gtest.h>
 
-// TODO: create matrices with fixed size, decouple from global N
-constexpr std::size_t M = 256;
-constexpr std::size_t N = 256;
+// TODO: add ability to init matrices from cmdline
+
+constexpr std::size_t I = 768;
+constexpr std::size_t J = 768;
+constexpr std::size_t K = 768;
 
 class MatrixMulTest : public testing::Test
 {
   protected:
     MatrixMulTest()
-      : matrices(initMatrix(N, M))
+      : matrices(initMatrix(I, J, K))
     {
         // You can do set-up work for each test here.
         matrixMulOpenBlas(matrices);
         valid_res  = std::move(matrices.c);
-        matrices.c = Matrix<double>(N, M);
+        matrices.c = Matrix<double>(I, J);
     }
 
     ~MatrixMulTest() override
@@ -44,7 +46,7 @@ class MatrixMulTest : public testing::Test
 
 TEST_F(MatrixMulTest, MT_VT_BL)
 {
-    DynamicMatrixMul mul(MatrixMulConfig{std::thread::hardware_concurrency(), 8, false, true});
+    DynamicMatrixMul mul(MatrixMulConfig{true, true, false, true});
     mul(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
@@ -52,7 +54,7 @@ TEST_F(MatrixMulTest, MT_VT_BL)
 
 TEST_F(MatrixMulTest, MT_VT_BL_TP)
 {
-    DynamicMatrixMul mul(MatrixMulConfig{std::thread::hardware_concurrency(), 8, true, true});
+    DynamicMatrixMul mul(MatrixMulConfig{true, true, true, true});
     mul(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
@@ -60,7 +62,7 @@ TEST_F(MatrixMulTest, MT_VT_BL_TP)
 
 TEST_F(MatrixMulTest, Naive_TP)
 {
-    DynamicMatrixMul mul(MatrixMulConfig{1, 1, true, false});
+    DynamicMatrixMul mul(MatrixMulConfig{false, false, true, false});
     mul(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
@@ -68,7 +70,7 @@ TEST_F(MatrixMulTest, Naive_TP)
 
 TEST_F(MatrixMulTest, Naive)
 {
-    DynamicMatrixMul mul(MatrixMulConfig{1, 1, false, false});
+    DynamicMatrixMul mul(MatrixMulConfig{false, false, false, false});
     mul(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
@@ -82,7 +84,7 @@ TEST_F(MatrixMulTest, GPT)
 
 TEST_F(MatrixMulTest, Eigen)
 {
-    auto ms = initEigenMatrix(N, M);
+    auto ms = initEigenMatrix(I, J, K);
 
     matrixMulEigen(ms);
 

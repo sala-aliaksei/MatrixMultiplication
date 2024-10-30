@@ -160,7 +160,7 @@ struct MatrixSet
     Matrix<value_type> c;
 };
 
-MatrixSet initMatrix(int n, int m);
+MatrixSet initMatrix(int i, int j, int k);
 
 template<typename Stream>
 Stream& operator<<(Stream& os, MatrixSet& s1)
