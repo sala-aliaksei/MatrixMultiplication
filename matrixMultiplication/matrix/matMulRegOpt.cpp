@@ -115,8 +115,8 @@ void mulMatrix_y(double*           pc,
                 const double* ma = &pa[(i - i3) * CACHE_BLOCK + (k - k3)];
                 const double* b  = &pb[(k - k3) * CACHE_BLOCK + (j - j3)];
 
-                const auto b_cols = CACHE_BLOCK; // j_size;
-                const auto a_cols = CACHE_BLOCK; // k_size;
+                constexpr auto b_cols = CACHE_BLOCK; // j_size;
+                constexpr auto a_cols = CACHE_BLOCK; // k_size;
 
                 const double* a = ma;
 
