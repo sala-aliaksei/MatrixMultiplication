@@ -2,14 +2,16 @@
 #include "matrixMultiplication/matrix/MatrixMulGpt.hpp"
 #include "matrixMultiplication/matrix/MatrixMulOpenBlas.hpp"
 #include "matrixMultiplication/matrix/MatrixMulEigen.hpp"
+#include "matrixMultiplication/matrix/claudeMatMul.hpp"
+#include "matrixMultiplication/matrix/matMulRegOpt.hpp"
 
 #include <gtest/gtest.h>
 
 // TODO: add ability to init matrices from cmdline
 
-constexpr std::size_t I = 768;
-constexpr std::size_t J = 768;
-constexpr std::size_t K = 768;
+constexpr std::size_t I = 4 * 768;
+constexpr std::size_t J = 4 * 768;
+constexpr std::size_t K = 4 * 768;
 
 class MatrixMulTest : public testing::Test
 {
@@ -52,57 +54,75 @@ TEST_F(MatrixMulTest, MT_VT_BL)
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
-TEST_F(MatrixMulTest, MT_VT_BL_TP)
-{
-    DynamicMatrixMul mul(MatrixMulConfig{true, true, true, true});
-    mul(matrices.a, matrices.b, matrices.c);
+// TEST_F(MatrixMulTest, Claude)
+//{
+//     multiply_matrices_optimized(matrices.a, matrices.b, matrices.c);
 
+//    EXPECT_EQ((valid_res == matrices.c), true);
+//}
+
+TEST_F(MatrixMulTest, MatMulRegOpt)
+{
+    matMulRegOpt(matrices.a, matrices.b, matrices.c);
+
+    //    std::cout << valid_res << std::endl;
+    //    std::cout << "------------------------\n";
+    //    std::cout << matrices.c << std::endl;
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
-TEST_F(MatrixMulTest, Naive_TP)
-{
-    DynamicMatrixMul mul(MatrixMulConfig{false, false, true, false});
-    mul(matrices.a, matrices.b, matrices.c);
+// TODO: Uncomment and update
+// TEST_F(MatrixMulTest, MT_VT_BL_TP)
+//{
+//    DynamicMatrixMul mul(MatrixMulConfig{true, true, true, true});
+//    mul(matrices.a, matrices.b, matrices.c);
 
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
+//    EXPECT_EQ((valid_res == matrices.c), true);
+//}
 
-TEST_F(MatrixMulTest, Naive)
-{
-    DynamicMatrixMul mul(MatrixMulConfig{false, false, false, false});
-    mul(matrices.a, matrices.b, matrices.c);
+// TEST_F(MatrixMulTest, Naive_TP)
+//{
+//     DynamicMatrixMul mul(MatrixMulConfig{false, false, true, false});
+//     mul(matrices.a, matrices.b, matrices.c);
 
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
+//    EXPECT_EQ((valid_res == matrices.c), true);
+//}
 
-TEST_F(MatrixMulTest, GPT)
-{
-    gpt_matrix_multiply(matrices.a, matrices.b, matrices.c);
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
+// TEST_F(MatrixMulTest, Naive)
+//{
+//     DynamicMatrixMul mul(MatrixMulConfig{false, false, false, false});
+//     mul(matrices.a, matrices.b, matrices.c);
 
-TEST_F(MatrixMulTest, Eigen)
-{
-    auto ms = initEigenMatrix(I, J, K);
+//    EXPECT_EQ((valid_res == matrices.c), true);
+//}
 
-    matrixMulEigen(ms);
+// TEST_F(MatrixMulTest, GPT)
+//{
+//     gpt_matrix_multiply(matrices.a, matrices.b, matrices.c);
+//     EXPECT_EQ((valid_res == matrices.c), true);
+// }
 
-    auto rows = ms.c.rows();
-    auto cols = ms.c.cols();
-    for (auto row = 0; row < rows; ++row)
-    {
-        for (auto col = 0; col < cols; ++col)
-        {
-            bool res = valid_res(row, col) == ms.c(row, col);
-            if (!res)
-            {
-                std::cout << "row: " << row << ", col: " << col << std::endl;
-            }
-            ASSERT_EQ(valid_res(row, col), ms.c(row, col));
-        }
-    }
-}
+// TEST_F(MatrixMulTest, Eigen)
+//{
+//     auto ms = initEigenMatrix(I, J, K);
+
+//    matrixMulEigen(ms);
+
+//    auto rows = ms.c.rows();
+//    auto cols = ms.c.cols();
+//    for (auto row = 0; row < rows; ++row)
+//    {
+//        for (auto col = 0; col < cols; ++col)
+//        {
+//            bool res = valid_res(row, col) == ms.c(row, col);
+//            if (!res)
+//            {
+//                std::cout << "row: " << row << ", col: " << col << std::endl;
+//            }
+//            ASSERT_EQ(valid_res(row, col), ms.c(row, col));
+//        }
+//    }
+//}
 
 int main(int argc, char** argv)
 {

@@ -15,6 +15,7 @@ struct MulMatrixOnThread
              std::size_t      thread_num,
              Kernel&&         kernel_mul) const
     {
+        // must use the same var as DynamicMatrixMul when create threads
         std::size_t num_threads = std::thread::hardware_concurrency();
 
         double*       c = cc.data();
@@ -56,13 +57,20 @@ struct MulMatrixOnThread
                         kernel_mul(&c[i * j_size + j],
                                    &a[i * k_size + k],
                                    &b[k * j_size + j],
+                                   i_size,
                                    j_size,
-                                   k_size);
+                                   k_size,
+                                   i,
+                                   j,
+                                   k);
                     }
+                    // add tail computation for jtail, j loop
                 }
+                // add tail computation for ktail, k,j loop.  still block opt can be applied
             }
         }
     }
+    // add tail computation for itail, i,k,j loop. still block opt can be applied
 };
 
 struct MatrixMulConfig

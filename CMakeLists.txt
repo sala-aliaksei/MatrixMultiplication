@@ -23,8 +23,8 @@ set(CMAKE_C_STANDARD 11)
 #-fsanitize=undefined
 # -g
 # -fsave-optimization-record
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -flto -O3   -march=native -masm=intel")
-set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -O3  -g -march=native -masm=intel")
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -flto -O3  -ffast-math -march=haswell -masm=intel") #-O3
+set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -O3   -march=haswell -masm=intel")
 #set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} --no-relax")
 
 message(INFO "CMAKE_CURRENT_SOURCE_DIR : ${CMAKE_CURRENT_SOURCE_DIR}")
@@ -55,6 +55,12 @@ add_library(matrix_c
 add_library(${PROJECT_NAME}
     STATIC # speedup mine, slow down openBlas?
     #SHARED
+    matrixMultiplication/matrix/matMulRegOpt.hpp
+    matrixMultiplication/matrix/matMulRegOpt.cpp
+    matrixMultiplication/matrix/claudeMatMul.cpp
+    matrixMultiplication/matrix/claudeMatMul.hpp
+    matrixMultiplication/matrix/disasm.cpp
+    matrixMultiplication/matrix/disasm.hpp
     matrixMultiplication/matrix/MatrixMulEigen.cpp
     matrixMultiplication/matrix/MatrixMulEigen.hpp
     matrixMultiplication/matrix/MatrixMulOpenBlas.hpp
@@ -85,6 +91,7 @@ target_link_libraries(${PROJECT_NAME} # PRIVATE
     Eigen3::Eigen
     #tensorflow::tensorflowlite
     #std::linalg
+    #Boost::thread Boost::system
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC -DPROJECT_VERSION="${PROJECT_VERSION}")

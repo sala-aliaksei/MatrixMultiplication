@@ -2,7 +2,11 @@
 #include "matrixMultiplication/matrix/MatrixMulGpt.hpp"
 #include "matrixMultiplication/matrix/MatrixMulOpenBlas.hpp"
 #include "matrixMultiplication/matrix/MatrixMulEigen.hpp"
+#include "matrixMultiplication/matrix/claudeMatMul.hpp"
+#include "matrixMultiplication/matrix/matMulRegOpt.hpp"
 #include "matrixMultiplication/matrix/cmatrix.h"
+
+#include "matrix/disasm.hpp"
 
 #include <benchmark/benchmark.h>
 
@@ -131,6 +135,35 @@ static void BM_MatrixMulParam_Eigen(benchmark::State& state)
     }
 }
 
+static void BM_MatMul_Skylake(benchmark::State& state)
+{
+    auto matrices = initMatrix(M, N, K);
+
+    for (auto _ : state)
+    {
+        blasMatMul(M, N, K, 1.0, matrices.a.data(), matrices.b.data(), matrices.c.data(), N);
+    }
+}
+
+static void BM_MatMulClaude(benchmark::State& state)
+{
+    auto matrices = initMatrix(M, N, K);
+
+    for (auto _ : state)
+    {
+        multiply_matrices_optimized(matrices.a, matrices.b, matrices.c);
+    }
+}
+
+static void BM_MatMulRegOpt(benchmark::State& state)
+{
+    auto matrices = initMatrix(M, N, K);
+
+    for (auto _ : state)
+    {
+        matMulRegOpt(matrices.a, matrices.b, matrices.c);
+    }
+}
 //////////////////////////////////////////////////////////////////////////////
 
 //// Naive
@@ -142,13 +175,16 @@ BENCHMARK(BM_MatrixMulParam_Naive_MT);
 
 // Multithreads
 BENCHMARK(BM_MatrixMulParam_MT_VT_BL);
+BENCHMARK(BM_MatMulRegOpt);
 // BENCHMARK(BM_MatrixMulParam_MT_VT_BL_TP);
 
 //// OpenBLAS
 // BENCHMARK(BM_MatrixMulOpenBLAS_TP);
 BENCHMARK(BM_MatrixMulOpenBLAS);
+// BENCHMARK(BM_MatMul_Skylake);
 
 // Others
+// BENCHMARK(BM_MatMulClaude);
 // BENCHMARK(BM_MatrixMulParam_GPT);
 // BENCHMARK(BM_MatrixMulParam_Eigen);
 

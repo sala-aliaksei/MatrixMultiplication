@@ -8,19 +8,13 @@ int main()
 {
     try
     {
-        constexpr std::size_t I = 768;
-        constexpr std::size_t J = 768;
-        constexpr std::size_t K = 768;
+        constexpr std::size_t I = 768 * 4;
+        constexpr std::size_t J = 768 * 4;
+        constexpr std::size_t K = 768 * 4;
 
         auto matrices = initMatrix(I, J, K);
 
-        // TODO: Select algorithm by analyzing cmdline args
-        auto enable_block_opt     = true;
-        bool transpose_matrix     = false;
-        bool manual_vectorization = true;
-
-        DynamicMatrixMul mul(
-          MatrixMulConfig{true, enable_block_opt, transpose_matrix, manual_vectorization});
+        DynamicMatrixMul mul(MatrixMulConfig{true, true, false, true});
 
         mul(matrices.a, matrices.b, matrices.c);
 

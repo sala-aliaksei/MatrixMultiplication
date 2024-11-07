@@ -7,6 +7,10 @@
 #include <stdexcept>
 
 #include <iostream>
+
+// 1. thread coarsening
+// 2.
+
 /*****************     KERNELS     *******************/
 namespace kernels
 {
@@ -14,17 +18,39 @@ namespace kernels
 // KERNEL4x12_I
 // 12 - y reg cnt,  block_size_j = 48 -> 48/4=12
 
+// template<int M, int N>
+// std::array<double, M * N> packMatrix(const double* b, int col)
+//{
+//     int idx = 0;
+
+//    std::array<double, M * N> b_packed;
+//    for (int k = 0; k < M; k++)
+//    {
+//        for (int j = 0; j < N; j++)
+//        {
+//            b_packed[idx++] = b[k * col + j];
+//        }
+//    }
+//    return b_packed;
+//}
+
 template<int M, int N>
 std::array<double, M * N> packMatrix(const double* b, int col)
 {
     int idx = 0;
 
     std::array<double, M * N> b_packed;
-    for (int k = 0; k < M; k++)
+    for (int k = 0; k < M; k += block_size_k)
     {
-        for (int j = 0; j < N; j++)
+        for (int j = 0; j < N; j += block_size_j)
         {
-            b_packed[idx++] = b[k * col + j];
+            for (int k2 = 0; k2 < block_size_k; k2++)
+            {
+                for (int j2 = 0; j2 < block_size_j; j2++)
+                {
+                    b_packed[(k + k2) * N + j + j2] = b[(k + k2) * col + j + j2];
+                }
+            }
         }
     }
     return b_packed;
@@ -76,8 +102,12 @@ void matmul_TP_NV(double* __restrict c,
 void kernelMulMatrix_BL_NV(double* __restrict c,
                            const double* __restrict a,
                            const double* __restrict mb,
+                           const std::size_t i_size,
                            const std::size_t j_size,
-                           const std::size_t k_size)
+                           const std::size_t k_size,
+                           const std::size_t ii,
+                           const std::size_t jj,
+                           const std::size_t kk)
 {
     const double* b = mb;
     for (int i2 = 0; i2 < block_size_i; ++i2, c += j_size, a += k_size)
@@ -94,6 +124,18 @@ void kernelMulMatrix_BL_NV(double* __restrict c,
     }
 }
 
+static inline void load_inc_store_double(double* ptr, __m256d increment)
+{
+    // Load 4 double-precision values (256 bits) from memory into an AVX register
+    __m256d vector = _mm256_load_pd(ptr);
+
+    // Add the increment to the loaded vector
+    __m256d result = _mm256_add_pd(vector, increment);
+
+    // Store the result back to memory
+    _mm256_store_pd(ptr, result);
+}
+
 // reach openblas perf
 // add tail calculation
 // add usage of x register if block size is less than 256bit
@@ -101,33 +143,36 @@ template<int block_size_i, int block_size_j, int block_size_k>
 static void mulMatrix_x(double* __restrict c,
                         const double* __restrict ma,
                         const double* __restrict mb,
+                        const std::size_t i_size,
                         const std::size_t j_size,
-                        const std::size_t k_size)
+                        const std::size_t k_size,
+                        const std::size_t ii,
+                        const std::size_t jj,
+                        const std::size_t kk)
 {
-    //    size_t i_max = std::min(ii + BLOCK_SIZE, end_row);
-    //    size_t j_max = std::min(jj + BLOCK_SIZE, C.col());
-    //    size_t k_max = std::min(kk + BLOCK_SIZE, A.col());
-
     // block_J - amount of b,c registers
     // block_K - amount of b registers
-    // amount of y registers - 16
+    // amount of y registers - 16, do you take into account threads, how many reg per thread
+    // availabe?
 
     constexpr int doubles_in_jblock{block_size_j / 4};
 
-    const auto packed_a = packMatrix<block_size_i, block_size_k>(ma, k_size);
+    // const auto packed_a = packMatrix<block_size_i, block_size_k>(ma, k_size);
     const auto packed_b = packMatrix<block_size_k, block_size_j>(mb, j_size);
 
-    const double* a = packed_a.data();
+    const double* a = ma; // packed_a.data();
     const double* b = packed_b.data();
 
-    for (int i2 = 0; i2 < block_size_i; ++i2, c += j_size, a += block_size_k)
+    for (int i2 = 0; i2 < block_size_i; ++i2, c += j_size, a += k_size)
     {
         b = packed_b.data();
 
+        std::array<__m256d, doubles_in_jblock> cache;
         std::array<__m256d, doubles_in_jblock> res;
         for (int j2 = 0, idx = 0; j2 < block_size_j; j2 += 4, ++idx)
         {
-            res[idx] = _mm256_loadu_pd(&c[j2]);
+            cache[idx] = _mm256_loadu_pd(&c[j2]);
+            res[idx]   = _mm256_setzero_pd(); //_mm256_loadu_pd(&c[j2]);
         }
 
         //_mm_prefetch(&a[8], _MM_HINT_NTA); // prefetch next cache line
@@ -144,16 +189,12 @@ static void mulMatrix_x(double* __restrict c,
 
         for (int j2 = 0, idx = 0; j2 < block_size_j; j2 += 4, ++idx)
         {
-            _mm256_storeu_pd(&c[j2], res[idx]);
+            __m256d result = _mm256_add_pd(cache[idx], res[idx]);
+            _mm256_store_pd(&c[j2], result);
+
+            // load_inc_store_double(&c[j2], res[idx]);
         }
     }
-}
-
-static double sumElemFromReg(__m256d rk)
-{
-    std::array<double, 4> arrK{0, 0, 0, 0};
-    _mm256_storeu_pd(arrK.data(), rk);
-    return arrK[0] + arrK[1] + arrK[2] + arrK[3];
 }
 
 void mulMatrix_256VL_BL_v2(double*           c,
@@ -193,12 +234,26 @@ void mulMatrix_256VL_BL_v2(double*           c,
 
 static void mulMatrix_256VL_BL(double* __restrict c,
                                const double* __restrict a,
-                               const double* __restrict mb,
+                               const double* __restrict b,
+                               const std::size_t i_size,
                                const std::size_t j_size,
-                               const std::size_t k_size)
+                               const std::size_t k_size,
+                               const std::size_t ii,
+                               const std::size_t jj,
+                               const std::size_t kk)
 {
-    // kernelMulMatrix_BL_NV(c, a, mb, j_size, k_size);
-    mulMatrix_x<block_size_i, block_size_j, block_size_k>(c, a, mb, j_size, k_size);
+    //    kernelMulMatrix_BL_NV(c, a, b, i_size, j_size, k_size, ii, jj, kk);
+
+    //    size_t i_max = std::min(ii + block_size_i, i_size);
+    //    size_t j_max = std::min(jj + block_size_j, j_size);
+    //    size_t k_max = std::min(kk + block_size_k, k_size);
+
+    //    auto vi = i_size;
+    //    auto vj = j_size;
+    //    auto vk = k_size;
+
+    mulMatrix_x<block_size_i, block_size_j, block_size_k>(
+      c, a, b, i_size, j_size, k_size, ii, jj, kk);
 }
 
 void kernelMulMatrix_TP_BL_NV(double*           r,
@@ -222,6 +277,13 @@ void kernelMulMatrix_TP_BL_NV(double*           r,
             r[j] += t;
         }
     }
+}
+
+static double sumElemFromReg(__m256d rk)
+{
+    std::array<double, 4> arrK{0, 0, 0, 0};
+    _mm256_storeu_pd(arrK.data(), rk);
+    return arrK[0] + arrK[1] + arrK[2] + arrK[3];
 }
 
 void kernelMulMatrix_VT_BL_TP(double*           r,
@@ -273,7 +335,7 @@ static void mulMatrix_128VL_BL(double*           rres,
         __m128d r22 = _mm_load_pd(&rres[4]);
         __m128d r23 = _mm_load_pd(&rres[6]);
 
-        for (int k2 = 0; k2 < block_size_k; ++k2, rmul2 += j_size)
+        for (int k2 = 0; k2 < block_size_k; k2 += 4, rmul2 += j_size)
         {
             __m128d m20 = _mm_load_pd(&rmul2[0]);
             __m128d m21 = _mm_load_pd(&rmul2[2]);
@@ -294,16 +356,20 @@ static void mulMatrix_128VL_BL(double*           rres,
     }
 }
 
-void kernelMulMatrix_VT_BL(double*           c,
-                           const double*     a,
-                           const double*     b,
+void kernelMulMatrix_VT_BL(double* __restrict c,
+                           const double* __restrict a,
+                           const double* __restrict b,
+                           const std::size_t i_size,
                            const std::size_t j_size,
-                           const std::size_t k_size)
+                           const std::size_t k_size,
+                           const std::size_t ii,
+                           const std::size_t jj,
+                           const std::size_t kk)
 {
 
 #if defined(__x86_64__)
 #ifdef __AVX2__
-    mulMatrix_256VL_BL(c, a, b, j_size, k_size);
+    mulMatrix_256VL_BL(c, a, b, i_size, j_size, k_size, ii, jj, kk);
 #elif __SSE2__
     mulMatrix_128VL_BL(c, a, b, j_size, k_size);
 #else

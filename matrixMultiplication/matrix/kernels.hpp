@@ -2,9 +2,15 @@
 
 // TODO: Block size should be private info
 // looks like b[32x32] fit into l1 cache
-constexpr std::size_t block_size_i = 48; // 4;
-constexpr std::size_t block_size_j = 48; // 12;
-constexpr std::size_t block_size_k = 48; // 8;
+// constexpr std::size_t block_size_i = 48; // 4;
+// constexpr std::size_t block_size_j = 48; // 12;
+// constexpr std::size_t block_size_k = 48; // 8;
+
+constexpr std::size_t block_size_i = 32;
+constexpr std::size_t block_size_j = 48;
+constexpr std::size_t block_size_k = 64;
+
+static_assert(block_size_j % 4 == 0, "invalid block_size_j");
 
 namespace kernels
 {
@@ -24,11 +30,15 @@ void matmul_TP_NV(double* __restrict c,
                   const std::size_t k_size);
 
 // Kernels, wrap to namespace.
-void kernelMulMatrix_BL_NV(double* __restrict r,
+void kernelMulMatrix_BL_NV(double* __restrict c,
                            const double* __restrict a,
                            const double* __restrict b,
+                           const std::size_t i_size,
                            const std::size_t j_size,
-                           const std::size_t k_size);
+                           const std::size_t k_size,
+                           const std::size_t ii,
+                           const std::size_t jj,
+                           const std::size_t kk);
 
 void kernelMulMatrix_TP_BL_NV(double*           r,
                               const double*     a,
@@ -42,9 +52,13 @@ void kernelMulMatrix_VT_BL_TP(double*           r,
                               const std::size_t j_size,
                               const std::size_t k_size);
 
-void kernelMulMatrix_VT_BL(double*           r,
-                           const double*     a,
-                           const double*     b,
+void kernelMulMatrix_VT_BL(double* __restrict c,
+                           const double* __restrict a,
+                           const double* __restrict b,
+                           const std::size_t i_size,
                            const std::size_t j_size,
-                           const std::size_t k_size);
+                           const std::size_t k_size,
+                           const std::size_t ii,
+                           const std::size_t jj,
+                           const std::size_t kk);
 } // namespace kernels
