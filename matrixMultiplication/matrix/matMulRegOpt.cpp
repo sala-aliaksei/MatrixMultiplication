@@ -52,7 +52,8 @@ std::array<double, M * N> packMatrix(const double* b, int col)
     return b_packed;
 }
 
-static inline void load_inc_store_double(double* __restrict ptr, __m256d increment)
+__attribute__((always_inline)) static inline void load_inc_store_double(double* __restrict ptr,
+                                                                        __m256d increment)
 {
     // Load 4 double-precision values (256 bits) from memory into an AVX register
     __m256d vector = _mm256_load_pd(ptr);
@@ -184,19 +185,19 @@ void mulMatrix_y(double*           pc,
 
             double* c = &pc[i * j_size + j];
 
-            //            _mm_prefetch(c + j_size, _MM_HINT_NTA);
+            _mm_prefetch(c + j_size, _MM_HINT_NTA);
             load_inc_store_double(&c[0], r00);
             load_inc_store_double(&c[4], r01);
             load_inc_store_double(&c[8], r02);
             c += j_size;
 
-            //            _mm_prefetch(c + j_size, _MM_HINT_NTA);
+            _mm_prefetch(c + j_size, _MM_HINT_NTA);
             load_inc_store_double(&c[0], r10);
             load_inc_store_double(&c[4], r11);
             load_inc_store_double(&c[8], r12);
             c += j_size;
 
-            //            _mm_prefetch(c + j_size, _MM_HINT_NTA);
+            _mm_prefetch(c + j_size, _MM_HINT_NTA);
             load_inc_store_double(&c[0], r20);
             load_inc_store_double(&c[4], r21);
             load_inc_store_double(&c[8], r22);
