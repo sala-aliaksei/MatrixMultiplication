@@ -3,42 +3,34 @@
 #include <immintrin.h>
 #include <array>
 #include <future>
+#include <cstring>
 // #include <boost/asio.hpp>
 // #include <boost/thread/thread.hpp>
 
-// FIXED. DON'T CHANGE
-constexpr size_t I_BLOCK = 4;
-constexpr size_t J_BLOCK = 12;
-// AUTOTUNE;
-constexpr size_t K_BLOCK = 8; // 48; // 32
-
 // L3 cache for b block; 192 is higher than 1 MB cache
-constexpr auto CACHE_BLOCK = 96; // 192; // 128;
+constexpr auto CACHE_BLOCK = 120; // 96; // 96(best when packed only b); 192; // 128;
 
-static_assert(CACHE_BLOCK % I_BLOCK == 0, "invalid CACHE_BLOCK or I_BLOCK");
-static_assert(CACHE_BLOCK % J_BLOCK == 0, "invalid CACHE_BLOCK or J_BLOCK");
-static_assert(CACHE_BLOCK % K_BLOCK == 0, "invalid CACHE_BLOCK or K_BLOCK");
+template<int M, int N>
+std::array<double, M * N> packTMatrix(const double* b, int col)
+{
+    // TODO: TRY
+    int idx = 0;
 
-// template<int M, int N>
-// std::array<double, M * N> packMatrix(const double* b, int col)
-//{
-//     int idx = 0;
-
-//    std::array<double, M * N> b_packed;
-//    for (int k = 0; k < M; k++)
-//    {
-//        for (int j = 0; j < N; j++)
-//        {
-//            b_packed[idx++] = b[k * col + j];
-//        }
-//    }
-//    return b_packed;
-//}
+    std::array<double, M * N> b_packed;
+    for (int k = 0; k < M; k++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            b_packed[j * M + k] = b[k * col + j];
+        }
+    }
+    return b_packed;
+}
 
 template<int M, int N>
 std::array<double, M * N> packMatrix(const double* b, int col)
 {
-    constexpr int BLOCK_SIZE = 48; // 48;
+    constexpr int BLOCK_SIZE = CACHE_BLOCK / 2; // 48;
     static_assert(M % BLOCK_SIZE == 0, "Invalid M%BLOCK_SIZE==0");
     static_assert(N % BLOCK_SIZE == 0, "Invalid N%BLOCK_SIZE==0");
 
@@ -47,19 +39,20 @@ std::array<double, M * N> packMatrix(const double* b, int col)
     {
         for (int j = 0; j < N; j += BLOCK_SIZE)
         {
+            // _mm_prefetch(&b[(k + BLOCK_SIZE) * col + j], _MM_HINT_NTA);
             for (int k2 = 0; k2 < BLOCK_SIZE; k2++)
             {
-                for (int j2 = 0; j2 < BLOCK_SIZE; j2++)
-                {
-                    b_packed[(k + k2) * N + j + j2] = b[(k + k2) * col + j + j2];
-                }
+                // if (k2 + 1 < BLOCK_SIZE)
+                _mm_prefetch(&b[(k + k2 + 1) * col + j], _MM_HINT_NTA);
+                std::memcpy(&b_packed[(k + k2) * N + j], &b[(k + k2) * col + j], BLOCK_SIZE * 8);
             }
         }
     }
+
     return b_packed;
 }
 
-static inline void load_inc_store_double(double* ptr, __m256d increment)
+static inline void load_inc_store_double(double* __restrict ptr, __m256d increment)
 {
     // Load 4 double-precision values (256 bits) from memory into an AVX register
     __m256d vector = _mm256_load_pd(ptr);
@@ -69,6 +62,7 @@ static inline void load_inc_store_double(double* ptr, __m256d increment)
 
     // Store the result back to memory
     _mm256_store_pd(ptr, result);
+    //_mm256_stream_pd(ptr, result);
 }
 
 void massert(bool flag, std::string msg)
@@ -81,8 +75,8 @@ void massert(bool flag, std::string msg)
 }
 
 void mulMatrix_y(double*           pc,
-                 const double*     pa,
-                 const double*     pb,
+                 const double*     na,
+                 const double*     nb,
                  const std::size_t j_size,
                  const std::size_t k_size,
                  const std::size_t i3,
@@ -92,16 +86,39 @@ void mulMatrix_y(double*           pc,
                  const std::size_t k3,
                  const std::size_t k3_end)
 {
-    for (size_t i = i3; i < i3_end; i += I_BLOCK)
+
+    // FIXED. DON'T CHANGE
+    constexpr size_t I_BLOCK = 4;
+    constexpr size_t J_BLOCK = 12;
+    // AUTOTUNE;
+    constexpr size_t K_BLOCK = 8; // 48; // 32
+
+    static_assert(CACHE_BLOCK % I_BLOCK == 0, "invalid CACHE_BLOCK or I_BLOCK");
+    static_assert(CACHE_BLOCK % J_BLOCK == 0, "invalid CACHE_BLOCK or J_BLOCK");
+    static_assert(CACHE_BLOCK % K_BLOCK == 0, "invalid CACHE_BLOCK or K_BLOCK");
+
+    size_t i_max = i3_end - i3_end % I_BLOCK;
+    size_t j_max = j3_end - j3_end % J_BLOCK;
+    size_t k_max = k3_end - k3_end % K_BLOCK;
+
+    // no impact? try to tune cache size
+    auto pa = packMatrix<CACHE_BLOCK, CACHE_BLOCK>(&na[i3 * k_size + k3], k_size);
+
+    // must have [CACHE_BLOCK x CACHE_BLOCK] dim
+    const auto pb = packMatrix<CACHE_BLOCK, CACHE_BLOCK>(&nb[k3 * j_size + j3], j_size);
+
+    for (size_t i = i3; i < i_max; i += I_BLOCK)
     {
-        for (size_t j = j3; j < j3_end; j += J_BLOCK)
+        for (size_t j = j3; j < j_max; j += J_BLOCK)
         {
             __m256d r00 = _mm256_setzero_pd();
             __m256d r01 = _mm256_setzero_pd();
             __m256d r02 = _mm256_setzero_pd();
+
             __m256d r10 = _mm256_setzero_pd();
             __m256d r11 = _mm256_setzero_pd();
             __m256d r12 = _mm256_setzero_pd();
+
             __m256d r20 = _mm256_setzero_pd();
             __m256d r21 = _mm256_setzero_pd();
             __m256d r22 = _mm256_setzero_pd();
@@ -110,17 +127,24 @@ void mulMatrix_y(double*           pc,
             __m256d r31 = _mm256_setzero_pd();
             __m256d r32 = _mm256_setzero_pd();
 
-            for (size_t k = k3; k < k3_end; k += K_BLOCK)
+            for (size_t k = k3; k < k_max; k += K_BLOCK)
             {
-                const double* ma = &pa[(i - i3) * CACHE_BLOCK + (k - k3)];
-                const double* b  = &pb[(k - k3) * CACHE_BLOCK + (j - j3)];
+                //                const auto    b_cols = j_size;
+                //                const double* b      = &nb[k * b_cols + j];
 
-                constexpr auto b_cols = CACHE_BLOCK; // j_size;
-                constexpr auto a_cols = CACHE_BLOCK; // k_size;
+                const auto    b_cols = CACHE_BLOCK;
+                const double* b      = &pb[(k - k3) * b_cols + (j - j3)];
+
+                //-------------------------------------
+
+                const auto    a_cols = CACHE_BLOCK;
+                const double* ma     = &pa[(i - i3) * a_cols + (k - k3)];
+
+                //                const auto    a_cols = k_size;
+                //                const double* ma     = &na[i * a_cols + k];
 
                 const double* a = ma;
-
-                // #pragma GCC unroll(K_BLOCK)
+                //_mm_prefetch(&na[(i + 1) * a_cols + k], _MM_HINT_NTA);
                 for (int k2 = 0; k2 < K_BLOCK; ++k2, b += b_cols)
                 {
                     a = ma;
@@ -160,16 +184,19 @@ void mulMatrix_y(double*           pc,
 
             double* c = &pc[i * j_size + j];
 
+            //            _mm_prefetch(c + j_size, _MM_HINT_NTA);
             load_inc_store_double(&c[0], r00);
             load_inc_store_double(&c[4], r01);
             load_inc_store_double(&c[8], r02);
             c += j_size;
 
+            //            _mm_prefetch(c + j_size, _MM_HINT_NTA);
             load_inc_store_double(&c[0], r10);
             load_inc_store_double(&c[4], r11);
             load_inc_store_double(&c[8], r12);
             c += j_size;
 
+            //            _mm_prefetch(c + j_size, _MM_HINT_NTA);
             load_inc_store_double(&c[0], r20);
             load_inc_store_double(&c[4], r21);
             load_inc_store_double(&c[8], r22);
@@ -180,6 +207,32 @@ void mulMatrix_y(double*           pc,
             load_inc_store_double(&c[8], r32);
         }
     }
+
+    // tail
+    //    std::cout << "i(" << i_max << ", " << i3_end << ")" << std::endl;
+    //    std::cout << "j(" << j_max << ", " << j3_end << ")" << std::endl;
+    //    std::cout << "k(" << k_max << ", " << k3_end << ")" << std::endl;
+    //    for (int i = i_max; i < i3_end; ++i)
+    //    {
+    //        for (int k = k3; k < k3_end; ++k)
+    //        {
+    //            for (int j = j3; j < j3_end; ++j)
+    //            {
+    //                pc[i * j_size + j] += na[i * k_size + k] * nb[k * j_size + j];
+    //            }
+    //        }
+    //    }
+
+    //    for (int i = i_max; i < i3_end; ++i)
+    //    {
+    //        for (int k = k_max; k < k3_end; ++k)
+    //        {
+    //            for (int j = j_max; j < j3_end; ++j)
+    //            {
+    //                pc[i * j_size + j] += na[i * k_size + k] * nb[k * j_size + j];
+    //            }
+    //        }
+    //    }
 }
 
 void matMulRegOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
@@ -217,24 +270,7 @@ void matMulRegOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
                     const size_t j3_end = std::min(j3 + CACHE_BLOCK, j_size);
                     const size_t k3_end = std::min(k3 + CACHE_BLOCK, k_size);
 
-                    auto a_packed =
-                      packMatrix<CACHE_BLOCK, CACHE_BLOCK>(&ma[i3 * k_size + k3], k_size);
-
-                    auto b_packed =
-                      packMatrix<CACHE_BLOCK, CACHE_BLOCK>(&mb[k3 * j_size + j3], j_size);
-
-                    // INNER LOOP
-                    mulMatrix_y(mc,
-                                a_packed.data(),
-                                b_packed.data(),
-                                j_size,
-                                k_size,
-                                i3,
-                                i3_end,
-                                j3,
-                                j3_end,
-                                k3,
-                                k3_end);
+                    mulMatrix_y(mc, ma, mb, j_size, k_size, i3, i3_end, j3, j3_end, k3, k3_end);
                 }
             }
         }
@@ -259,7 +295,8 @@ void matMulRegOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
     //    boost::thread_group thread_pool;
     //    for (int i = 0; i < num_threads - 1; ++i)
     //    {
-    //        thread_pool.create_thread(boost::bind(&boost::asio::io_service::run, &io_service));
+    //        thread_pool.create_thread(boost::bind(&boost::asio::io_service::run,
+    //        &io_service));
     //    }
 
     //    for (int i = 0; i < num_threads - 1; ++i)
