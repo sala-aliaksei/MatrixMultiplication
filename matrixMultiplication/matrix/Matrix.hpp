@@ -12,7 +12,7 @@ constexpr std::size_t hardware_constructive_interference_size = 64;
 constexpr std::size_t hardware_destructive_interference_size  = 64;
 #endif
 
-// Align data to 32 bytes
+// Align data to 64 bytes
 constexpr size_t ALIGN_SIZE = hardware_destructive_interference_size;
 
 template<typename T>
@@ -121,6 +121,7 @@ Stream& operator<<(Stream& os, Matrix<T>& m)
     return os;
 }
 
+#include <iostream>
 template<typename T>
 bool operator==(const Matrix<T>& s1, const Matrix<T>& s2)
 {
@@ -140,6 +141,8 @@ bool operator==(const Matrix<T>& s1, const Matrix<T>& s2)
         {
             if (std::abs(s1[idx] - s2[idx]) > __DBL_EPSILON__)
             {
+                std::cout << "idx= " << idx << "doesn't match." << s1[idx] << " != " << s2[idx]
+                          << std::endl;
                 return false;
             }
         }
@@ -161,6 +164,7 @@ struct MatrixSet
 };
 
 MatrixSet initMatrix(int i, int j, int k);
+MatrixSet initPredictedMatrix(int i, int j, int k);
 
 template<typename Stream>
 Stream& operator<<(Stream& os, MatrixSet& s1)

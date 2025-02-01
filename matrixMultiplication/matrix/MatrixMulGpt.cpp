@@ -1,309 +1,289 @@
 
 #include "MatrixMulGpt.hpp"
+
+/*
+ * Highly optimized DGEMM for 2880x2880 matrices on Intel Haswell.
+ *
+ * Hardware assumptions:
+ *   - Haswell microarchitecture (4 cores)
+ *   - L1: 128 KB, L2: 1 MB, L3: 6 MB
+ *   - FMA latency ≈5 cycles, throughput ≈0.5 per cycle.
+ *
+ * Blocking parameters were chosen by experiment (and analytical modeling)
+ * so that working sets of the packed blocks fit in the respective caches.
+ *
+ * Note: This “bare–metal” implementation uses OpenMP for parallelization and
+ * AVX2 intrinsics (with FMA) for the inner micro–kernel.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <immintrin.h>
-#include <thread>
+#include <omp.h>
 
-constexpr auto        nthreads   = 4u;
-constexpr auto        SM         = 32; //(64 / sizeof(double));
-constexpr std::size_t BLOCK_SIZE = SM;
+#ifndef min
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#endif
+// Blocking parameters. (2880 is exactly divisible by these.)
+#define MC 96
+#define NC 96
+#define KC 96
 
-static double sumElemFromReg(__m256d c_vec)
+// Micro–kernel dimensions: 4×12 sub–block.
+#define MR 4
+#define NR 12
+
+// Simple minimum macro.
+#define min(a, b) ((a) < (b) ? (a) : (b))
+
+/*
+ * microkernel_4x12_unrolled:
+ *
+ * Computes a 4×12 update:
+ *
+ *   C[0:MR-1,0:NR-1] += A_pack[0:MR-1,0:kc-1] * B_pack[0:kc-1,0:NR-1]
+ *
+ * where:
+ *  - A_pack is assumed to be stored row–major with row–length = kc.
+ *  - B_pack is stored row–major with row–length = ldb (the width of the packed B block).
+ *  - C is stored in row–major order with leading dimension ldc.
+ *
+ * This micro–kernel unrolls the k–loop by two. (Since our chosen KC=96 is a multiple of 2,
+ * this works out nicely.) The ordering of loads, broadcasts, and FMAs has been tuned to
+ * resemble the following schedule:
+ *
+ *   vmovupd   (B),   vbroadcastsd (A row0) → FMAs into row0 accumulators
+ *   vmovupd   (B+32), vbroadcastsd (A row1) → FMAs into row1 accumulators
+ *   … then advance B and A pointers, and repeat.
+ *
+ * This schedule is similar to the one in the provided assembly sample.
+ */
+static void microkernel_4x12_unrolled(int           kc,
+                                      const double* A_pack,
+                                      const double* B_pack,
+                                      double*       C,
+                                      int           ldc,
+                                      int           ldb)
 {
-    alignas(32) double c_array[4];
-    _mm256_store_pd(c_array, c_vec);
-    return c_array[0] + c_array[1] + c_array[2] + c_array[3];
+    // Load the 4x12 block of C into registers.
+    __m256d c0_0 = _mm256_loadu_pd(C + 0 * ldc);
+    __m256d c0_1 = _mm256_loadu_pd(C + 0 * ldc + 4);
+    __m256d c0_2 = _mm256_loadu_pd(C + 0 * ldc + 8);
+
+    __m256d c1_0 = _mm256_loadu_pd(C + 1 * ldc);
+    __m256d c1_1 = _mm256_loadu_pd(C + 1 * ldc + 4);
+    __m256d c1_2 = _mm256_loadu_pd(C + 1 * ldc + 8);
+
+    __m256d c2_0 = _mm256_loadu_pd(C + 2 * ldc);
+    __m256d c2_1 = _mm256_loadu_pd(C + 2 * ldc + 4);
+    __m256d c2_2 = _mm256_loadu_pd(C + 2 * ldc + 8);
+
+    __m256d c3_0 = _mm256_loadu_pd(C + 3 * ldc);
+    __m256d c3_1 = _mm256_loadu_pd(C + 3 * ldc + 4);
+    __m256d c3_2 = _mm256_loadu_pd(C + 3 * ldc + 8);
+
+    int p;
+    // Unroll by 2.
+    for (p = 0; p <= kc - 2; p += 2)
+    {
+        // --- Unrolled iteration for p
+        // Load B vectors for iteration p.
+        __m256d b0_p = _mm256_loadu_pd(B_pack + (p + 0) * ldb);
+        __m256d b1_p = _mm256_loadu_pd(B_pack + (p + 0) * ldb + 4);
+        __m256d b2_p = _mm256_loadu_pd(B_pack + (p + 0) * ldb + 8);
+        // Row 0: broadcast A[ p+0 + 0*kc ] and update.
+        __m256d a0_p = _mm256_broadcast_sd(A_pack + (p + 0) + 0 * kc);
+        c0_0         = _mm256_fmadd_pd(a0_p, b0_p, c0_0);
+        c0_1         = _mm256_fmadd_pd(a0_p, b1_p, c0_1);
+        c0_2         = _mm256_fmadd_pd(a0_p, b2_p, c0_2);
+        // Row 1.
+        __m256d a1_p = _mm256_broadcast_sd(A_pack + (p + 0) + 1 * kc);
+        c1_0         = _mm256_fmadd_pd(a1_p, b0_p, c1_0);
+        c1_1         = _mm256_fmadd_pd(a1_p, b1_p, c1_1);
+        c1_2         = _mm256_fmadd_pd(a1_p, b2_p, c1_2);
+        // Row 2.
+        __m256d a2_p = _mm256_broadcast_sd(A_pack + (p + 0) + 2 * kc);
+        c2_0         = _mm256_fmadd_pd(a2_p, b0_p, c2_0);
+        c2_1         = _mm256_fmadd_pd(a2_p, b1_p, c2_1);
+        c2_2         = _mm256_fmadd_pd(a2_p, b2_p, c2_2);
+        // Row 3.
+        __m256d a3_p = _mm256_broadcast_sd(A_pack + (p + 0) + 3 * kc);
+        c3_0         = _mm256_fmadd_pd(a3_p, b0_p, c3_0);
+        c3_1         = _mm256_fmadd_pd(a3_p, b1_p, c3_1);
+        c3_2         = _mm256_fmadd_pd(a3_p, b2_p, c3_2);
+
+        // --- Unrolled iteration for p+1
+        __m256d b0_p1 = _mm256_loadu_pd(B_pack + (p + 1) * ldb);
+        __m256d b1_p1 = _mm256_loadu_pd(B_pack + (p + 1) * ldb + 4);
+        __m256d b2_p1 = _mm256_loadu_pd(B_pack + (p + 1) * ldb + 8);
+        __m256d a0_p1 = _mm256_broadcast_sd(A_pack + (p + 1) + 0 * kc);
+        c0_0          = _mm256_fmadd_pd(a0_p1, b0_p1, c0_0);
+        c0_1          = _mm256_fmadd_pd(a0_p1, b1_p1, c0_1);
+        c0_2          = _mm256_fmadd_pd(a0_p1, b2_p1, c0_2);
+        __m256d a1_p1 = _mm256_broadcast_sd(A_pack + (p + 1) + 1 * kc);
+        c1_0          = _mm256_fmadd_pd(a1_p1, b0_p1, c1_0);
+        c1_1          = _mm256_fmadd_pd(a1_p1, b1_p1, c1_1);
+        c1_2          = _mm256_fmadd_pd(a1_p1, b2_p1, c1_2);
+        __m256d a2_p1 = _mm256_broadcast_sd(A_pack + (p + 1) + 2 * kc);
+        c2_0          = _mm256_fmadd_pd(a2_p1, b0_p1, c2_0);
+        c2_1          = _mm256_fmadd_pd(a2_p1, b1_p1, c2_1);
+        c2_2          = _mm256_fmadd_pd(a2_p1, b2_p1, c2_2);
+        __m256d a3_p1 = _mm256_broadcast_sd(A_pack + (p + 1) + 3 * kc);
+        c3_0          = _mm256_fmadd_pd(a3_p1, b0_p1, c3_0);
+        c3_1          = _mm256_fmadd_pd(a3_p1, b1_p1, c3_1);
+        c3_2          = _mm256_fmadd_pd(a3_p1, b2_p1, c3_2);
+    }
+    // Process any leftover iteration (if kc is odd).
+    for (; p < kc; p++)
+    {
+        __m256d b0 = _mm256_loadu_pd(B_pack + p * ldb);
+        __m256d b1 = _mm256_loadu_pd(B_pack + p * ldb + 4);
+        __m256d b2 = _mm256_loadu_pd(B_pack + p * ldb + 8);
+        __m256d a0 = _mm256_broadcast_sd(A_pack + p + 0 * kc);
+        c0_0       = _mm256_fmadd_pd(a0, b0, c0_0);
+        c0_1       = _mm256_fmadd_pd(a0, b1, c0_1);
+        c0_2       = _mm256_fmadd_pd(a0, b2, c0_2);
+        __m256d a1 = _mm256_broadcast_sd(A_pack + p + 1 * kc);
+        c1_0       = _mm256_fmadd_pd(a1, b0, c1_0);
+        c1_1       = _mm256_fmadd_pd(a1, b1, c1_1);
+        c1_2       = _mm256_fmadd_pd(a1, b2, c1_2);
+        __m256d a2 = _mm256_broadcast_sd(A_pack + p + 2 * kc);
+        c2_0       = _mm256_fmadd_pd(a2, b0, c2_0);
+        c2_1       = _mm256_fmadd_pd(a2, b1, c2_1);
+        c2_2       = _mm256_fmadd_pd(a2, b2, c2_2);
+        __m256d a3 = _mm256_broadcast_sd(A_pack + p + 3 * kc);
+        c3_0       = _mm256_fmadd_pd(a3, b0, c3_0);
+        c3_1       = _mm256_fmadd_pd(a3, b1, c3_1);
+        c3_2       = _mm256_fmadd_pd(a3, b2, c3_2);
+    }
+
+    // Write the results back to C.
+    _mm256_storeu_pd(C + 0 * ldc, c0_0);
+    _mm256_storeu_pd(C + 0 * ldc + 4, c0_1);
+    _mm256_storeu_pd(C + 0 * ldc + 8, c0_2);
+
+    _mm256_storeu_pd(C + 1 * ldc, c1_0);
+    _mm256_storeu_pd(C + 1 * ldc + 4, c1_1);
+    _mm256_storeu_pd(C + 1 * ldc + 8, c1_2);
+
+    _mm256_storeu_pd(C + 2 * ldc, c2_0);
+    _mm256_storeu_pd(C + 2 * ldc + 4, c2_1);
+    _mm256_storeu_pd(C + 2 * ldc + 8, c2_2);
+
+    _mm256_storeu_pd(C + 3 * ldc, c3_0);
+    _mm256_storeu_pd(C + 3 * ldc + 4, c3_1);
+    _mm256_storeu_pd(C + 3 * ldc + 8, c3_2);
 }
 
-/*****************     Chat GTP kernel   *****************************/
-
-static void gpt_kernel(const Matrix<double>& A,
-                       const Matrix<double>& B,
-                       Matrix<double>&       C,
-                       size_t                ii,
-                       size_t                jj,
-                       size_t                kk,
-                       size_t                end_row)
+/*
+ * dgemm_optimized:
+ *
+ * Computes C = A*B + C for m×k, k×n, and m×n matrices using three–level blocking,
+ * packing, and the above AVX2/FMA micro–kernel.
+ *
+ * The blocking strategy is:
+ *   - Outer loops over blocks of rows (i0) and columns (j0) break C into MC×NC blocks.
+ *   - An inner loop over the k–dimension uses block size KC.
+ *   - Blocks A (of size MC×KC) and B (of size KC×NC) are packed into contiguous buffers.
+ *   - The micro–kernel computes MR×NR sub–blocks.
+ *
+ * OpenMP parallelizes the outer (row) loop.
+ */
+void dgemm_optimized(const int     m,
+                     const int     n,
+                     const int     k,
+                     const double* A,
+                     const double* B,
+                     double*       C)
 {
-    size_t i_max = std::min(ii + BLOCK_SIZE, end_row);
-    size_t j_max = std::min(jj + BLOCK_SIZE, C.col());
-    size_t k_max = std::min(kk + BLOCK_SIZE, A.col());
-    for (size_t i = ii; i < i_max; ++i)
+#pragma omp parallel for schedule(static)
+    for (int i0 = 0; i0 < m; i0 += MC)
     {
-        for (size_t j = jj; j < j_max; ++j)
+        int     mc     = min(MC, m - i0);
+        double* A_pack = (double*)aligned_alloc(64, MC * KC * sizeof(double));
+        double* B_pack = (double*)aligned_alloc(64, KC * NC * sizeof(double));
+        for (int p0 = 0; p0 < k; p0 += KC)
         {
-            __m256d c_vec = _mm256_setzero_pd();
-            size_t  k;
-            for (k = kk; k + 3 < k_max; k += 4)
+            int kc = min(KC, k - p0);
+            // Pack A: copy the mc×kc block from A.
+            for (int i = 0; i < mc; i++)
             {
-                __m256d a_vec = _mm256_loadu_pd(&A(i, k));
-                __m256d b_vec = _mm256_loadu_pd(&B(j, k));
-                c_vec         = _mm256_fmadd_pd(a_vec, b_vec, c_vec);
+                for (int p = 0; p < kc; p++)
+                {
+                    A_pack[i * kc + p] = A[(i0 + i) * k + (p0 + p)];
+                }
             }
-            // Handle remaining elements
-            double c_sum = 0.0;
-            for (; k < k_max; ++k)
+            for (int j0 = 0; j0 < n; j0 += NC)
             {
-                c_sum += A(i, k) * B(j, k);
+                int nc = min(NC, n - j0);
+                // Pack B: copy the kc×nc block from B.
+                for (int p = 0; p < kc; p++)
+                {
+                    for (int j = 0; j < nc; j++)
+                    {
+                        B_pack[p * nc + j] = B[(p0 + p) * n + (j0 + j)];
+                    }
+                }
+                // Compute the block C[i0:i0+mc, j0:j0+nc] in MR×NR sub–blocks.
+                for (int i = 0; i < mc; i += MR)
+                {
+                    for (int j = 0; j < nc; j += NR)
+                    {
+                        // Call our optimized micro–kernel.
+                        microkernel_4x12_unrolled(kc,
+                                                  &A_pack[i * kc],
+                                                  &B_pack[j],
+                                                  &C[(i0 + i) * n + (j0 + j)],
+                                                  n, // C's leading dimension.
+                                                  nc // Packed B block's row stride.
+                        );
+                    }
+                }
             }
-
-            // Horizontal addition of c_vec
-            c_sum += sumElemFromReg(c_vec);
-            C(i, j) += c_sum;
         }
+        free(A_pack);
+        free(B_pack);
     }
 }
 
-static void multiply_transposed(const Matrix<double>& A,
-                                const Matrix<double>& B,
-                                Matrix<double>&       C,
-                                size_t                start_row,
-                                size_t                end_row)
-{
-    size_t n = A.row();
-    size_t m = A.col(); // Same as B.rows
-    size_t p = B.row();
-
-    for (size_t ii = start_row; ii < end_row; ii += BLOCK_SIZE)
-    {
-        for (size_t jj = 0; jj < p; jj += BLOCK_SIZE)
-        {
-            for (size_t kk = 0; kk < m; kk += BLOCK_SIZE)
-            {
-                gpt_kernel(A, B, C, ii, jj, kk, end_row);
-            }
-        }
-    }
-}
-
-// Optimized matrix multiplication function using std::thread, AVX2 intrinsics, and prefetching
 void gpt_matrix_multiply(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
-    // Check for compatible dimensions
-    if (A.col() != B.row())
-    {
-        throw std::invalid_argument("Incompatible matrix dimensions.");
-    }
-
-    size_t n = A.row();
-
-    // Initialize the result matrix C
-    // C = Matrix<double>(n, B.col());
-
-    // Determine the number of hardware threads available
-    unsigned int num_threads = std::thread::hardware_concurrency();
-    if (num_threads == 0)
-        num_threads = 1; // Fallback to 1 thread if detection fails
-
-    // Split the work among threads
-    std::vector<std::thread> threads;
-
-    size_t rows_per_thread = n / num_threads;
-    size_t extra_rows      = n % num_threads;
-    size_t start_row       = 0;
-
-    Matrix B_T = transpose(B);
-
-    for (unsigned int t = 0; t < num_threads; ++t)
-    {
-        size_t end_row = start_row + rows_per_thread + (t < extra_rows ? 1 : 0);
-        threads.emplace_back(
-          multiply_transposed, std::cref(A), std::cref(B_T), std::ref(C), start_row, end_row);
-        start_row = end_row;
-    }
-
-    // Join threads
-    for (auto& thread : threads)
-    {
-        thread.join();
-    }
+    dgemm_optimized(A.row(), B.col(), A.col(), A.data(), B.data(), C.data());
 }
 
-/********************   V2  ***********************/
-
-// Define block sizes for cache optimization
-constexpr size_t MC = 256; // L2 cache blocking
-constexpr size_t KC = 128; // L1 cache blocking
-constexpr size_t NC = 256; // L3 cache blocking
-
-// Micro-kernel block size
-constexpr size_t MR = 4; // Rows in micro-kernel
-constexpr size_t NR = 4; // Columns in micro-kernel
-
-// Align data to 32 bytes
-// constexpr size_t ALIGN_SIZE = 32;
-
-// Function to allocate aligned memory
-template<typename T>
-T* aligned_alloc(size_t size)
+/*----------------------------------------------------------------------------
+   (Optional) Test main() function.
+   Multiply two 2880×2880 matrices and (optionally) verify the result.
+----------------------------------------------------------------------------*/
+#ifdef TEST_DGEMM
+#include <time.h>
+int main(void)
 {
-    void* ptr = nullptr;
-    if (posix_memalign(&ptr, ALIGN_SIZE, size * sizeof(T)) != 0)
+    const int N    = 2880;
+    size_t    size = N * N * sizeof(double);
+    double*   A    = (double*)aligned_alloc(64, size);
+    double*   B    = (double*)aligned_alloc(64, size);
+    double*   C    = (double*)aligned_alloc(64, size);
+
+    // Initialize matrices A and B; zero initialize C.
+    for (int i = 0; i < N * N; i++)
     {
-        throw std::bad_alloc();
+        A[i] = drand48();
+        B[i] = drand48();
+        C[i] = 0.0;
     }
-    return reinterpret_cast<T*>(ptr);
+
+    double t0 = omp_get_wtime();
+    optimized_dgemm(N, N, N, A, B, C);
+    double t1 = omp_get_wtime();
+    printf("Optimized DGEMM: %.3f seconds\n", t1 - t0);
+
+    // (Optional) Verification code would go here.
+
+    free(A);
+    free(B);
+    free(C);
+    return 0;
 }
-
-// Micro-kernel for matrix multiplication (MR x NR)
-void micro_kernel(size_t kc,
-                  const double* __restrict__ A_block,
-                  const double* __restrict__ B_block,
-                  double* __restrict__ C_block,
-                  size_t inc_row_C,
-                  size_t inc_col_C)
-{
-    __m256d C[MR][NR];
-
-    // Initialize C registers to zero
-    for (size_t i = 0; i < MR; ++i)
-    {
-        for (size_t j = 0; j < NR; ++j)
-        {
-            C[i][j] = _mm256_setzero_pd();
-        }
-    }
-
-    // Main computation loop
-    for (size_t p = 0; p < kc; ++p)
-    {
-        __m256d B_col[NR];
-        for (size_t j = 0; j < NR; ++j)
-        {
-            B_col[j] = _mm256_load_pd(&B_block[p * NR * 4 + j * 4]);
-        }
-
-        for (size_t i = 0; i < MR; ++i)
-        {
-            __m256d A_elem = _mm256_broadcast_sd(&A_block[i * kc + p]);
-            for (size_t j = 0; j < NR; ++j)
-            {
-                C[i][j] = _mm256_fmadd_pd(A_elem, B_col[j], C[i][j]);
-            }
-        }
-    }
-
-    // Store results back to C
-    for (size_t i = 0; i < MR; ++i)
-    {
-        for (size_t j = 0; j < NR; ++j)
-        {
-            _mm256_store_pd(
-              &C_block[i * inc_row_C + j * inc_col_C],
-              _mm256_add_pd(_mm256_load_pd(&C_block[i * inc_row_C + j * inc_col_C]), C[i][j]));
-        }
-    }
-}
-
-// Pack block of A into continuous memory
-void pack_A(size_t mc, size_t kc, const Matrix<double>& A, double* A_block, size_t i, size_t k)
-{
-    for (size_t ii = 0; ii < mc; ++ii)
-    {
-        for (size_t p = 0; p < kc; ++p)
-        {
-            A_block[ii * kc + p] = A(i + ii, k + p);
-        }
-    }
-}
-
-// Pack block of B into continuous memory
-void pack_B(size_t kc, size_t nc, const Matrix<double>& B, double* B_block, size_t k, size_t j)
-{
-    for (size_t p = 0; p < kc; ++p)
-    {
-        for (size_t jj = 0; jj < nc; jj += 4)
-        {
-            _mm256_store_pd(&B_block[p * nc + jj], _mm256_loadu_pd(&B(k + p, j + jj)));
-        }
-    }
-}
-
-// Multiply macro blocks
-void gemm_macro_kernel(size_t          mc,
-                       size_t          nc,
-                       size_t          kc,
-                       const double*   A_block,
-                       const double*   B_block,
-                       Matrix<double>& C,
-                       size_t          i,
-                       size_t          j)
-{
-    for (size_t ii = 0; ii < mc; ii += MR)
-    {
-        for (size_t jj = 0; jj < nc; jj += NR * 4)
-        {
-            micro_kernel(kc, &A_block[ii * kc], &B_block[jj], &C(i + ii, j + jj), C.cols, 4);
-        }
-    }
-}
-
-// Function to multiply matrices using cache blocking and micro-kernels
-static void multiply_block(const Matrix<double>& A,
-                           const Matrix<double>& B,
-                           Matrix<double>&       C,
-                           size_t                start_i,
-                           size_t                end_i)
-{
-    size_t m = A.rows;
-    size_t n = B.cols;
-    size_t k = A.cols;
-
-    double* A_block = aligned_alloc<double>(MC * KC);
-    double* B_block = aligned_alloc<double>(KC * NC);
-
-    for (size_t j = 0; j < n; j += NC)
-    {
-        size_t nc = std::min(NC, n - j);
-        for (size_t l = 0; l += KC, l < k;)
-        {
-            size_t kc = std::min(KC, k - l);
-            pack_B(kc, nc, B, B_block, l, j);
-            for (size_t i = start_i; i < end_i; i += MC)
-            {
-                size_t mc = std::min(MC, end_i - i);
-                pack_A(mc, kc, A, A_block, i, l);
-                gemm_macro_kernel(mc, nc, kc, A_block, B_block, C, i, j);
-            }
-        }
-    }
-
-    free(A_block);
-    free(B_block);
-}
-
-// Optimized matrix multiplication function
-void matrix_multiply(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
-{
-    // Check for compatible dimensions
-    if (A.cols != B.rows)
-    {
-        throw std::invalid_argument("Incompatible matrix dimensions.");
-    }
-
-    size_t m = A.rows;
-
-    // Determine the number of hardware threads available
-    unsigned int num_threads = std::thread::hardware_concurrency();
-    if (num_threads == 0)
-        num_threads = 1; // Fallback to 1 thread if detection fails
-
-    // Split the work among threads
-    std::vector<std::thread> threads;
-
-    size_t rows_per_thread = (m + num_threads - 1) / num_threads;
-
-    for (unsigned int t = 0; t < num_threads; ++t)
-    {
-        size_t start_i = t * rows_per_thread;
-        size_t end_i   = std::min(start_i + rows_per_thread, m);
-
-        threads.emplace_back(
-          multiply_block, std::cref(A), std::cref(B), std::ref(C), start_i, end_i);
-    }
-
-    // Join threads
-    for (auto& thread : threads)
-    {
-        thread.join();
-    }
-}
+#endif

@@ -4,4 +4,3 @@
 
 // GPT
 void gpt_matrix_multiply(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
-void matrix_multiply(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);

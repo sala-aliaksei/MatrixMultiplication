@@ -12,6 +12,7 @@
 // 2.
 
 /*****************     KERNELS     *******************/
+
 namespace kernels
 {
 
@@ -169,17 +170,17 @@ static void mulMatrix_x(double* __restrict c,
 
         std::array<__m256d, doubles_in_jblock> cache;
         std::array<__m256d, doubles_in_jblock> res;
-        for (int j2 = 0, idx = 0; j2 < block_size_j; j2 += 4, ++idx)
+        for (int j = 0, idx = 0; j < block_size_j; j += 4, ++idx)
         {
-            cache[idx] = _mm256_loadu_pd(&c[j2]);
+            cache[idx] = _mm256_loadu_pd(&c[j]);
             res[idx]   = _mm256_setzero_pd(); //_mm256_loadu_pd(&c[j2]);
         }
 
         //_mm_prefetch(&a[8], _MM_HINT_NTA); // prefetch next cache line
 
-        for (int k2 = 0; k2 < block_size_k; ++k2, b += block_size_j)
+        for (int k = 0; k < block_size_k; ++k, b += block_size_j)
         {
-            __m256d areg = _mm256_broadcast_sd(&a[k2]);
+            __m256d areg = _mm256_broadcast_sd(&a[k]);
 
             for (int j2 = 0, idx = 0; j2 < block_size_j; j2 += 4, ++idx)
             {
@@ -187,10 +188,10 @@ static void mulMatrix_x(double* __restrict c,
             }
         }
 
-        for (int j2 = 0, idx = 0; j2 < block_size_j; j2 += 4, ++idx)
+        for (int j = 0, idx = 0; j < block_size_j; j += 4, ++idx)
         {
             __m256d result = _mm256_add_pd(cache[idx], res[idx]);
-            _mm256_store_pd(&c[j2], result);
+            _mm256_store_pd(&c[j], result);
 
             // load_inc_store_double(&c[j2], res[idx]);
         }
@@ -242,7 +243,7 @@ static void mulMatrix_256VL_BL(double* __restrict c,
                                const std::size_t jj,
                                const std::size_t kk)
 {
-    //    kernelMulMatrix_BL_NV(c, a, b, i_size, j_size, k_size, ii, jj, kk);
+    kernelMulMatrix_BL_NV(c, a, b, i_size, j_size, k_size, ii, jj, kk);
 
     //    size_t i_max = std::min(ii + block_size_i, i_size);
     //    size_t j_max = std::min(jj + block_size_j, j_size);
@@ -252,8 +253,8 @@ static void mulMatrix_256VL_BL(double* __restrict c,
     //    auto vj = j_size;
     //    auto vk = k_size;
 
-    mulMatrix_x<block_size_i, block_size_j, block_size_k>(
-      c, a, b, i_size, j_size, k_size, ii, jj, kk);
+    //    mulMatrix_x<block_size_i, block_size_j, block_size_k>(
+    //      c, a, b, i_size, j_size, k_size, ii, jj, kk);
 }
 
 void kernelMulMatrix_TP_BL_NV(double*           r,

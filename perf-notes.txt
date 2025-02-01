@@ -1,0 +1,42 @@
+
+cache
+  1. measure cache associativity
+  2. use thread affinity to increase cache hits
+  3. measure L1 eviction effect when L2 is better
+  4. page fault -> mmu miss effect (TBU cache miss)
+  5. cache false sharing
+  6. simd instruction to find max throughput
+  7. prefetching (sf,hw), seq, stride, random pattern
+  8. branch prediction effects
+  9. cache speed comparison
+  10. create list of metrics
+  11. list of tools
+  12. stream intrinsic usage to avoid cache usage
+  13. instruction cache impact?
+  14. calc max bandwith based on cpu info
+  15. helper thread which cache data on the same core for another thread?
+        hyperthread not available
+  16. check c++23 new semantic a[i,j] for matrix, can comple optimize?
+
+
+Prefetching has one big weakness: it cannot cross page
+boundaries
+
+caching decoded instructions
+can speed up the execution, especially when the pipeline
+is empty due to incorrectly predicted or impossible-topredict branches.
+
+CPU use internal pipelines
+of different lengths where the instructions are decoded
+and prepared for execution. Part of the preparation is
+loading values from memory (or cache) if they are transferred to a register. If the memory load
+operation can be started early enough in the pipeline, it may happen in parallel with other
+operations and the entire cost of the load might be hidden.
+
+the execution of an instruction happens in stages.
+First an instruction is decoded, then the parameters are prepared, and finally it is executed.
+Pipeline stalls happen, for instance, if the location of the next instruction cannot be correctly
+predicted or if it takes too long to load the next instruction
+
+
+

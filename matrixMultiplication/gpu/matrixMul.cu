@@ -5,6 +5,7 @@
 #include <chrono>
 #include <string>
 #include <vector>
+#include <atomic>
 
 class Profiler
 {
@@ -37,10 +38,10 @@ Profiler::Profiler(std::string name)
 Profiler::~Profiler()
 {
     std::cout << "[Profiling] " << _name << ". Took "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(
+              << std::chrono::duration_cast<std::chrono::microseconds>(
                    std::chrono::steady_clock::now() - _start)
                    .count()
-              << " ms" << std::endl;
+              << " us" << std::endl;
 }
 
 // Kernel function is defined here or in another cu file

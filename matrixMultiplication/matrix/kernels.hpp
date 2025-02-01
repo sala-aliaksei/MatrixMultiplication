@@ -5,10 +5,10 @@
 // constexpr std::size_t block_size_i = 48; // 4;
 // constexpr std::size_t block_size_j = 48; // 12;
 // constexpr std::size_t block_size_k = 48; // 8;
-
-constexpr std::size_t block_size_i = 32;
-constexpr std::size_t block_size_j = 48;
-constexpr std::size_t block_size_k = 64;
+// TODO: Remove from header, otherwise ODR since vars are defined in so lib
+constexpr inline std::size_t block_size_i = 32;
+constexpr inline std::size_t block_size_j = 48;
+constexpr inline std::size_t block_size_k = 64;
 
 static_assert(block_size_j % 4 == 0, "invalid block_size_j");
 

@@ -10,7 +10,8 @@ option(ENABLE_BENCHMARKS "Enable Benchmarks" ON)
 #set("CMAKE_C_COMPILER" "/usr/bin/clang" CACHE "STRING" "" FORCE)
 #set("CMAKE_CXX_COMPILER" "/usr/bin/clang++" CACHE "STRING" "" FORCE)
 
-set(CMAKE_CXX_STANDARD 20)
+#set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 11)
 
 #set(LINALG_ENABLE_KOKKOS ON)
@@ -23,7 +24,7 @@ set(CMAKE_C_STANDARD 11)
 #-fsanitize=undefined
 # -g
 # -fsave-optimization-record
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -flto -O3  -ffast-math -march=haswell -masm=intel") #-O3
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -O3 -g -ffast-math -march=haswell -masm=intel -fopenmp") #-O3
 set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -O3   -march=haswell -masm=intel")
 #set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} --no-relax")
 
@@ -46,21 +47,27 @@ find_package(Eigen3)
 #add_subdirectory(stdBLAS)
 
 
-add_library(matrix_c
-    STATIC
-    matrixMultiplication/matrix/cmatrix.c
-    matrixMultiplication/matrix/cmatrix.h
-)
+#add_library(matrix_c
+#    STATIC
+#    matrixMultiplication/matrix/cmatrix.c
+#    matrixMultiplication/matrix/cmatrix.h
+#)
 
 add_library(${PROJECT_NAME}
-    STATIC # speedup mine, slow down openBlas?
-    #SHARED
+    #STATIC # speedup mine, slow down openBlas?
+    SHARED
+    matrixMultiplication/matrix/matMulBlis.hpp
+    matrixMultiplication/matrix/matMulBlis.cpp
+    matrixMultiplication/matrix/matMulLoops.cpp
+    matrixMultiplication/matrix/matMulLoops.hpp
+    matrixMultiplication/matrix/matMulColOpt.hpp
+    matrixMultiplication/matrix/matMulColOpt.cpp
     matrixMultiplication/matrix/matMulRegOpt.hpp
     matrixMultiplication/matrix/matMulRegOpt.cpp
     matrixMultiplication/matrix/claudeMatMul.cpp
     matrixMultiplication/matrix/claudeMatMul.hpp
-    matrixMultiplication/matrix/disasm.cpp
-    matrixMultiplication/matrix/disasm.hpp
+#    matrixMultiplication/matrix/disasm.cpp
+#    matrixMultiplication/matrix/disasm.hpp
     matrixMultiplication/matrix/MatrixMulEigen.cpp
     matrixMultiplication/matrix/MatrixMulEigen.hpp
     matrixMultiplication/matrix/MatrixMulOpenBlas.hpp
@@ -70,6 +77,7 @@ add_library(${PROJECT_NAME}
     matrixMultiplication/matrix/kernels.cpp
     matrixMultiplication/matrix/kernels.hpp
     matrixMultiplication/matrix/MatrixMul.hpp
+    matrixMultiplication/matrix/MatrixMul.cpp
     matrixMultiplication/matrix/Matrix.cpp
     matrixMultiplication/matrix/Matrix.hpp
     matrixMultiplication/utils/utils.cpp
@@ -80,18 +88,20 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     ${Boost_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}
     #std::linalg
-
+    "/home/alex/workspace/cpp-projects/blis"
 )
 
 target_link_libraries(${PROJECT_NAME} # PRIVATE
+    #-lblis
     OpenBLAS::OpenBLAS
-    -lpthread
-    -lstdc++fs
-    matrix_c
+    #-lpthread
+    #-lstdc++fs
+
     Eigen3::Eigen
     #tensorflow::tensorflowlite
     #std::linalg
     #Boost::thread Boost::system
+    #matrix_c
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC -DPROJECT_VERSION="${PROJECT_VERSION}")
@@ -106,6 +116,14 @@ if(ENABLE_BENCHMARKS)
     add_executable(Benchmarks matrixMultiplication/Benchmarks.cpp)
     target_link_libraries(Benchmarks benchmark::benchmark ${PROJECT_NAME})
     target_include_directories(Benchmarks PUBLIC ${CMAKE_SOURCE_DIR})
+
+    add_executable(ColumnStrideBenchmarks src/stride/benchEffectiveColStride.cpp)
+    target_link_libraries(ColumnStrideBenchmarks benchmark::benchmark)
+    target_include_directories(ColumnStrideBenchmarks PUBLIC ${CMAKE_SOURCE_DIR}/src)
+
+    add_executable(ReorderBenchmarks src/reorder/reorderBenchmark.cpp)
+    target_link_libraries(ReorderBenchmarks benchmark::benchmark)
+    target_include_directories(ReorderBenchmarks PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/matrixMultiplication)
 endif()
 
 if(ENABLE_UNIT_TESTS)
