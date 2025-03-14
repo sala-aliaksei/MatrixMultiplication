@@ -20,5 +20,6 @@ fi
 
 # mkdir -p ./build/results/$BM_Name
 # --benchmark_out=./build/results/$BM_Name/$Matrix_Size.json
+WORKSPACE=$(realpath $(dirname $0)/..)
 
-MATRIX_DIM=$Matrix_Size ./build/BM_Matmul --benchmark_filter=$BM_Name/$Matrix_Size$ --benchmark_time_unit=ms 
+MATRIX_DIM=$Matrix_Size ${WORKSPACE}/build/BM_Matmul --benchmark_filter=$BM_Name/$Matrix_Size$ --benchmark_time_unit=ms 

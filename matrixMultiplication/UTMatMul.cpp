@@ -14,13 +14,12 @@
 
 #include <gtest/gtest.h>
 
-#define CN_MATMUL
-#define MATMUL_LOOPS
+// #define ENABLE_NAIVE_TESTS
 
 // TODO: add ability to init matrices from cmdline
 // constexpr std::size_t N = 12 * 4 * 2;
 constexpr std::size_t N = 4 * 720;
-//  constexpr std::size_t N = 4 * 768;
+
 constexpr std::size_t I = N;
 constexpr std::size_t J = N;
 constexpr std::size_t K = N;
@@ -67,8 +66,6 @@ class MatrixMulTest : public testing::Test
     Matrix<double> valid_res;
 };
 
-#ifdef MATMUL_LOOPS
-
 TEST_F(MatrixMulTest, MatMulLoops)
 {
     matMulLoops(matrices.a, matrices.b, matrices.c);
@@ -110,7 +107,6 @@ TEST_F(MatrixMulTest, MatMulRegOpt)
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
-#endif
 
 TEST_F(MatrixMulTest, GPT)
 {
@@ -147,7 +143,7 @@ TEST_F(MatrixMulTest, Eigen)
     }
 }
 
-#ifdef CN_MATMUL
+#ifdef ENABLE_NAIVE_TESTS
 
 TEST_F(MatrixMulTest, CN_matMul_Naive_Order)
 {
@@ -173,6 +169,7 @@ TEST_F(MatrixMulTest, CN_matMul_Naive_Block)
     cppnow::matMul_Naive_Block(matrices.a, matrices.b, matrices.c);
     EXPECT_EQ((valid_res == matrices.c), true);
 }
+#endif
 
 TEST_F(MatrixMulTest, CN_matMul_Simd)
 {
@@ -257,7 +254,6 @@ TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs_Unroll_BPack_MT)
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
-#endif
 
 TEST_F(MatrixMulTest, matMulPadding)
 {

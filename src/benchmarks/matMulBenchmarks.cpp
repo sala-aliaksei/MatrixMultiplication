@@ -17,35 +17,19 @@
 
 // #include "mm/matmul/cmatrix.h"
 
+// #define ENABLE_NAIVE_BENCHMARKS
+
 #include <benchmark/benchmark.h>
 
+constexpr std::size_t NN        = 4 * 720;
 constexpr std::size_t ITER_NUM  = 1;
 benchmark::TimeUnit   TIME_UNIT = benchmark::kMillisecond;
-
-// Provide matrix size to benchmarks
-// constexpr std::size_t NN = 4 * 864;
-constexpr std::size_t NN = 4 * 720;
-// constexpr std::size_t NN = 4 * 768;
 
 int GetMatrixDimFromEnv()
 {
     const char* env = std::getenv("MATRIX_DIM");
-    return env ? std::atoi(env) : NN; // Default to 2880 if not set
+    return env ? std::atoi(env) : NN;
 }
-
-//---------------------------------------------------------------------
-// Benchmark                           Time             CPU   Iterations
-//---------------------------------------------------------------------
-// BM_MatrixMulParam_MT_VT_BL        658 ms          638 ms            1
-// BM_MatrixMulOpenBLAS              409 ms          407 ms            2
-
-// When work only one thread (matmul was broken)
-// constexpr std::size_t M = 768 * 4;
-// constexpr std::size_t N = 768 * 4;
-// Benchmark                           Time             CPU   Iterations
-//---------------------------------------------------------------------
-// BM_MatrixMulParam_MT_VT_BL        556 ms          552 ms            1
-// BM_MatrixMulOpenBLAS              407 ms          404 ms            2
 
 static void BM_MatrixMulOpenBLAS(benchmark::State& state)
 {
@@ -64,66 +48,6 @@ static void BM_MatrixMulBLIS(benchmark::State& state)
     for (auto _ : state)
     {
         matmulBlis(matrices.a, matrices.b, matrices.c);
-    }
-}
-
-static void BM_MatrixMulParam_MT_VT_BL(benchmark::State& state)
-{
-    std::size_t      N        = state.range(0);
-    auto             matrices = initMatrix(N, N, N);
-    DynamicMatrixMul mul(MatrixMulConfig{true, true, false, true});
-
-    for (auto _ : state)
-    {
-        mul(matrices.a, matrices.b, matrices.c);
-    }
-}
-
-static void BM_MatrixMulParam_MT_VT_BL_TP(benchmark::State& state)
-{
-    std::size_t      N        = state.range(0);
-    auto             matrices = initMatrix(N, N, N);
-    DynamicMatrixMul mul(MatrixMulConfig{true, true, true, true});
-
-    for (auto _ : state)
-    {
-        mul(matrices.a, matrices.b, matrices.c);
-    }
-}
-
-static void BM_MatrixMulParam_Naive(benchmark::State& state)
-{
-    std::size_t      N        = state.range(0);
-    auto             matrices = initMatrix(N, N, N);
-    DynamicMatrixMul mul(MatrixMulConfig{false, false, false, false});
-
-    for (auto _ : state)
-    {
-        mul(matrices.a, matrices.b, matrices.c);
-    }
-}
-
-static void BM_MatrixMulParam_Naive_MT(benchmark::State& state)
-{
-    std::size_t      N        = state.range(0);
-    auto             matrices = initMatrix(N, N, N);
-    DynamicMatrixMul mul(MatrixMulConfig{true, false, false, false});
-
-    for (auto _ : state)
-    {
-        mul(matrices.a, matrices.b, matrices.c);
-    }
-}
-
-static void BM_MatrixMulParam_Naive_TP(benchmark::State& state)
-{
-    std::size_t      N        = state.range(0);
-    auto             matrices = initMatrix(N, N, N);
-    DynamicMatrixMul mul(MatrixMulConfig{false, false, true, false});
-
-    for (auto _ : state)
-    {
-        mul(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -449,17 +373,6 @@ static void BM_MatMulSimd(benchmark::State& state)
 }
 //////////////////////////////////////////////////////////////////////////////
 
-#define ENABLE_TEST_CN
-
-//// Naive
-#ifdef ENABLE_TEST_NAIVE
-BENCHMARK(BM_MatrixMulParam_Naive)->Arg(NN);
-BENCHMARK(BM_MatrixMulParam_Naive_TP)->Arg(NN);
-BENCHMARK(BM_MatrixMulParam_Naive_MT)->Arg(NN);
-
-#endif
-
-#ifdef ENABLE_TEST_CN
 // BM_CN_MatMulNaive/2880                               152089 ms       151374 ms            1
 // BM_CN_MatMulNaive_Order/2880                          11938 ms        11889 ms            1
 // BM_CN_MatMulNaive_Block/2880                           3908 ms         3892 ms            1
@@ -494,52 +407,6 @@ BENCHMARK(BM_MatrixMulParam_Naive_MT)->Arg(NN);
 // BM_MatMulLoopBPacked/2880                               472 ms          467 ms            2
 // BM_MatrixMulOpenBLAS/2880                               330 ms          327 ms            2
 
-// BENCHMARK(BM_CN_MatMulNaive)->Arg(NN);
-// BENCHMARK(BM_CN_MatMulNaive_Order)->Arg(NN);
-// BENCHMARK(BM_CN_MatMulNaive_Block)->Arg(NN);
-// BENCHMARK(BM_CN_MatMul_Simd)->Arg(NN);
-// BENCHMARK(BM_CN_MatMul_Avx)->Arg(NN);
-// BENCHMARK(BM_CN_MatMul_Avx_AddRegs)->Arg(NN);
-// BENCHMARK(BM_CN_MatMul_Avx_AddRegsV2)->Arg(NN);
-// BENCHMARK(BM_CN_MatMul_Avx_AddRegs_Unroll)->Arg(NN);
-// BENCHMARK(BM_CN_MatMul_Avx_Cache)->Arg(NN);
-// BENCHMARK(BM_CN_MatMul_Avx_Cache_Regs)->Arg(NN);
-// BENCHMARK(BM_CN_MatMul_Avx_Cache_Regs_Unroll)->Arg(NN);
-// BENCHMARK(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack)->Arg(NN);
-
-// BENCHMARK(BM_CN_MatMul_Avx_Cache_Regs_Unroll_MT)->Arg(NN);
-// BENCHMARK(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT)->Arg(NN);
-
-#endif
-
-// Multithreads
-#ifdef ENABLE_TEST_OPT
-BENCHMARK(BM_MatrixMulOpenBLAS)->Arg(NN);
-BENCHMARK(BM_MatMulRegOpt)->Arg(NN);
-BENCHMARK(BM_MatMulLoopRepack)->Arg(NN);
-BENCHMARK(BM_MatMulLoopBPacked)->Arg(NN);
-BENCHMARK(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack)->Arg(NN);
-#endif
-// BENCHMARK(BM_MatMulColOpt)->Arg(NN);
-//  BENCHMARK(BM_MatrixMulParam_MT_VT_BL_TP);
-// BENCHMARK(BM_MatMulLoop)->Arg(NN); // slow
-// BENCHMARK(BM_MatMulLoopIKJ)->Arg(NN); // slow
-// BENCHMARK(BM_MatrixMulParam_MT_VT_BL)->Arg(NN); //slow
-
-// Others
-// BENCHMARK(BM_MatMulClaude);
-// BENCHMARK(BM_MatrixMulParam_GPT);
-// BENCHMARK(BM_MatrixMulParam_Eigen);
-
-// TODO:
-// Single threaded
-// BM_MatrixMul_VT_BL_TP
-// BM_MatrixMul_VT_BL
-// BM_MatrixMul_BL_TP
-// BM_MatrixMul_BL
-
-// testMatrixMulStdBlas
-
 // BENCHMARK_MAIN();
 
 #define REGISTER(NAME, DIM) benchmark::RegisterBenchmark(#NAME, NAME)->Arg(DIM);
@@ -548,18 +415,23 @@ int main(int argc, char** argv)
 {
     int matrix_dim = GetMatrixDimFromEnv();
 
+    // TPI
+    REGISTER(BM_MatrixMulParam_Eigen, matrix_dim);
     REGISTER(BM_MatrixMulOpenBLAS, matrix_dim);
     REGISTER(BM_MatrixMulBLIS, matrix_dim);
-#ifdef ENABLE_TEST_CN
-    //    REGISTER(BM_MatrixMulParam_GPT, matrix_dim);
-    //    REGISTER(BM_CN_MatMulNaive, matrix_dim);
-    //    REGISTER(BM_CN_MatMulNaive, matrix_dim);
-    //    REGISTER(BM_CN_MatMulNaive_Block, matrix_dim);
+
+    // GenAI
+    REGISTER(BM_MatMulClaude, matrix_dim);
+    REGISTER(BM_MatrixMulParam_GPT, matrix_dim);
+
+// Matmul
+#ifdef ENABLE_NAIVE_BENCHMARKS
+    REGISTER(BM_CN_MatMulNaive, matrix_dim);
+    REGISTER(BM_CN_MatMulNaive_Block, matrix_dim);
     REGISTER(BM_CN_MatMulNaive_Order, matrix_dim);
     REGISTER(BM_CN_MatMulNaive_Order_KIJ, matrix_dim);
-
+#endif
     REGISTER(BM_CN_MatMul_Simd, matrix_dim);
-
     REGISTER(BM_CN_MatMul_Avx, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_AddRegs, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_AddRegsV2, matrix_dim);
@@ -567,17 +439,16 @@ int main(int argc, char** argv)
     REGISTER(BM_CN_MatMul_Avx_Cache, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_Cache_Regs, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_Cache_Regs_UnrollRW, matrix_dim);
-
     REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_MT, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT, matrix_dim);
 
-#endif
     REGISTER(BM_MatMulRegOpt, matrix_dim);
-    REGISTER(BM_MatMulLoopRepack, matrix_dim);
-    REGISTER(BM_MatMulLoopRepackV2, matrix_dim); // slow
+    REGISTER(BM_MatMulColOpt, matrix_dim);
 
+    REGISTER(BM_MatMulLoopRepack, matrix_dim);
+    REGISTER(BM_MatMulLoopRepackV2, matrix_dim); // slower
     REGISTER(BM_MatMulLoopBPacked, matrix_dim);
 
     //
@@ -590,3 +461,63 @@ int main(int argc, char** argv)
 
     return 0;
 }
+
+// static void BM_MatrixMulParam_MT_VT_BL(benchmark::State& state)
+//{
+//     std::size_t      N        = state.range(0);
+//     auto             matrices = initMatrix(N, N, N);
+//     DynamicMatrixMul mul(MatrixMulConfig{true, true, false, true});
+
+//    for (auto _ : state)
+//    {
+//        mul(matrices.a, matrices.b, matrices.c);
+//    }
+//}
+
+// static void BM_MatrixMulParam_MT_VT_BL_TP(benchmark::State& state)
+//{
+//     std::size_t      N        = state.range(0);
+//     auto             matrices = initMatrix(N, N, N);
+//     DynamicMatrixMul mul(MatrixMulConfig{true, true, true, true});
+
+//    for (auto _ : state)
+//    {
+//        mul(matrices.a, matrices.b, matrices.c);
+//    }
+//}
+
+// static void BM_MatrixMulParam_Naive(benchmark::State& state)
+//{
+//     std::size_t      N        = state.range(0);
+//     auto             matrices = initMatrix(N, N, N);
+//     DynamicMatrixMul mul(MatrixMulConfig{false, false, false, false});
+
+//    for (auto _ : state)
+//    {
+//        mul(matrices.a, matrices.b, matrices.c);
+//    }
+//}
+
+// static void BM_MatrixMulParam_Naive_MT(benchmark::State& state)
+//{
+//     std::size_t      N        = state.range(0);
+//     auto             matrices = initMatrix(N, N, N);
+//     DynamicMatrixMul mul(MatrixMulConfig{true, false, false, false});
+
+//    for (auto _ : state)
+//    {
+//        mul(matrices.a, matrices.b, matrices.c);
+//    }
+//}
+
+// static void BM_MatrixMulParam_Naive_TP(benchmark::State& state)
+//{
+//     std::size_t      N        = state.range(0);
+//     auto             matrices = initMatrix(N, N, N);
+//     DynamicMatrixMul mul(MatrixMulConfig{false, false, true, false});
+
+//    for (auto _ : state)
+//    {
+//        mul(matrices.a, matrices.b, matrices.c);
+//    }
+//}
