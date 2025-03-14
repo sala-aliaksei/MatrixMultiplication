@@ -502,21 +502,46 @@ void mulMatrix_y(double*           pc,
     {
         for (int j = 0; j < GEMM_J; j += J_BLOCK)
         {
-            __m256d r00 = _mm256_setzero_pd();
-            __m256d r01 = _mm256_setzero_pd();
-            __m256d r02 = _mm256_setzero_pd();
+            __m256d r00;
+            __m256d r01;
+            __m256d r02;
+            __m256d r10;
+            __m256d r11;
+            __m256d r12;
+            __m256d r20;
+            __m256d r21;
+            __m256d r22;
+            __m256d r30;
+            __m256d r31;
+            __m256d r32;
 
-            __m256d r10 = _mm256_setzero_pd();
-            __m256d r11 = _mm256_setzero_pd();
-            __m256d r12 = _mm256_setzero_pd();
+            r00 = _mm256_xor_pd(r00, r00);
+            r01 = _mm256_xor_pd(r01, r01);
+            r02 = _mm256_xor_pd(r02, r02);
+            r10 = _mm256_xor_pd(r10, r10);
+            r11 = _mm256_xor_pd(r11, r11);
+            r12 = _mm256_xor_pd(r12, r12);
+            r20 = _mm256_xor_pd(r20, r20);
+            r21 = _mm256_xor_pd(r21, r21);
+            r22 = _mm256_xor_pd(r22, r22);
+            r30 = _mm256_xor_pd(r30, r30);
+            r31 = _mm256_xor_pd(r31, r31);
+            r32 = _mm256_xor_pd(r32, r32);
+            //            __m256d r00 = _mm256_setzero_pd();
+            //            __m256d r01 = _mm256_setzero_pd();
+            //            __m256d r02 = _mm256_setzero_pd();
 
-            __m256d r20 = _mm256_setzero_pd();
-            __m256d r21 = _mm256_setzero_pd();
-            __m256d r22 = _mm256_setzero_pd();
+            //            __m256d r10 = _mm256_setzero_pd();
+            //            __m256d r11 = _mm256_setzero_pd();
+            //            __m256d r12 = _mm256_setzero_pd();
 
-            __m256d r30 = _mm256_setzero_pd();
-            __m256d r31 = _mm256_setzero_pd();
-            __m256d r32 = _mm256_setzero_pd();
+            //            __m256d r20 = _mm256_setzero_pd();
+            //            __m256d r21 = _mm256_setzero_pd();
+            //            __m256d r22 = _mm256_setzero_pd();
+
+            //            __m256d r30 = _mm256_setzero_pd();
+            //            __m256d r31 = _mm256_setzero_pd();
+            //            __m256d r32 = _mm256_setzero_pd();
 
             for (int k = 0; k < GEMM_K; k += K_BLOCK)
             {
@@ -563,28 +588,31 @@ void mulMatrix_y(double*           pc,
                 }
             }
 
-            double* c = &pc[i * j_size + j];
+            double* c     = &pc[i * j_size + j];
+            double* cnext = c + j_size;
 
-            _mm_prefetch(c + j_size, _MM_HINT_NTA);
+            _mm_prefetch(cnext, _MM_HINT_NTA);
 
             load_inc_store_double(&c[0], r00);
             load_inc_store_double(&c[4], r01);
             load_inc_store_double(&c[8], r02);
-            c += j_size;
 
-            _mm_prefetch(c + j_size, _MM_HINT_NTA);
+            c = cnext;
+            cnext += j_size;
+            _mm_prefetch(cnext, _MM_HINT_NTA);
 
             load_inc_store_double(&c[0], r10);
             load_inc_store_double(&c[4], r11);
             load_inc_store_double(&c[8], r12);
-            c += j_size;
 
-            _mm_prefetch(c + j_size, _MM_HINT_NTA);
+            c = cnext;
+            cnext += j_size;
+            _mm_prefetch(cnext, _MM_HINT_NTA);
 
             load_inc_store_double(&c[0], r20);
             load_inc_store_double(&c[4], r21);
             load_inc_store_double(&c[8], r22);
-            c += j_size;
+            c = cnext;
 
             load_inc_store_double(&c[0], r30);
             load_inc_store_double(&c[4], r31);
@@ -1249,58 +1277,58 @@ void matMulRegOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
     const double* mb = B.data();
     const double* ma = A.data();
 
-    //    auto task = [&](const std::size_t tid) -> void
-    //    {
-    //        std::size_t start = tid * block_inc;
-    //        std::size_t last  = tid == (num_threads - 1) ? i_size : (tid + 1) * block_inc;
+    auto task = [&](const std::size_t tid) -> void
+    {
+        std::size_t start = tid * block_inc;
+        std::size_t last  = tid == (num_threads - 1) ? i_size : (tid + 1) * block_inc;
 
-    //        for (size_t i3 = start; i3 < last; i3 += GEMM_I)
-    //        {
-    //            for (size_t k3 = 0; k3 < k_size; k3 += GEMM_K)
-    //            {
-    //                for (size_t j3 = 0; j3 < j_size; j3 += GEMM_J)
-    //                {
+        for (size_t i3 = start; i3 < last; i3 += GEMM_I)
+        {
+            for (size_t k3 = 0; k3 < k_size; k3 += GEMM_K)
+            {
+                for (size_t j3 = 0; j3 < j_size; j3 += GEMM_J)
+                {
 
-    //                    mulMatrix_y(&mc[i3 * j_size + j3],
-    //                                &ma[i3 * k_size + k3],
-    //                                &mb[k3 * j_size + j3],
-    //                                j_size,
-    //                                k_size);
-    //                }
-    //            }
-    //        }
-    //    };
+                    mulMatrix_y(&mc[i3 * j_size + j3],
+                                &ma[i3 * k_size + k3],
+                                &mb[k3 * j_size + j3],
+                                j_size,
+                                k_size);
+                }
+            }
+        }
+    };
 
-    //    std::vector<std::thread> thread_pool;
-    //    thread_pool.reserve(num_threads);
-    //    thread_pool.emplace_back(task, 0);
-    //    thread_pool.emplace_back(task, 1);
-    //    thread_pool.emplace_back(task, 2);
-    //    task(3);
+    std::vector<std::thread> thread_pool;
+    thread_pool.reserve(num_threads);
+    thread_pool.emplace_back(task, 0);
+    thread_pool.emplace_back(task, 1);
+    thread_pool.emplace_back(task, 2);
+    task(3);
 
-    //    for (auto& t : thread_pool)
-    //    {
-    //        t.join();
-    //    }
+    for (auto& t : thread_pool)
+    {
+        t.join();
+    }
 
     //    task(0);
 
-#pragma omp parallel for
-    for (size_t i3 = 0; i3 < i_size; i3 += GEMM_I)
-    {
-        for (size_t k3 = 0; k3 < k_size; k3 += GEMM_K)
-        {
-            for (size_t j3 = 0; j3 < j_size; j3 += GEMM_J)
-            {
+    // #pragma omp parallel for
+    //     for (size_t i3 = 0; i3 < i_size; i3 += GEMM_I)
+    //     {
+    //         for (size_t k3 = 0; k3 < k_size; k3 += GEMM_K)
+    //         {
+    //             for (size_t j3 = 0; j3 < j_size; j3 += GEMM_J)
+    //             {
 
-                mulMatrix_y(&mc[i3 * j_size + j3],
-                            &ma[i3 * k_size + k3],
-                            &mb[k3 * j_size + j3],
-                            j_size,
-                            k_size);
-            }
-        }
-    }
+    //                mulMatrix_y(&mc[i3 * j_size + j3],
+    //                            &ma[i3 * k_size + k3],
+    //                            &mb[k3 * j_size + j3],
+    //                            j_size,
+    //                            k_size);
+    //            }
+    //        }
+    //    }
 }
 
 void matMulRegOptBuff(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)

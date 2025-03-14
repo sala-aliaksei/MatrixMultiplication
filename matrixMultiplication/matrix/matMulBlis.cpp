@@ -1,6 +1,8 @@
 #include "matMulBlis.hpp"
 
-#include "include/haswell/blis.h"
+#define BLIS_FAMILY_HASWELL
+
+#include <blis/blis.h>
 
 void matmulBlis(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
@@ -8,18 +10,26 @@ void matmulBlis(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>
     int n = B.col();
     int k = A.col();
 
-    num_t dt_s = BLIS_DOUBLE;
-    num_t dt_d = BLIS_DOUBLE;
+    double alpha = 1.0, beta = 0.0; // Scaling factors
+    int    N = A.row();
+    int    M = B.col();
+    int    K = A.col();
 
-    inc_t  rs = 0;
-    inc_t  cs = 0;
-    obj_t  a, b, c;
-    obj_t* alpha;
-    obj_t* beta;
-
-    //    bli_obj_create(dt_d, m, n, rs, cs, c);
-    //    bli_obj_create(dt_s, m, k, rs, cs, a);
-    //    bli_obj_create(dt_s, k, n, rs, cs, b);
-
-    //    bli_obj_set_comp_prec(BLIS_DOUBLE_PREC, &c);
+    // Perform matrix multiplication: C = alpha * A * B + beta * C
+    bli_dgemm(BLIS_NO_TRANSPOSE,
+              BLIS_NO_TRANSPOSE,
+              N,
+              M,
+              K,
+              &alpha,
+              A.data(),
+              1,
+              M,
+              B.data(),
+              1,
+              K,
+              &beta,
+              C.data(),
+              1,
+              M);
 }

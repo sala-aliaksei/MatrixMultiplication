@@ -2,4 +2,6 @@ rust/target/*
 
 build/*
 
+perf-result
+
 *~

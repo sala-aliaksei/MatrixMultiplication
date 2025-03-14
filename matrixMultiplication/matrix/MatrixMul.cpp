@@ -49,11 +49,11 @@ __attribute__((always_inline)) static inline void load_inc_store_double(double* 
 }
 
 template<int Nr, int Mr, int Kc, int Nc>
-void avx_naive(double* __restrict c,
-               const double* __restrict a,
-               const double* __restrict bb,
-               int N,
-               int K)
+inline void avx_naive(double* __restrict c,
+                      const double* __restrict a,
+                      const double* __restrict bb,
+                      int N,
+                      int K)
 {
     for (int i = 0; i < Mr; ++i, c += N, a += K)
     {
@@ -72,13 +72,13 @@ void avx_naive(double* __restrict c,
 }
 
 template<int Nr, int Mr, int Kc, int Nc>
-void avx_regs(double* __restrict c,
-              const double* __restrict a,
-              const double* __restrict bb,
-              int N,
-              int K)
+inline void avx_regs(double* __restrict c,
+                     const double* __restrict a,
+                     const double* __restrict bb,
+                     int N,
+                     int K)
 {
-    constexpr int REG_CNT{12};
+    constexpr int REG_CNT{3};
     for (int i = 0; i < Mr; ++i, c += N, a += K)
     {
         const double* b = bb;
@@ -110,11 +110,51 @@ void avx_regs(double* __restrict c,
 }
 
 template<int Nr, int Mr, int Kc, int Nc>
-void avx_regs_unroll(double* __restrict c,
-                     const double* __restrict aa,
-                     const double* __restrict b,
-                     int N,
-                     int K)
+inline void avx_regs_v2(double* __restrict c,
+                        const double* __restrict ma,
+                        const double* __restrict mb,
+                        int N,
+                        int K)
+{
+    constexpr int REG_CNT{3};
+
+    const double* b = mb;
+
+    std::array<__m256d, REG_CNT> res;
+    for (int j = 0, idx = 0; j < Nr; j += 4, ++idx)
+    {
+        res[idx] = _mm256_setzero_pd(); //_mm256_loadu_pd(&c[j]);
+    }
+
+    //_mm_prefetch(&a[8], _MM_HINT_NTA); // prefetch next cache line
+
+    for (int k = 0; k < Kc; ++k, b += N)
+    {
+        const double* a = ma;
+        for (int i = 0; i < Mr; ++i, a += K)
+        {
+            __m256d areg = _mm256_broadcast_sd(&a[k]);
+            for (int j = 0, idx = 0; j < Nr; j += 4, ++idx)
+            {
+                res[idx] = _mm256_fmadd_pd(areg, _mm256_loadu_pd(&b[j]), res[idx]);
+            }
+        }
+    }
+
+    for (int j = 0, idx = 0; j < Nr; j += 4, ++idx)
+    {
+        __m256d cr     = _mm256_loadu_pd(&c[j]);
+        __m256d result = _mm256_add_pd(cr, res[idx]);
+        _mm256_store_pd(&c[j], result);
+    }
+}
+
+template<int Nr, int Mr, int Kc, int Nc>
+inline void avx_regs_unroll(double* __restrict c,
+                            const double* __restrict aa,
+                            const double* __restrict b,
+                            int N,
+                            int K)
 {
     __m256d r00 = _mm256_setzero_pd();
     __m256d r01 = _mm256_setzero_pd();
@@ -196,11 +236,11 @@ void avx_regs_unroll(double* __restrict c,
 }
 
 template<int Nr, int Mr, int Kc, int Nc>
-void avx_regs_unroll_rw(double* __restrict mc,
-                        const double* __restrict aa,
-                        const double* __restrict b,
-                        int N,
-                        int K)
+inline void avx_regs_unroll_rw(double* __restrict mc,
+                               const double* __restrict aa,
+                               const double* __restrict b,
+                               int N,
+                               int K)
 {
     double* c = mc;
     _mm_prefetch(c + N, _MM_HINT_NTA);
@@ -290,11 +330,11 @@ void avx_regs_unroll_rw(double* __restrict mc,
 }
 
 template<int Nr, int Mr, int Kc, int Nc>
-void avx_regs_unroll_kr(double* __restrict c,
-                        const double* __restrict ma,
-                        const double* __restrict mb,
-                        int N,
-                        int K)
+inline void avx_regs_unroll_kr(double* __restrict c,
+                               const double* __restrict ma,
+                               const double* __restrict mb,
+                               int N,
+                               int K)
 {
     constexpr int Kr = 8;
 
@@ -384,11 +424,11 @@ void avx_regs_unroll_kr(double* __restrict c,
 }
 
 template<int Nr, int Mr, int Kc, int Nc>
-void avx_regs_unroll_bpack(double* __restrict c,
-                           const double* __restrict aa,
-                           const double* __restrict b,
-                           int N,
-                           int K)
+inline void avx_regs_unroll_bpack(double* __restrict c,
+                                  const double* __restrict aa,
+                                  const double* __restrict b,
+                                  int N,
+                                  int K)
 {
     __m256d r00 = _mm256_setzero_pd();
     __m256d r01 = _mm256_setzero_pd();
@@ -473,11 +513,11 @@ void avx_regs_unroll_bpack(double* __restrict c,
 }
 
 template<int Nr, int Mr, int Kc, int Nc>
-void avx_regs_unroll_bpack_kr(double* __restrict c,
-                              const double* __restrict ma,
-                              const double* __restrict mb,
-                              int N,
-                              int K)
+inline void avx_regs_unroll_bpack_kr(double* __restrict c,
+                                     const double* __restrict ma,
+                                     const double* __restrict mb,
+                                     int N,
+                                     int K)
 {
     constexpr int Kr  = 8;
     __m256d       r00 = _mm256_setzero_pd();
@@ -569,6 +609,24 @@ void avx_regs_unroll_bpack_kr(double* __restrict c,
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 
+void matMulNaive(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
+{
+    auto M = A.row();
+    auto K = A.col();
+    auto N = B.col();
+
+    for (int i = 0; i < M; ++i)
+    {
+        for (int j = 0; j < N; ++j)
+        {
+            for (int k = 0; k < K; ++k)
+            {
+                C(i, j) += A(i, k) * B(k, j);
+            }
+        }
+    }
+}
+
 void matMul_Naive(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
     auto i_size = A.row();
@@ -607,6 +665,30 @@ void matMul_Naive_Order(const Matrix<double>& A, const Matrix<double>& B, Matrix
     {
         b = B.data();
         for (int k = 0; k < k_size; ++k, b += j_size)
+        {
+            for (int j = 0; j < j_size; ++j)
+            {
+                c[j] += a[k] * b[j];
+            }
+        }
+    }
+}
+
+void matMul_Naive_Order_KIJ(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
+{
+    auto i_size = A.row();
+    auto k_size = A.col();
+    auto j_size = B.col();
+
+    const double* a = A.data();
+    const double* b = B.data();
+    double*       c = C.data();
+
+    for (int k = 0; k < k_size; ++k, b += j_size)
+    {
+        a = A.data();
+        c = C.data();
+        for (int i = 0; i < i_size; ++i, c += j_size, a += k_size)
         {
             for (int j = 0; j < j_size; ++j)
             {
@@ -843,6 +925,7 @@ void matMul_Avx_Cache_Regs(const Matrix<double>& A, const Matrix<double>& B, Mat
                         const double* a = &a2[i2 * K];
 
                         cppnow::avx_regs<Nr, Mr, Kc, Nc>(c, a, b, N, K);
+                        // cppnow::avx_regs_v2<Nr, Mr, Kc, Nc>(c, a, b, N, K);
                     }
                 }
             }

@@ -9,6 +9,7 @@ namespace cppnow
 {
 void matMul_Naive(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 void matMul_Naive_Order(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
+void matMul_Naive_Order_KIJ(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 
 void matMul_Naive_Block(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 

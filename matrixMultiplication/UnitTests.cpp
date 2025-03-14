@@ -6,6 +6,9 @@
 #include "matrixMultiplication/matrix/matMulRegOpt.hpp"
 #include "matrixMultiplication/matrix/matMulColOpt.hpp"
 #include "matrixMultiplication/matrix/matMulLoops.hpp"
+#include "matrixMultiplication/matrix/matMulPadding.hpp"
+#include "matrixMultiplication/matrix/matMulAutotune.hpp"
+#include "matrixMultiplication/matrix/matMulSimd.hpp"
 
 #include <gtest/gtest.h>
 
@@ -13,12 +16,20 @@
 // #define MATMUL_LOOPS
 
 // TODO: add ability to init matrices from cmdline
-// constexpr std::size_t N = 64 * 3;
+// constexpr std::size_t N = 12 * 4 * 2;
 constexpr std::size_t N = 4 * 720;
-// constexpr std::size_t N = 4 * 768;
+//  constexpr std::size_t N = 4 * 768;
 constexpr std::size_t I = N;
 constexpr std::size_t J = N;
 constexpr std::size_t K = N;
+
+void analyzeResults(const Matrix<double>& actual, const Matrix<double>& expected)
+{
+    std::cout << "----------- expected  result -------------\n";
+    std::cout << expected << std::endl;
+    std::cout << "------------ actual result ------------\n";
+    std::cout << actual << std::endl;
+}
 
 class MatrixMulTest : public testing::Test
 {
@@ -62,16 +73,26 @@ class MatrixMulTest : public testing::Test
 //    EXPECT_EQ((valid_res == matrices.c), true);
 //}
 
+TEST_F(MatrixMulTest, MatMulLoopsRepack)
+{
+    matMulLoopsRepack(matrices.a, matrices.b, matrices.c);
+
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
+
+TEST_F(MatrixMulTest, MatMulLoopsRepackV2)
+{
+    matMulLoopsRepackV2(matrices.a, matrices.b, matrices.c);
+
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
+
 #ifdef MATMUL_LOOPS
 
 TEST_F(MatrixMulTest, MatMulLoops)
 {
     matMulLoops(matrices.a, matrices.b, matrices.c);
 
-    //        std::cout << "----------- valid  result -------------\n";
-    //        std::cout << valid_res << std::endl;
-    //        std::cout << "------------ my result ------------\n";
-    //        std::cout << matrices.c << std::endl;
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
@@ -79,10 +100,6 @@ TEST_F(MatrixMulTest, MatMulLoopsRepack)
 {
     matMulLoopsRepack(matrices.a, matrices.b, matrices.c);
 
-    //    std::cout << "----------- valid  result -------------\n";
-    //    std::cout << valid_res << std::endl;
-    //    std::cout << "------------ my result ------------\n";
-    //    std::cout << matrices.c << std::endl;
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
@@ -90,10 +107,6 @@ TEST_F(MatrixMulTest, MatMulLoopsIKJ)
 {
     matMulLoopsIKJ(matrices.a, matrices.b, matrices.c);
 
-    //    std::cout << "----------- valid  result -------------\n";
-    //    std::cout << valid_res << std::endl;
-    //    std::cout << "------------ my result ------------\n";
-    //    std::cout << matrices.c << std::endl;
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
@@ -101,10 +114,6 @@ TEST_F(MatrixMulTest, MatMulLoopsBPacked)
 {
     matMulLoopsBPacked(matrices.a, matrices.b, matrices.c);
 
-    //    std::cout << "----------- valid  result -------------\n";
-    //    std::cout << valid_res << std::endl;
-    //    std::cout << "------------ my result ------------\n";
-    //    std::cout << matrices.c << std::endl;
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
@@ -112,10 +121,6 @@ TEST_F(MatrixMulTest, MatMulRegOpt)
 {
     matMulRegOpt(matrices.a, matrices.b, matrices.c);
 
-    //    std::cout << "----------- valid  result -------------\n";
-    //    std::cout << valid_res << std::endl;
-    //    std::cout << "------------ my result ------------\n";
-    //    std::cout << matrices.c << std::endl;
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 #endif
@@ -123,16 +128,6 @@ TEST_F(MatrixMulTest, MatMulRegOpt)
 // TEST_F(MatrixMulTest, matMulColOpt)
 //{
 //     matMulColOpt(matrices.a, matrices.b, matrices.c);
-
-//    //    std::cout << "----------- a -------------\n";
-//    //    std::cout << matrices.a << std::endl;
-//    //    std::cout << "----------- b -------------\n";
-//    //    std::cout << matrices.b << std::endl;
-
-//    //    std::cout << "----------- valid  result -------------\n";
-//    //    std::cout << valid_res << std::endl;
-//    //    std::cout << "------------ my result ------------\n";
-//    //    std::cout << matrices.c << std::endl;
 
 //    EXPECT_EQ((valid_res == matrices.c), true);
 //}
@@ -199,11 +194,11 @@ TEST_F(MatrixMulTest, GPT)
 
 #ifdef CN_MATMUL
 
-// TEST_F(MatrixMulTest, CN_matMul_Naive_Order)
-//{
-//     cppnow::matMul_Naive_Order(matrices.a, matrices.b, matrices.c);
-//     EXPECT_EQ((valid_res == matrices.c), true);
-// }
+TEST_F(MatrixMulTest, CN_matMul_Naive_Order)
+{
+    cppnow::matMul_Naive_Order(matrices.a, matrices.b, matrices.c);
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
 
 // TEST_F(MatrixMulTest, CN_matMul_Naive)
 //{
@@ -211,6 +206,12 @@ TEST_F(MatrixMulTest, GPT)
 
 //    EXPECT_EQ((valid_res == matrices.c), true);
 //}
+
+TEST_F(MatrixMulTest, CN_matMul_Naive_Order_KIJ)
+{
+    cppnow::matMul_Naive_Order_KIJ(matrices.a, matrices.b, matrices.c);
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
 
 // TEST_F(MatrixMulTest, CN_matMul_Naive_Block)
 //{
@@ -267,6 +268,13 @@ TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs)
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
+TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs_UnrollRW)
+{
+    cppnow::matMul_Avx_Cache_Regs_UnrollRW(matrices.a, matrices.b, matrices.c);
+
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
+
 TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs_Unroll)
 {
     cppnow::matMul_Avx_Cache_Regs_Unroll(matrices.a, matrices.b, matrices.c);
@@ -295,6 +303,27 @@ TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs_Unroll_BPack_MT)
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 #endif
+
+TEST_F(MatrixMulTest, matMulPadding)
+{
+    matMulPadding(matrices.a, matrices.b, matrices.c);
+
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
+
+TEST_F(MatrixMulTest, matMulAutotune)
+{
+    matMulAutotune(matrices.a, matrices.b, matrices.c);
+
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
+
+TEST_F(MatrixMulTest, matMulSimd)
+{
+    matMulSimd(matrices.a, matrices.b, matrices.c);
+    // analyzeResults(matrices.c, valid_res);
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
 
 int main(int argc, char** argv)
 {

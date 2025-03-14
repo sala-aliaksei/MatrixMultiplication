@@ -3,6 +3,22 @@
 #include <cstring> // memcpy
 #include <array>
 #include <immintrin.h>
+#include <cmath>
+
+static constexpr int mceil(int value, int elem)
+{
+    auto v = value / elem;
+    return value % elem == 0 ? v : v + 1;
+}
+
+static_assert(mceil(100, 12) == 9, "mceil failed");
+
+constexpr int blockWithPadding(int Nc, int Nr)
+{
+    return mceil(Nc, Nr) * Nr;
+}
+
+static_assert(blockWithPadding(256, 12) == 264, "blockWithPadding failed");
 
 template<int I, int J>
 std::array<double, I * J> packMatrix(const double* b, int j_size)
@@ -28,6 +44,99 @@ std::array<double, I * J> packMatrix(const double* b, int j_size)
     }
 
     return b_packed;
+}
+
+template<int Mc, int Nc, int Mr, int Nr>
+void reorderColOrderPaddingMatrix(const double* b, int cols, double* dest, int Mb, int Nb)
+{
+    /*
+    |   ^|
+    |  | |
+    | |  |
+    ||   |
+    v    v
+    */
+
+    // Do we need consider special case Kr==1?
+
+    // static_assert(Mc % Mr == 0, "Invalid m pattern");
+    // static_assert(Nc % Nr == 0, "Invalid n pattern");
+
+    // Nr is Kr; skip for now;
+
+    // Case1: Mc < Mr;
+    // Case2: Mc > Mr but Mc%Mr!=0;
+    // Case3: Mc > Mr but Mc%Mr==0;
+    // Same for Nc,Nr pair? Skip for now
+
+    int idx = 0;
+
+    // DON'T REORDER LOOPS
+    // Process columns in groups of 4
+    for (int i = 0; i < Mc; i += Mr)
+    {
+        for (int j = 0; j < Nc; j += Nr)
+        {
+            for (int jc = 0; jc < Nr; ++jc)
+            {
+                for (int ic = 0; ic < Mr; ++ic)
+                {
+                    // Check if we're out of original bounds
+                    if ((i + ic) < Mb && (j + jc) < Nb)
+                    {
+                        dest[idx] = b[(i + ic) * cols + (j + jc)];
+                    }
+                    else
+                    {
+                        dest[idx] = 0.0; // Padding value
+                    }
+                    idx++;
+                }
+            }
+        }
+    }
+}
+
+template<int Mc, int Nc, int Mr, int Nr>
+void reorderRowMajorPaddingMatrix(const double* b, int cols, double* dest)
+{
+    static_assert(Mc % Mr == 0, "Invalid m pattern");
+    static_assert(Nc % Nr == 0, "Invalid n pattern");
+
+    // reorder B;
+
+    /*
+     * ------->
+     *      -
+     *    -
+     *  -
+     * ------->
+     *
+     */
+
+    int            idx           = 0;
+    int            jtail         = Nc % Nr;
+    int            itail         = Mc % Mr;
+    constexpr auto prefetch_type = _MM_HINT_T0;
+
+    for (int j = 0; j < Nc; j += Nr)
+    {
+        for (int i = 0; i < Mc; i += Mr)
+        {
+            for (int ic = 0; ic < Mr; ++ic)
+            {
+                const auto col = (i + ic) * cols;
+                // _mm_prefetch(b + (i + ic + 1) * N + j, prefetch_type);
+                // _mm_prefetch(b + (i + ic + 2) * N + j, prefetch_type);
+                // _mm_prefetch(b + (i + ic + 3) * N + j, prefetch_type);
+
+                for (int jc = 0; jc < Nr; ++jc)
+                {
+                    dest[idx++] = b[col + j + jc];
+                }
+            }
+        }
+    }
 }
 
 template<int M, int N, int ib, int jb>
@@ -90,9 +199,9 @@ void reorderRowMajorMatrix(const double* b, int cols, double* dest)
             for (int ic = 0; ic < ib; ++ic)
             {
                 const auto col = (i + ic) * cols;
-                //                _mm_prefetch(b + (i + ic + 1) * N + j, prefetch_type);
-                //                _mm_prefetch(b + (i + ic + 2) * N + j, prefetch_type);
-                //                _mm_prefetch(b + (i + ic + 3) * N + j, prefetch_type);
+                // _mm_prefetch(b + (i + ic + 1) * N + j, prefetch_type);
+                // _mm_prefetch(b + (i + ic + 2) * N + j, prefetch_type);
+                // _mm_prefetch(b + (i + ic + 3) * N + j, prefetch_type);
 
                 for (int jc = 0; jc < jb; ++jc)
                 {

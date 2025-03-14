@@ -34,9 +34,6 @@
 #define MR 4
 #define NR 12
 
-// Simple minimum macro.
-#define min(a, b) ((a) < (b) ? (a) : (b))
-
 /*
  * microkernel_4x12_unrolled:
  *

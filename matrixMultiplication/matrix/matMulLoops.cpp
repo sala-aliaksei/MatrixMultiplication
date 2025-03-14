@@ -18,51 +18,127 @@ __attribute__((always_inline)) static inline void load_inc_store_double(double* 
 
     // Store the result back to memory
     _mm256_store_pd(ptr, result);
-    //_mm256_stream_pd(ptr, result);
+    //    _mm256_stream_pd(ptr, result);
 }
 
 //////////////////////     KERNELS
 
 template<int Nr, int Mr, int Kc>
-static void upkernel(const double* __restrict ma,
-                     const double* __restrict b,
-                     double* __restrict c,
-                     int N)
+static void upkernel_v2(const double* __restrict ma,
+                        const double* __restrict b,
+                        double* __restrict mc,
+                        int N)
 {
-    __m256d r00 = _mm256_setzero_pd();
-    __m256d r01 = _mm256_setzero_pd();
-    __m256d r02 = _mm256_setzero_pd();
+    double* c = mc;
 
-    __m256d r10 = _mm256_setzero_pd();
-    __m256d r11 = _mm256_setzero_pd();
-    __m256d r12 = _mm256_setzero_pd();
+    __m256d r00;
+    __m256d r01;
+    __m256d r02;
+    __m256d r10;
+    __m256d r11;
+    __m256d r12;
+    __m256d r20;
+    __m256d r21;
+    __m256d r22;
+    __m256d r30;
+    __m256d r31;
+    __m256d r32;
 
-    __m256d r20 = _mm256_setzero_pd();
-    __m256d r21 = _mm256_setzero_pd();
-    __m256d r22 = _mm256_setzero_pd();
-
-    __m256d r30 = _mm256_setzero_pd();
-    __m256d r31 = _mm256_setzero_pd();
-    __m256d r32 = _mm256_setzero_pd();
+    r00 = _mm256_xor_pd(r00, r00);
+    r01 = _mm256_xor_pd(r01, r01);
+    r02 = _mm256_xor_pd(r02, r02);
+    r10 = _mm256_xor_pd(r10, r10);
+    r11 = _mm256_xor_pd(r11, r11);
+    r12 = _mm256_xor_pd(r12, r12);
+    r20 = _mm256_xor_pd(r20, r20);
+    r21 = _mm256_xor_pd(r21, r21);
+    r22 = _mm256_xor_pd(r22, r22);
+    r30 = _mm256_xor_pd(r30, r30);
+    r31 = _mm256_xor_pd(r31, r31);
+    r32 = _mm256_xor_pd(r32, r32);
 
     const double* a = ma;
 
-    //                _mm_prefetch(b + 8, _MM_HINT_NTA);
-    //                _mm_prefetch(b + 16, _MM_HINT_NTA);
-    //                _mm_prefetch(b + 24, _MM_HINT_NTA);
-    // _mm_prefetch(a + 8, _MM_HINT_NTA);
+    //    _mm_prefetch(a + 8, _MM_HINT_T0);
+    //    _mm_prefetch(b + 8, _MM_HINT_T0);
+    //    _mm_prefetch(b + 16, _MM_HINT_T0);
+    //    _mm_prefetch(b + 24, _MM_HINT_T0);
+    //    _mm_prefetch(b + 64, _MM_HINT_T0);
+    //    _mm_prefetch(b + 64 * 2, _MM_HINT_T0);
+    //    _mm_prefetch(b + 64 * 3, _MM_HINT_T0);
 
-    _mm_prefetch(a + 8, _MM_HINT_T0);
-    _mm_prefetch(b + 8, _MM_HINT_T0);
-    _mm_prefetch(b + 16, _MM_HINT_T0);
-    _mm_prefetch(b + 24, _MM_HINT_T0);
-    _mm_prefetch(b + 64, _MM_HINT_T0);
-    _mm_prefetch(b + 64 * 2, _MM_HINT_T0);
-    _mm_prefetch(b + 64 * 3, _MM_HINT_T0);
-
-    for (int k = 0; k < Kc; k += 2, b += 2 * Nr, a += 2 * Mr)
     {
+        _mm_prefetch(b + 8, _MM_HINT_T0);
+        __m256d b0 = _mm256_loadu_pd(&b[0]);
+        __m256d b1 = _mm256_loadu_pd(&b[4]);
+        __m256d b2 = _mm256_loadu_pd(&b[8]);
 
+        __m256d a0 = _mm256_broadcast_sd(&a[0]);
+
+        r00 = _mm256_fmadd_pd(a0, b0, r00);
+        r01 = _mm256_fmadd_pd(a0, b1, r01);
+        r02 = _mm256_fmadd_pd(a0, b2, r02);
+
+        _mm_prefetch(b + 16, _MM_HINT_T0);
+        a0 = _mm256_broadcast_sd(&a[1]);
+
+        r10 = _mm256_fmadd_pd(a0, b0, r10);
+        r11 = _mm256_fmadd_pd(a0, b1, r11);
+        r12 = _mm256_fmadd_pd(a0, b2, r12);
+
+        _mm_prefetch(b + 24, _MM_HINT_T0);
+        a0 = _mm256_broadcast_sd(&a[2]);
+
+        r20 = _mm256_fmadd_pd(a0, b0, r20);
+        r21 = _mm256_fmadd_pd(a0, b1, r21);
+        r22 = _mm256_fmadd_pd(a0, b2, r22);
+
+        _mm_prefetch(b + 64, _MM_HINT_T0);
+        a0 = _mm256_broadcast_sd(&a[3]);
+
+        r30 = _mm256_fmadd_pd(a0, b0, r30);
+        r31 = _mm256_fmadd_pd(a0, b1, r31);
+        r32 = _mm256_fmadd_pd(a0, b2, r32);
+
+        // iter with prefetech
+
+        b0 = _mm256_loadu_pd(&b[12]);
+        b1 = _mm256_loadu_pd(&b[16]);
+        b2 = _mm256_loadu_pd(&b[20]);
+
+        _mm_prefetch(b + 64 * 2, _MM_HINT_T0);
+        a0 = _mm256_broadcast_sd(&a[4]);
+
+        r00 = _mm256_fmadd_pd(a0, b0, r00);
+        r01 = _mm256_fmadd_pd(a0, b1, r01);
+        r02 = _mm256_fmadd_pd(a0, b2, r02);
+
+        _mm_prefetch(b + 64 * 3, _MM_HINT_T0);
+        a0 = _mm256_broadcast_sd(&a[5]);
+
+        r10 = _mm256_fmadd_pd(a0, b0, r10);
+        r11 = _mm256_fmadd_pd(a0, b1, r11);
+        r12 = _mm256_fmadd_pd(a0, b2, r12);
+
+        a0 = _mm256_broadcast_sd(&a[6]);
+
+        r20 = _mm256_fmadd_pd(a0, b0, r20);
+        r21 = _mm256_fmadd_pd(a0, b1, r21);
+        r22 = _mm256_fmadd_pd(a0, b2, r22);
+
+        _mm_prefetch(a + 8, _MM_HINT_T0);
+        a0 = _mm256_broadcast_sd(&a[7]);
+
+        r30 = _mm256_fmadd_pd(a0, b0, r30);
+        r31 = _mm256_fmadd_pd(a0, b1, r31);
+        r32 = _mm256_fmadd_pd(a0, b2, r32);
+
+        b += 2 * Nr;
+        a += 2 * Mr;
+    }
+
+    for (int k = 2; k < Kc - 2; k += 2, b += 2 * Nr, a += 2 * Mr)
+    {
         __m256d b0 = _mm256_loadu_pd(&b[0]);
         __m256d b1 = _mm256_loadu_pd(&b[4]);
         __m256d b2 = _mm256_loadu_pd(&b[8]);
@@ -122,7 +198,206 @@ static void upkernel(const double* __restrict ma,
         r32 = _mm256_fmadd_pd(a0, b2, r32);
     }
 
-    _mm_prefetch(c + N, _MM_HINT_NTA);
+    {
+        __m256d b0 = _mm256_loadu_pd(&b[0]);
+        __m256d b1 = _mm256_loadu_pd(&b[4]);
+        __m256d b2 = _mm256_loadu_pd(&b[8]);
+
+        __m256d a0 = _mm256_broadcast_sd(&a[0]);
+
+        r00 = _mm256_fmadd_pd(a0, b0, r00);
+        r01 = _mm256_fmadd_pd(a0, b1, r01);
+        r02 = _mm256_fmadd_pd(a0, b2, r02);
+
+        a0 = _mm256_broadcast_sd(&a[1]);
+
+        r10 = _mm256_fmadd_pd(a0, b0, r10);
+        r11 = _mm256_fmadd_pd(a0, b1, r11);
+        r12 = _mm256_fmadd_pd(a0, b2, r12);
+
+        a0 = _mm256_broadcast_sd(&a[2]);
+
+        r20 = _mm256_fmadd_pd(a0, b0, r20);
+        r21 = _mm256_fmadd_pd(a0, b1, r21);
+        r22 = _mm256_fmadd_pd(a0, b2, r22);
+
+        a0 = _mm256_broadcast_sd(&a[3]);
+
+        r30 = _mm256_fmadd_pd(a0, b0, r30);
+        r31 = _mm256_fmadd_pd(a0, b1, r31);
+        r32 = _mm256_fmadd_pd(a0, b2, r32);
+
+        // iter with prefetech
+
+        b0 = _mm256_loadu_pd(&b[12]);
+        b1 = _mm256_loadu_pd(&b[16]);
+        b2 = _mm256_loadu_pd(&b[20]);
+
+        a0 = _mm256_broadcast_sd(&a[4]);
+
+        r00 = _mm256_fmadd_pd(a0, b0, r00);
+        r01 = _mm256_fmadd_pd(a0, b1, r01);
+        r02 = _mm256_fmadd_pd(a0, b2, r02);
+
+        load_inc_store_double(&c[0], r00);
+        load_inc_store_double(&c[4], r01);
+        load_inc_store_double(&c[8], r02);
+
+        c += N;
+
+        a0 = _mm256_broadcast_sd(&a[5]);
+
+        r10 = _mm256_fmadd_pd(a0, b0, r10);
+        r11 = _mm256_fmadd_pd(a0, b1, r11);
+        r12 = _mm256_fmadd_pd(a0, b2, r12);
+
+        load_inc_store_double(&c[0], r10);
+        load_inc_store_double(&c[4], r11);
+        load_inc_store_double(&c[8], r12);
+        c += N;
+
+        a0 = _mm256_broadcast_sd(&a[6]);
+
+        r20 = _mm256_fmadd_pd(a0, b0, r20);
+        r21 = _mm256_fmadd_pd(a0, b1, r21);
+        r22 = _mm256_fmadd_pd(a0, b2, r22);
+
+        load_inc_store_double(&c[0], r20);
+        load_inc_store_double(&c[4], r21);
+        load_inc_store_double(&c[8], r22);
+        c += N;
+
+        a0 = _mm256_broadcast_sd(&a[7]);
+
+        r30 = _mm256_fmadd_pd(a0, b0, r30);
+        r31 = _mm256_fmadd_pd(a0, b1, r31);
+        r32 = _mm256_fmadd_pd(a0, b2, r32);
+
+        load_inc_store_double(&c[0], r30);
+        load_inc_store_double(&c[4], r31);
+        load_inc_store_double(&c[8], r32);
+    }
+
+    //        _mm_prefetch(c + N, _MM_HINT_NTA);
+
+    //    _mm_prefetch(c + N, _MM_HINT_NTA);
+
+    //    _mm_prefetch(c + N, _MM_HINT_NTA);
+}
+
+template<int Nr, int Mr, int Kc>
+static void upkernel(const double* __restrict ma,
+                     const double* __restrict b,
+                     double* __restrict mc,
+                     int N)
+{
+    double* c = mc;
+
+    __m256d r00;
+    __m256d r01;
+    __m256d r02;
+    __m256d r10;
+    __m256d r11;
+    __m256d r12;
+    __m256d r20;
+    __m256d r21;
+    __m256d r22;
+    __m256d r30;
+    __m256d r31;
+    __m256d r32;
+
+    r00 = _mm256_xor_pd(r00, r00);
+    r01 = _mm256_xor_pd(r01, r01);
+    r02 = _mm256_xor_pd(r02, r02);
+    r10 = _mm256_xor_pd(r10, r10);
+    r11 = _mm256_xor_pd(r11, r11);
+    r12 = _mm256_xor_pd(r12, r12);
+    r20 = _mm256_xor_pd(r20, r20);
+    r21 = _mm256_xor_pd(r21, r21);
+    r22 = _mm256_xor_pd(r22, r22);
+    r30 = _mm256_xor_pd(r30, r30);
+    r31 = _mm256_xor_pd(r31, r31);
+    r32 = _mm256_xor_pd(r32, r32);
+
+    const double* a = ma;
+
+    //                _mm_prefetch(b + 8, _MM_HINT_NTA);
+    //                _mm_prefetch(b + 16, _MM_HINT_NTA);
+    //                _mm_prefetch(b + 24, _MM_HINT_NTA);
+    // _mm_prefetch(a + 8, _MM_HINT_NTA);
+
+    //    _mm_prefetch(a + 8, _MM_HINT_T0);
+    //    _mm_prefetch(b + 8, _MM_HINT_T0);
+    //    _mm_prefetch(b + 16, _MM_HINT_T0);
+    //    _mm_prefetch(b + 24, _MM_HINT_T0);
+    //    _mm_prefetch(b + 64, _MM_HINT_T0);
+    //    _mm_prefetch(b + 64 * 2, _MM_HINT_T0);
+    //    _mm_prefetch(b + 64 * 3, _MM_HINT_T0);
+
+    for (int k = 0; k < Kc; k += 2, b += 2 * Nr, a += 2 * Mr)
+    {
+        _mm_prefetch(b + 8, _MM_HINT_T0);
+        __m256d b0 = _mm256_loadu_pd(&b[0]);
+        __m256d b1 = _mm256_loadu_pd(&b[4]);
+        __m256d b2 = _mm256_loadu_pd(&b[8]);
+
+        __m256d a0 = _mm256_broadcast_sd(&a[0]);
+
+        r00 = _mm256_fmadd_pd(a0, b0, r00);
+        r01 = _mm256_fmadd_pd(a0, b1, r01);
+        r02 = _mm256_fmadd_pd(a0, b2, r02);
+
+        a0 = _mm256_broadcast_sd(&a[1]);
+
+        r10 = _mm256_fmadd_pd(a0, b0, r10);
+        r11 = _mm256_fmadd_pd(a0, b1, r11);
+        r12 = _mm256_fmadd_pd(a0, b2, r12);
+
+        a0 = _mm256_broadcast_sd(&a[2]);
+
+        r20 = _mm256_fmadd_pd(a0, b0, r20);
+        r21 = _mm256_fmadd_pd(a0, b1, r21);
+        r22 = _mm256_fmadd_pd(a0, b2, r22);
+
+        a0 = _mm256_broadcast_sd(&a[3]);
+
+        r30 = _mm256_fmadd_pd(a0, b0, r30);
+        r31 = _mm256_fmadd_pd(a0, b1, r31);
+        r32 = _mm256_fmadd_pd(a0, b2, r32);
+
+        // iter with prefetech
+
+        b0 = _mm256_loadu_pd(&b[12]);
+        b1 = _mm256_loadu_pd(&b[16]);
+        b2 = _mm256_loadu_pd(&b[20]);
+
+        a0 = _mm256_broadcast_sd(&a[4]);
+
+        r00 = _mm256_fmadd_pd(a0, b0, r00);
+        r01 = _mm256_fmadd_pd(a0, b1, r01);
+        r02 = _mm256_fmadd_pd(a0, b2, r02);
+
+        a0 = _mm256_broadcast_sd(&a[5]);
+
+        r10 = _mm256_fmadd_pd(a0, b0, r10);
+        r11 = _mm256_fmadd_pd(a0, b1, r11);
+        r12 = _mm256_fmadd_pd(a0, b2, r12);
+
+        a0 = _mm256_broadcast_sd(&a[6]);
+
+        r20 = _mm256_fmadd_pd(a0, b0, r20);
+        r21 = _mm256_fmadd_pd(a0, b1, r21);
+        r22 = _mm256_fmadd_pd(a0, b2, r22);
+
+        _mm_prefetch(a + 8, _MM_HINT_T0);
+        a0 = _mm256_broadcast_sd(&a[7]);
+
+        r30 = _mm256_fmadd_pd(a0, b0, r30);
+        r31 = _mm256_fmadd_pd(a0, b1, r31);
+        r32 = _mm256_fmadd_pd(a0, b2, r32);
+    }
+
+    //        _mm_prefetch(c + N, _MM_HINT_NTA);
 
     load_inc_store_double(&c[0], r00);
     load_inc_store_double(&c[4], r01);
@@ -130,14 +405,14 @@ static void upkernel(const double* __restrict ma,
 
     c += N;
 
-    _mm_prefetch(c + N, _MM_HINT_NTA);
+    //    _mm_prefetch(c + N, _MM_HINT_NTA);
 
     load_inc_store_double(&c[0], r10);
     load_inc_store_double(&c[4], r11);
     load_inc_store_double(&c[8], r12);
     c += N;
 
-    _mm_prefetch(c + N, _MM_HINT_NTA);
+    //    _mm_prefetch(c + N, _MM_HINT_NTA);
 
     load_inc_store_double(&c[0], r20);
     load_inc_store_double(&c[4], r21);
@@ -522,6 +797,10 @@ void matMulLoopsIKJ(const Matrix<double>& A, const Matrix<double>& B, Matrix<dou
 
 void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
+    // BEST
+    // constexpr int Mc = 180;
+    // constexpr int Kc = 240;
+    // constexpr int Nc = 720;
 
     //    constexpr int Mc = 96;
     //    constexpr int Kc = 360;
@@ -570,8 +849,8 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
             const double* Ac3  = &A(0, k);
             const double* Bcc3 = Bc4 + N * k;
 
-            reorderRowMajorMatrix<Kc, Nc, Kr, Nr>(Bcc3, N, buf + Mc * Kc);
-            const double* Bc3 = (buf + Mc * Kc);
+            double* Bc3 = (buf + Mc * Kc);
+            reorderRowMajorMatrix<Kc, Nc, Kr, Nr>(Bcc3, N, Bc3);
 
             for (int i = 0; i < M; i += Mc)
             {
@@ -592,6 +871,7 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                         const double* Ac0 = Ac2 + Kc * ib;
 
                         upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        // upkernel_v2<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                     }
                 }
             }
@@ -601,58 +881,88 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
     // DONE
 }
 
-// void matMulLoopsBPacked(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
-//{
+void matMulLoopsRepackV2(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
+{
+    // BEST
+    // constexpr int Mc = 180;
+    // constexpr int Kc = 240;
+    // constexpr int Nc = 720;
 
-//    constexpr int Mc = 180;
-//    constexpr int Kc = 96;
-//    constexpr int Nc = 48;
-//    //    constexpr int Mc = 120 / 2;
-//    //    constexpr int Kc = 120;
-//    //    constexpr int Nc = 120;
+    //    constexpr int Mc = 96;
+    //    constexpr int Kc = 360;
+    //    constexpr int Nc = 720;
 
-//    constexpr int Nr = 12;
-//    constexpr int Mr = 4;
+    // BEST
+    constexpr int Mc = 180;
+    constexpr int Kc = 180;
+    constexpr int Nc = 180;
 
-//    const auto N = B.col();
-//    const auto K = A.col();
-//    const auto M = A.row();
+    //    constexpr int Mc = 256;
+    //    constexpr int Kc = 2;
+    //    constexpr int Nc = 120;
 
-// #pragma omp parallel for
-//     for (int j = 0; j < N; j += Nc)
-//     {
-//         double*       Cc4 = &C(0, j);
-//         const double* Bc4 = &B(0, j);
+    //    constexpr int Mc = 120;
+    //    constexpr int Kc = 120;
+    //    constexpr int Nc = 120;
 
-//        for (int k = 0; k < K; k += Kc)
-//        {
-//            const double* Ac3 = &A(0, k);
-//            // const double* Bc3 = Bc4 + N * k;
+    constexpr int Nr = 12;
+    constexpr int Mr = 4;
+    constexpr int Kr = 1; // consider to increase to improve repack perf
 
-//            auto          arr = packMatrix<Kc, Nc>(Bc4 + N * k, N);
-//            const double* Bc3 = arr.data();
+    static_assert(Mc % Mr == 0, "invalid cache/reg size of the block");
+    static_assert(Nc % Nr == 0, "invalid cache/reg size of the block");
+    static_assert(Kc % Kr == 0, "invalid cache/reg size of the block");
 
-//            for (int i = 0; i < M; i += Mc)
-//            {
-//                double*       Cc2 = Cc4 + N * i;
-//                const double* Ac2 = Ac3 + K * i;
+    const auto N = B.col();
+    const auto K = A.col();
+    const auto M = A.row();
 
-//                for (int jb = 0; jb < Nc; jb += Nr)
-//                {
-//                    double*       Cc1 = Cc2 + jb;
-//                    const double* Bc1 = Bc3 + jb;
+    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(4 * Kc
+                                                                                  * (Mc + Nc));
 
-//                    for (int ib = 0; ib < Mc; ib += Mr)
-//                    {
-//                        double*       Cc0 = Cc1 + N * ib;
-//                        const double* Ac0 = Ac2 + K * ib;
+#pragma omp parallel for
+    for (int i = 0; i < M; i += Mc)
+    {
+        auto       tid = omp_get_thread_num();
+        const auto ofs = tid * Kc * (Mc + Nc);
+        double*    buf = buffer.data() + ofs;
 
-//                        ukernelBpacked<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N, K, Nc);
-//                    }
-//                }
-//            }
-//        }
-//    }
+        double*       Cc4 = &C(i, 0);
+        const double* Ac4 = &A(i, 0);
 
-//    // DONE
-//}
+        for (int k = 0; k < K; k += Kc)
+        {
+            const double* Ac3 = Ac4 + k;
+
+            reorderColOrderMatrix<Mc, Kc, Mr, Kr>(Ac3, K, buf);
+            const double* Ac2 = buf;
+
+            for (int j = 0; j < N; j += Nc)
+            {
+
+                double*       Cc3 = Cc4 + j;
+                const double* Bc4 = &B(k, j);
+
+                reorderRowMajorMatrix<Kc, Nc, Kr, Nr>(Bc4, N, buf + Mc * Kc);
+                const double* Bc3 = (buf + Mc * Kc);
+
+                for (int jb = 0; jb < Nc; jb += Nr)
+                {
+                    double*       Cc1 = Cc3 + jb;
+                    const double* Bc1 = Bc3 + Kc * jb;
+
+                    for (int ib = 0; ib < Mc; ib += Mr)
+                    {
+                        double*       Cc0 = Cc1 + N * ib;
+                        const double* Ac0 = Ac2 + Kc * ib;
+
+                        upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        // upkernel_v2<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                    }
+                }
+            }
+        }
+    }
+
+    // DONE
+}

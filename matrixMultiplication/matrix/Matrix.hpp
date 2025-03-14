@@ -1,5 +1,5 @@
 #pragma once
-
+#include <iostream>
 #include <vector>
 #include <boost/align/aligned_allocator.hpp>
 
@@ -108,7 +108,7 @@ Matrix<T> transpose(const Matrix<T> m)
 }
 
 template<typename Stream, typename T>
-Stream& operator<<(Stream& os, Matrix<T>& m)
+Stream& operator<<(Stream& os, const Matrix<T>& m)
 {
     for (auto i = 0; i < m.row(); ++i)
     {
@@ -121,7 +121,6 @@ Stream& operator<<(Stream& os, Matrix<T>& m)
     return os;
 }
 
-#include <iostream>
 template<typename T>
 bool operator==(const Matrix<T>& s1, const Matrix<T>& s2)
 {
@@ -141,7 +140,7 @@ bool operator==(const Matrix<T>& s1, const Matrix<T>& s2)
         {
             if (std::abs(s1[idx] - s2[idx]) > __DBL_EPSILON__)
             {
-                std::cout << "idx= " << idx << "doesn't match." << s1[idx] << " != " << s2[idx]
+                std::cout << "idx= " << idx << " doesn't match." << s1[idx] << " != " << s2[idx]
                           << std::endl;
                 return false;
             }
@@ -152,6 +151,12 @@ bool operator==(const Matrix<T>& s1, const Matrix<T>& s2)
         }
     }
     return true;
+}
+
+template<typename T>
+bool operator!=(const Matrix<T>& s1, const Matrix<T>& s2)
+{
+    return !(s1 == s2);
 }
 
 // TODO: What if we have matrix<float>?

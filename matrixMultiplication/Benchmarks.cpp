@@ -1,15 +1,17 @@
 #include "matrixMultiplication/matrix/MatrixMul.hpp"
 #include "matrixMultiplication/matrix/MatrixMulGpt.hpp"
 #include "matrixMultiplication/matrix/MatrixMulOpenBlas.hpp"
+#include "matrixMultiplication/matrix/matMulBlis.hpp"
 #include "matrixMultiplication/matrix/MatrixMulEigen.hpp"
 #include "matrixMultiplication/matrix/claudeMatMul.hpp"
 #include "matrixMultiplication/matrix/matMulRegOpt.hpp"
 #include "matrixMultiplication/matrix/matMulColOpt.hpp"
 #include "matrixMultiplication/matrix/matMulLoops.hpp"
+#include "matrixMultiplication/matrix/matMulPadding.hpp"
+#include "matrixMultiplication/matrix/matMulAutotune.hpp"
+#include "matrixMultiplication/matrix/matMulSimd.hpp"
 
 #include "matrixMultiplication/matrix/cmatrix.h"
-
-#include "matrix/disasm.hpp"
 
 #include <benchmark/benchmark.h>
 
@@ -18,8 +20,8 @@ benchmark::TimeUnit   TIME_UNIT = benchmark::kMillisecond;
 
 // Provide matrix size to benchmarks
 // constexpr std::size_t NN = 4 * 864;
-constexpr std::size_t NN = 4 * 720;
-// constexpr std::size_t NN = 4 * 768;
+// constexpr std::size_t NN = 4 * 720;
+constexpr std::size_t NN = 4 * 768;
 
 int GetMatrixDimFromEnv()
 {
@@ -48,6 +50,16 @@ static void BM_MatrixMulOpenBLAS(benchmark::State& state)
     for (auto _ : state)
     {
         matrixMulOpenBlas(matrices);
+    }
+}
+
+static void BM_MatrixMulBLIS(benchmark::State& state)
+{
+    std::size_t N        = state.range(0);
+    auto        matrices = initMatrix(N, N, N);
+    for (auto _ : state)
+    {
+        matmulBlis(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -188,6 +200,17 @@ static void BM_MatMulLoopRepack(benchmark::State& state)
     }
 }
 
+static void BM_MatMulLoopRepackV2(benchmark::State& state)
+{
+    std::size_t N        = state.range(0);
+    auto        matrices = initMatrix(N, N, N);
+
+    for (auto _ : state)
+    {
+        matMulLoopsRepackV2(matrices.a, matrices.b, matrices.c);
+    }
+}
+
 static void BM_MatMulLoopIKJ(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
@@ -231,6 +254,17 @@ static void BM_CN_MatMulNaive_Block(benchmark::State& state)
     for (auto _ : state)
     {
         cppnow::matMul_Naive_Block(matrices.a, matrices.b, matrices.c);
+    }
+}
+
+static void BM_CN_MatMulNaive_Order_KIJ(benchmark::State& state)
+{
+    std::size_t N        = state.range(0);
+    auto        matrices = initMatrix(N, N, N);
+
+    for (auto _ : state)
+    {
+        cppnow::matMul_Naive_Order_KIJ(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -376,6 +410,39 @@ static void BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT(benchmark::State& state)
         cppnow::matMul_Avx_Cache_Regs_Unroll_BPack_MT(matrices.a, matrices.b, matrices.c);
     }
 }
+
+static void BM_MatMulPadding(benchmark::State& state)
+{
+    std::size_t N        = state.range(0);
+    auto        matrices = initMatrix(N, N, N);
+
+    for (auto _ : state)
+    {
+        matMulPadding(matrices.a, matrices.b, matrices.c);
+    }
+}
+
+static void BM_MatMulAutotune(benchmark::State& state)
+{
+    std::size_t N        = state.range(0);
+    auto        matrices = initMatrix(N, N, N);
+
+    for (auto _ : state)
+    {
+        matMulAutotune(matrices.a, matrices.b, matrices.c);
+    }
+}
+
+static void BM_MatMulSimd(benchmark::State& state)
+{
+    std::size_t N        = state.range(0);
+    auto        matrices = initMatrix(N, N, N);
+
+    for (auto _ : state)
+    {
+        matMulSimd(matrices.a, matrices.b, matrices.c);
+    }
+}
 //////////////////////////////////////////////////////////////////////////////
 
 #define ENABLE_TEST_CN
@@ -403,6 +470,25 @@ BENCHMARK(BM_MatrixMulParam_Naive_MT)->Arg(NN);
 // BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack/2880          1503 ms         1496 ms            1
 // BM_CN_MatMul_Avx_Cache_Regs_Unroll_MT/2880              440 ms          436 ms            2
 // BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT/2880        496 ms          455 ms            2
+// BM_MatMulLoopRepackMT/2880                              374 ms          372 ms            2
+// BM_MatMulLoopRepack/2880                                1370 ms         1370 ms            1
+
+// BM_CN_MatMul_Avx/2880                                  3200 ms         3185 ms            1
+// BM_CN_MatMul_Avx_AddRegs/2880                          2552 ms         2542 ms            1
+// BM_CN_MatMul_Avx_AddRegsV2/2880                        2552 ms         2542 ms            1
+// BM_CN_MatMul_Avx_AddRegs_Unroll/2880                   6933 ms         6868 ms            1
+// BM_CN_MatMul_Avx_Cache/2880                            2709 ms         2698 ms            1
+// BM_CN_MatMul_Avx_Cache_Regs/2880                       2705 ms         2695 ms            1
+// BM_CN_MatMul_Avx_Cache_Regs_UnrollRW/2880              1407 ms         1400 ms            1
+// BM_CN_MatMul_Avx_Cache_Regs_Unroll/2880                1429 ms         1423 ms            1
+// BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack/2880          1540 ms         1533 ms            1
+// BM_CN_MatMul_Avx_Cache_Regs_Unroll_MT/2880              466 ms          460 ms            2
+// BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT/2880        477 ms          473 ms            2
+// BM_MatMulRegOpt/2880                                    398 ms          390 ms            2
+// BM_MatMulLoopRepack/2880                                369 ms          365 ms            2
+// BM_MatMulLoopRepackV2/2880                              415 ms          412 ms            2
+// BM_MatMulLoopBPacked/2880                               472 ms          467 ms            2
+// BM_MatrixMulOpenBLAS/2880                               330 ms          327 ms            2
 
 // BENCHMARK(BM_CN_MatMulNaive)->Arg(NN);
 // BENCHMARK(BM_CN_MatMulNaive_Order)->Arg(NN);
@@ -458,31 +544,45 @@ int main(int argc, char** argv)
 {
     int matrix_dim = GetMatrixDimFromEnv();
 
-#ifdef ENABLE_TEST_CN
     REGISTER(BM_MatrixMulOpenBLAS, matrix_dim);
-
+    REGISTER(BM_MatrixMulBLIS, matrix_dim);
+#ifdef ENABLE_TEST_CN
+    //    REGISTER(BM_MatrixMulParam_GPT, matrix_dim);
     //    REGISTER(BM_CN_MatMulNaive, matrix_dim);
     //    REGISTER(BM_CN_MatMulNaive, matrix_dim);
-    //    REGISTER(BM_CN_MatMulNaive_Order, matrix_dim);
     //    REGISTER(BM_CN_MatMulNaive_Block, matrix_dim);
-    //    REGISTER(BM_CN_MatMul_Simd, matrix_dim);
-    //    REGISTER(BM_CN_MatMul_Avx, matrix_dim);
-    //    REGISTER(BM_CN_MatMul_Avx_AddRegs, matrix_dim);
-    //    REGISTER(BM_CN_MatMul_Avx_AddRegsV2, matrix_dim);
-    //    REGISTER(BM_CN_MatMul_Avx_AddRegs_Unroll, matrix_dim);
-    //    REGISTER(BM_CN_MatMul_Avx_Cache, matrix_dim);
-    //    REGISTER(BM_CN_MatMul_Avx_Cache_Regs, matrix_dim);
-    //    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_UnrollRW, matrix_dim);
+    REGISTER(BM_CN_MatMulNaive_Order, matrix_dim);
+    REGISTER(BM_CN_MatMulNaive_Order_KIJ, matrix_dim);
 
-    //    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll, matrix_dim);
-    //    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack, matrix_dim);
+    REGISTER(BM_CN_MatMul_Simd, matrix_dim);
+
+    REGISTER(BM_CN_MatMul_Avx, matrix_dim);
+    REGISTER(BM_CN_MatMul_Avx_AddRegs, matrix_dim);
+    REGISTER(BM_CN_MatMul_Avx_AddRegsV2, matrix_dim);
+    REGISTER(BM_CN_MatMul_Avx_AddRegs_Unroll, matrix_dim);
+    REGISTER(BM_CN_MatMul_Avx_Cache, matrix_dim);
+    REGISTER(BM_CN_MatMul_Avx_Cache_Regs, matrix_dim);
+    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_UnrollRW, matrix_dim);
+
+    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll, matrix_dim);
+    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_MT, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT, matrix_dim);
 
-    //    REGISTER(BM_MatrixMulParam_GPT, matrix_dim);
-
 #endif
+    REGISTER(BM_MatMulRegOpt, matrix_dim);
+    REGISTER(BM_MatMulLoopRepack, matrix_dim);
+    REGISTER(BM_MatMulLoopRepackV2, matrix_dim); // slow
+
+    REGISTER(BM_MatMulLoopBPacked, matrix_dim);
+
+    //
+    REGISTER(BM_MatMulPadding, matrix_dim);
+    REGISTER(BM_MatMulAutotune, matrix_dim);
+    REGISTER(BM_MatMulSimd, matrix_dim);
+
     benchmark::Initialize(&argc, argv);
     benchmark::RunSpecifiedBenchmarks();
+
     return 0;
 }
