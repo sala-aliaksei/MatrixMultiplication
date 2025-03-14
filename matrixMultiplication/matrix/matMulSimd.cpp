@@ -5,17 +5,14 @@
 
 #include "omp.h"
 
-// using namespace std::experimental;
 namespace stdx = std::experimental;
 
 using simd_d = stdx::native_simd<double>;
 
 template<typename T>
 using simd = stdx::native_simd<T>;
-// simd_d.size() == 4;
-// using simd_d = stdx::simd<double,4>;
 
-// static_assert(simd_abi::native<double> == 4, "");
+static_assert(simd<double>::size() == 4, "Expect 4 doubles per simd register");
 
 static inline void load_inc_store_double(double* __restrict ptr, simd_d increment)
 {

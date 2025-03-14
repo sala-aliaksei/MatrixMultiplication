@@ -21,8 +21,8 @@ constexpr int L2_SIZE_PER_CORE = 256 * 1024;
 constexpr int AVG_N_FOR_L2_CACHE = 104; // 3 matrices of 104x104 of doublecan fit
 
 // For naive
-constexpr int ARYTH_INTENSITY_THRESHOLD = 3;  // flops per byte
-constexpr int ARYTH_INTENSITY_N         = 36; // N > 36 should be compute bound
+constexpr int ARITHMETIC_INTENSITY_THRESHOLD = 3;  // flops per byte
+constexpr int ARITHMETIC_INTENSITY_N         = 36; // N > 36 should be compute bound
 
 /******************  BLAS    ***************************/
 
