@@ -2,10 +2,6 @@
 import os
 import math
 
-
-# constexpr int Kc = 240;
-
-
 # Given constants
 Nr, Mr, Kr = 12, 4, 1
 
@@ -27,6 +23,14 @@ Kc = [ i for i in range(240-2*Kstep,240+2*Kstep,Kstep)]
 
 BM_NAME = "BM_MatMulAutotune"
 
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+workspace = script_dir + "/../"
+print("workspace: ", workspace)
+
+output_dir = workspace + "output/autotune-constants"
+os.makedirs(output_dir, exist_ok=True)
+
 for Ncc in Nc:
     for Mcc in Mc:
         for Kcc in Kc:
@@ -41,11 +45,12 @@ for Ncc in Nc:
 
             print(f"Run experiment with Ncc: {Ncc}, Mcc: {Mcc}, Kcc: {Kcc}, size: {size}")
             # run cmake ffrom current directory
-            os.system(f"pwd && cmake -DN_CACHE_SIZE={Ncc} -DM_CACHE_SIZE={Mcc} -DK_CACHE_SIZE={Kcc} \
+            os.system(f"cd {workspace} && cmake -DN_CACHE_SIZE={Ncc} -DM_CACHE_SIZE={Mcc} -DK_CACHE_SIZE={Kcc} \
                       -DCMAKE_BUILD_TYPE=Release -DENABLE_UNIT_TESTS=OFF \
                       -DCMAKE_TOOLCHAIN_FILE=./build/Release/generators/conan_toolchain.cmake \
                       -B ./build && cmake --build ./build -j4") 
             
             os.environ["MATRIX_DIM"] = str(size)
-            #  | grep -E 'Nc:|BM_MatMulAutotune|BM_MatrixMulOpenBLAS'
-            os.system(f"./build/Benchmarks --benchmark_filter=\"{BM_NAME}/{size}|BM_MatrixMulOpenBLAS/{size}\" --benchmark_time_unit=ms | grep -E 'Nc:|BM_MatMulAutotune|BM_MatrixMulOpenBLAS' >> output.log 2>&1")
+            os.system(f"cd {workspace} && ./build/BM_Matmul --benchmark_filter=\"{BM_NAME}/{size}|BM_MatrixMulOpenBLAS/{size}\" --benchmark_time_unit=ms | grep -E 'Nc:|BM_MatMulAutotune|BM_MatrixMulOpenBLAS' >> {output_dir}/output.log 2>&1")
+
+print("Done")
