@@ -1,4 +1,4 @@
-#include "matrixMultiplication/matrix/MatrixMul.hpp"
+#include "matrixMultiplication/matrix/matMul.hpp"
 #include "matrixMultiplication/matrix/matMulRegOpt.hpp"
 
 #include <iostream>

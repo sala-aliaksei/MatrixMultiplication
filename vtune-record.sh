@@ -45,7 +45,7 @@ for bm in "${BENCHMARK_LIST[@]}"; do
         -knob collect-memory-bandwidth=true \
         --app-working-dir=/home/alex/workspace/cpp-projects/MatrixMultiplication/build \
         -result-dir ${VTUNE_RES_DIR}/${bm} \
-        -- /home/alex/workspace/cpp-projects/MatrixMultiplication/build/Benchmarks --benchmark_filter=${bm}/$MATRIX_DIM
+        -- /home/alex/workspace/cpp-projects/MatrixMultiplication/build/BM_Matmul --benchmark_filter=${bm}/$MATRIX_DIM
 done
 
 

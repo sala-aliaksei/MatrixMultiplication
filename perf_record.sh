@@ -30,7 +30,7 @@ export MATRIX_DIM=2880
 
 for bm in "${BENCHMARK_LIST[@]}"; do
     echo "bm = ${bm}"
-    perf record ./Benchmarks --benchmark_filter=${bm}/$MATRIX_DIM
+    perf record ./BM_Matmul --benchmark_filter=${bm}/$MATRIX_DIM
     mv perf.data perf-result/perf_${bm}.data
 done
 

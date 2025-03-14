@@ -1,5 +1,5 @@
 
-#include "MatrixMulOpenBlas.hpp"
+#include "matMulOpenBlas.hpp"
 
 #include "openblas/cblas.h"
 

@@ -1,4 +1,4 @@
-#include "MatrixMul.hpp"
+#include "matMul.hpp"
 #include <cstring> // memcpy
 #include <cmath>
 #include <array>
