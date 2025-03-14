@@ -1,17 +1,21 @@
-#include "matrixMultiplication/matrix/matMul.hpp"
-#include "matrixMultiplication/matrix/matMulGpt.hpp"
-#include "matrixMultiplication/matrix/matMulOpenBlas.hpp"
-#include "matrixMultiplication/matrix/matMulBlis.hpp"
-#include "matrixMultiplication/matrix/matMulEigen.hpp"
-#include "matrixMultiplication/matrix/matMulClaude.hpp"
-#include "matrixMultiplication/matrix/matMulRegOpt.hpp"
-#include "matrixMultiplication/matrix/matMulColOpt.hpp"
-#include "matrixMultiplication/matrix/matMulLoops.hpp"
-#include "matrixMultiplication/matrix/matMulPadding.hpp"
-#include "matrixMultiplication/matrix/matMulAutotune.hpp"
-#include "matrixMultiplication/matrix/matMulSimd.hpp"
 
-#include "matrixMultiplication/matrix/cmatrix.h"
+
+#include "mm/genai/matMulClaude.hpp"
+#include "mm/genai/matMulGpt.hpp"
+
+#include "mm/tpi/matMulOpenBlas.hpp"
+#include "mm/tpi/matMulBlis.hpp"
+#include "mm/tpi/matMulEigen.hpp"
+
+#include "mm/matmul/matMul.hpp"
+#include "mm/matmul/matMulRegOpt.hpp"
+#include "mm/matmul/matMulColOpt.hpp"
+#include "mm/matmul/matMulLoops.hpp"
+#include "mm/matmul/matMulPadding.hpp"
+#include "mm/matmul/matMulAutotune.hpp"
+#include "mm/matmul/matMulSimd.hpp"
+
+// #include "mm/matmul/cmatrix.h"
 
 #include <benchmark/benchmark.h>
 
@@ -20,8 +24,8 @@ benchmark::TimeUnit   TIME_UNIT = benchmark::kMillisecond;
 
 // Provide matrix size to benchmarks
 // constexpr std::size_t NN = 4 * 864;
-// constexpr std::size_t NN = 4 * 720;
-constexpr std::size_t NN = 4 * 768;
+constexpr std::size_t NN = 4 * 720;
+// constexpr std::size_t NN = 4 * 768;
 
 int GetMatrixDimFromEnv()
 {

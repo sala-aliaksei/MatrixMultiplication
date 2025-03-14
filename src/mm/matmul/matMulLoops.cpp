@@ -1,5 +1,5 @@
-#include "matMulLoops.hpp"
-#include "reorderMatrix.hpp"
+#include "mm/matmul/matMulLoops.hpp"
+#include "mm/core/reorderMatrix.hpp"
 
 #include "omp.h"
 

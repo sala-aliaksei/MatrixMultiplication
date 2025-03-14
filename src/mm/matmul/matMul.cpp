@@ -1,4 +1,4 @@
-#include "matMul.hpp"
+#include "mm/matmul/matMul.hpp"
 #include <cstring> // memcpy
 #include <cmath>
 #include <array>

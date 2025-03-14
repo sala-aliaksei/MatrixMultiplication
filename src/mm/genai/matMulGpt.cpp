@@ -1,5 +1,4 @@
-
-#include "matMulGpt.hpp"
+#include "mm/genai/matMulGpt.hpp"
 
 /*
  * Highly optimized DGEMM for 2880x2880 matrices on Intel Haswell.

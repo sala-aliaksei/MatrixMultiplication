@@ -1,5 +1,5 @@
 #pragma once
-#include "Matrix.hpp"
+#include <mm/core/Matrix.hpp>
 #include <vector>
 
 void matrixMulOpenBlas(MatrixSet& ms);

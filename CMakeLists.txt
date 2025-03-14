@@ -36,6 +36,7 @@ find_package(OpenBLAS REQUIRED)
 find_package(Boost REQUIRED) # for aligment allocator # COMPONENTS system
 find_package(Eigen3)
 
+# Use blis from system path (no conan receipt)
 find_library(BLIS_LIB NAMES blis PATHS /usr/local/lib)
 find_path(BLIS_INCLUDE_DIR NAMES blis.h PATHS /usr/local/include)
 if (NOT BLIS_LIB OR NOT BLIS_INCLUDE_DIR)
@@ -53,35 +54,34 @@ endif()
 
 #######    CORE     ##########
 add_library(Core SHARED
-    matrixMultiplication/matrix/kernels.cpp
-    matrixMultiplication/matrix/kernels.hpp
-    matrixMultiplication/matrix/Matrix.cpp
-    matrixMultiplication/matrix/Matrix.hpp
-    matrixMultiplication/utils/utils.cpp
-    matrixMultiplication/utils/utils.hpp
-    matrixMultiplication/matrix/reorderMatrix.hpp
+    src/mm/core/kernels.cpp
+    src/mm/core/kernels.hpp
+    src/mm/core/Matrix.cpp
+    src/mm/core/Matrix.hpp
+    src/mm/core/reorderMatrix.hpp
+    src/mm/core/utils/utils.cpp
+    src/mm/core/utils/utils.hpp
 )
 target_include_directories(Core PUBLIC
     ${Boost_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/src
 )
 
 
 ######      MATMUL     #################
-add_library(${PROJECT_NAME}
-    SHARED
-    matrixMultiplication/matrix/matMul.hpp
-    matrixMultiplication/matrix/matMul.cpp
-    matrixMultiplication/matrix/matMulSimd.hpp
-    matrixMultiplication/matrix/matMulSimd.cpp
-    matrixMultiplication/matrix/matMulPadding.hpp
-    matrixMultiplication/matrix/matMulPadding.cpp
-    matrixMultiplication/matrix/matMulLoops.cpp
-    matrixMultiplication/matrix/matMulLoops.hpp
-    matrixMultiplication/matrix/matMulColOpt.hpp
-    matrixMultiplication/matrix/matMulColOpt.cpp
-    matrixMultiplication/matrix/matMulRegOpt.hpp
-    matrixMultiplication/matrix/matMulRegOpt.cpp
+add_library(${PROJECT_NAME} SHARED
+    src/mm/matmul/matMul.hpp
+    src/mm/matmul/matMul.cpp
+    src/mm/matmul/matMulSimd.hpp
+    src/mm/matmul/matMulSimd.cpp
+    src/mm/matmul/matMulPadding.hpp
+    src/mm/matmul/matMulPadding.cpp
+    src/mm/matmul/matMulLoops.cpp
+    src/mm/matmul/matMulLoops.hpp
+    src/mm/matmul/matMulColOpt.hpp
+    src/mm/matmul/matMulColOpt.cpp
+    src/mm/matmul/matMulRegOpt.hpp
+    src/mm/matmul/matMulRegOpt.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC Core)
@@ -92,35 +92,29 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC -DPROJECT_VERSION="${PROJECT_V
 #########     3rd Party implementation      #######
 
 # TPI - 3rd Party Impl
-add_library(TPI
-    SHARED
-    matrixMultiplication/matrix/matMulEigen.cpp
-    matrixMultiplication/matrix/matMulEigen.hpp
-    matrixMultiplication/matrix/matMulOpenBlas.hpp
-    matrixMultiplication/matrix/matMulOpenBlas.cpp
-    matrixMultiplication/matrix/matMulBlis.hpp
-    matrixMultiplication/matrix/matMulBlis.cpp
+add_library(TPI SHARED
+    src/mm/tpi/matMulEigen.cpp
+    src/mm/tpi/matMulEigen.hpp
+    src/mm/tpi/matMulOpenBlas.hpp
+    src/mm/tpi/matMulOpenBlas.cpp
+    src/mm/tpi/matMulBlis.hpp
+    src/mm/tpi/matMulBlis.cpp
 )
 
 target_include_directories(TPI PUBLIC
     Core
     ${CMAKE_SOURCE_DIR}
-    #std::linalg
-    #-lblis # installed to system
     ${BLIS_INCLUDE_DIR}
+    #std::linalg
 )
 
 target_link_libraries(TPI
     Core
-    #-lblis
     OpenBLAS::OpenBLAS
-    #-lpthread
-    #-lstdc++fs
-
     Eigen3::Eigen
+    ${BLIS_LIB}
     #tensorflow::tensorflowlite
     #std::linalg
-    ${BLIS_LIB}
 )
 
 
@@ -128,10 +122,10 @@ target_link_libraries(TPI
 ######     GEN AI     #################
 add_library(GenAI
     SHARED
-    matrixMultiplication/matrix/matMulClaude.cpp
-    matrixMultiplication/matrix/matMulClaude.hpp
-    matrixMultiplication/matrix/matMulGpt.cpp
-    matrixMultiplication/matrix/matMulGpt.hpp
+    src/mm/genai/matMulClaude.cpp
+    src/mm/genai/matMulClaude.hpp
+    src/mm/genai/matMulGpt.cpp
+    src/mm/genai/matMulGpt.hpp
 )
 
 target_include_directories(GenAI PUBLIC Core)
@@ -139,13 +133,10 @@ target_link_libraries(GenAI Core)
 
 
 ######     MatMulAutotune      #####
-# Move to subdir?
 
-add_library(MatMulAutotune
-    #STATIC
-    SHARED
-    matrixMultiplication/matrix/matMulAutotune.hpp
-    matrixMultiplication/matrix/matMulAutotune.cpp
+add_library(MatMulAutotune SHARED
+    src/mm/matmul/matMulAutotune.hpp
+    src/mm/matmul/matMulAutotune.cpp
 )
 
 target_link_libraries(MatMulAutotune Core)
@@ -166,21 +157,24 @@ add_executable(MulMatrixApp matrixMultiplication/MulMatrixApp.cpp)
 target_link_libraries(MulMatrixApp  ${PROJECT_NAME})
 target_include_directories(MulMatrixApp PUBLIC ${CMAKE_SOURCE_DIR})
 
+
+
 if(ENABLE_BENCHMARKS)
     find_package(benchmark REQUIRED)
 
-    add_executable(BM_Matmul matrixMultiplication/Benchmarks.cpp)
+    add_executable(BM_Matmul src/benchmarks/matMulBenchmarks.cpp)
     target_link_libraries(BM_Matmul benchmark::benchmark ${PROJECT_NAME} MatMulAutotune GenAI TPI)
     target_include_directories(BM_Matmul PUBLIC ${CMAKE_SOURCE_DIR})
 
-    add_executable(BM_Prefetch src/stride/benchEffectiveColStride.cpp)
+    add_executable(BM_Prefetch src/benchmarks/stride/benchEffectiveColStride.cpp)
     target_link_libraries(BM_Prefetch benchmark::benchmark)
     target_include_directories(BM_Prefetch PUBLIC ${CMAKE_SOURCE_DIR}/src)
 
-    add_executable(BM_Repacking src/reorder/reorderBenchmark.cpp)
+    add_executable(BM_Repacking src/benchmarks/reorder/reorderBenchmark.cpp)
     target_link_libraries(BM_Repacking benchmark::benchmark)
     target_include_directories(BM_Repacking PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/matrixMultiplication)
 endif()
+
 
 if(ENABLE_UNIT_TESTS)
     find_package(GTest REQUIRED)

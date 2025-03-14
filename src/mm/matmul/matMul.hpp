@@ -1,6 +1,7 @@
 #pragma once
-#include "Matrix.hpp"
-#include "kernels.hpp"
+#include <mm/core/Matrix.hpp>
+#include <mm/core/kernels.hpp>
+
 #include <vector>
 #include <future>
 #include <optional>

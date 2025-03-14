@@ -1,5 +1,5 @@
 #include "matMulAutotune.hpp"
-#include "reorderMatrix.hpp"
+#include "mm/core/reorderMatrix.hpp"
 
 #include "omp.h"
 

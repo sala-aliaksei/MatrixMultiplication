@@ -1,5 +1,4 @@
-
-#include "matMulOpenBlas.hpp"
+#include "mm/tpi/matMulOpenBlas.hpp"
 
 #include "openblas/cblas.h"
 

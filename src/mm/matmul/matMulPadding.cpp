@@ -1,5 +1,5 @@
-#include "matMulPadding.hpp"
-#include "reorderMatrix.hpp"
+#include "mm/matmul/matMulPadding.hpp"
+#include "mm/core/reorderMatrix.hpp"
 
 // #include <experimental/simd>
 

@@ -1,5 +1,5 @@
-#include "matMulEigen.hpp"
-#include "Matrix.hpp"
+#include "mm/tpi/matMulEigen.hpp"
+#include <mm/core/Matrix.hpp>
 
 MatrixEigenSet initEigenMatrix(std::size_t isize, std::size_t jsize, std::size_t ksize)
 {

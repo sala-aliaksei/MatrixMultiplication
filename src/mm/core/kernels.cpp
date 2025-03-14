@@ -1,5 +1,5 @@
 
-#include "matrixMultiplication/matrix/kernels.hpp"
+#include "mm/core/kernels.hpp"
 #include <math.h>
 
 #include <immintrin.h>

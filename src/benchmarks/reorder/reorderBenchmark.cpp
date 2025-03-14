@@ -1,7 +1,6 @@
+#include "mm/core/reorderMatrix.hpp"
 
 #include <benchmark/benchmark.h>
-
-#include "matrix/reorderMatrix.hpp"
 
 #include <immintrin.h>
 

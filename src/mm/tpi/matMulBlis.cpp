@@ -1,4 +1,4 @@
-#include "matMulBlis.hpp"
+#include "mm/tpi/matMulBlis.hpp"
 
 #define BLIS_FAMILY_HASWELL
 

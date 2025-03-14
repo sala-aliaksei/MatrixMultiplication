@@ -1,5 +1,5 @@
-#include "matrixMultiplication/matrix/Matrix.hpp"
-#include "matrixMultiplication/matrix/reorderMatrix.hpp"
+#include "mm/core/Matrix.hpp"
+#include "mm/core/reorderMatrix.hpp"
 
 #include <gtest/gtest.h>
 

@@ -1,5 +1,5 @@
-#include "matrixMultiplication/matrix/matMul.hpp"
-#include "matrixMultiplication/matrix/matMulRegOpt.hpp"
+#include <mm/matmul/matMul.hpp>
+#include <mm/matmul/matMulRegOpt.hpp>
 
 #include <iostream>
 

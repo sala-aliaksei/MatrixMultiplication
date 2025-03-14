@@ -1,6 +1,6 @@
-#include "matMulRegOpt.hpp"
-#include "matrixMultiplication/utils/utils.hpp"
-#include "reorderMatrix.hpp"
+#include "mm/matmul/matMulRegOpt.hpp"
+#include "mm/core/utils/utils.hpp"
+#include "mm/core/reorderMatrix.hpp"
 
 #include <immintrin.h>
 #include <array>

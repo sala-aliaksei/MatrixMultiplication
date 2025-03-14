@@ -1,5 +1,5 @@
-#include "matMulColOpt.hpp"
-#include "matrixMultiplication/utils/utils.hpp"
+#include "mm/matmul/matMulColOpt.hpp"
+#include "mm/core/utils/utils.hpp"
 
 #include <immintrin.h>
 
