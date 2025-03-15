@@ -1,4 +1,5 @@
 #pragma once
+#include <mm/core/Matrix.hpp>
 #include <Eigen/Dense>
 
 struct MatrixEigenSet
@@ -9,4 +10,5 @@ struct MatrixEigenSet
 };
 
 void           matrixMulEigen(MatrixEigenSet& ms);
-MatrixEigenSet initEigenMatrix(std::size_t isize, std::size_t jsize, std::size_t ksize);
+MatrixEigenSet initEigenMatrix(const Matrix<double>& a, const Matrix<double>& b);
+MatrixEigenSet initEigenMatrix(int M, int N, int K);

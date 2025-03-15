@@ -163,7 +163,7 @@ void matMulPadding(const Matrix<double>& A, const Matrix<double>& B, Matrix<doub
     //    constexpr int Mc = 20;
     //    constexpr int Kc = 80;
 
-    constexpr int Nc = 768;
+    constexpr int Nc = 720;
     constexpr int Mc = 20;
     constexpr int Kc = 80;
 

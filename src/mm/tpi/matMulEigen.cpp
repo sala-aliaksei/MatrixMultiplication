@@ -1,28 +1,58 @@
 #include "mm/tpi/matMulEigen.hpp"
-#include <mm/core/Matrix.hpp>
 
-MatrixEigenSet initEigenMatrix(std::size_t isize, std::size_t jsize, std::size_t ksize)
+MatrixEigenSet initEigenMatrix(int M, int N, int K)
 {
     MatrixEigenSet ms;
 
-    ms.a = Eigen::MatrixXd(isize, ksize);
-    ms.b = Eigen::MatrixXd(ksize, jsize);
-    ms.c = Eigen::MatrixXd(isize, jsize);
+    ms.a = Eigen::MatrixXd(M, K);
+    ms.b = Eigen::MatrixXd(K, N);
+    ms.c = Eigen::MatrixXd(M, N);
 
     // Populate the matrix using two for loops
-    for (int i = 0; i < isize; ++i)
+    for (int i = 0; i < M; ++i)
     {
-        for (int j = 0; j < ksize; ++j)
+        for (int j = 0; j < K; ++j)
         {
             ms.a(i, j) = i + j;
         }
     }
 
-    for (int i = 0; i < ksize; ++i)
+    for (int i = 0; i < K; ++i)
     {
-        for (int j = 0; j < jsize; ++j)
+        for (int j = 0; j < N; ++j)
         {
-            ms.b(i, j) = j - i;
+            ms.b(i, j) = j + i;
+        }
+    }
+    return ms;
+}
+
+MatrixEigenSet initEigenMatrix(const Matrix<double>& a, const Matrix<double>& b)
+{
+    MatrixEigenSet ms;
+
+    auto M = a.row();
+    auto N = a.col();
+    auto K = b.col();
+
+    ms.a = Eigen::MatrixXd(M, K);
+    ms.b = Eigen::MatrixXd(K, N);
+    ms.c = Eigen::MatrixXd(M, N);
+
+    // Populate the matrix using two for loops
+    for (int i = 0; i < M; ++i)
+    {
+        for (int j = 0; j < K; ++j)
+        {
+            ms.a(i, j) = a(i, j);
+        }
+    }
+
+    for (int i = 0; i < K; ++i)
+    {
+        for (int j = 0; j < N; ++j)
+        {
+            ms.b(i, j) = b(i, j);
         }
     }
     return ms;

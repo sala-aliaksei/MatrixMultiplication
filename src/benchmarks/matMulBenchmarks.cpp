@@ -445,7 +445,6 @@ int main(int argc, char** argv)
     REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT, matrix_dim);
 
     REGISTER(BM_MatMulRegOpt, matrix_dim);
-    REGISTER(BM_MatMulColOpt, matrix_dim);
 
     REGISTER(BM_MatMulLoopRepack, matrix_dim);
     REGISTER(BM_MatMulLoopRepackV2, matrix_dim); // slower

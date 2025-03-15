@@ -123,22 +123,22 @@ TEST_F(MatrixMulTest, Claude)
 
 TEST_F(MatrixMulTest, Eigen)
 {
-    auto ms = initEigenMatrix(I, J, K);
+    auto ms = initEigenMatrix(matrices.a, matrices.b);
 
     matrixMulEigen(ms);
 
     auto rows = ms.c.rows();
     auto cols = ms.c.cols();
-    for (auto row = 0; row < rows; ++row)
+    for (auto i = 0; i < rows; ++i)
     {
-        for (auto col = 0; col < cols; ++col)
+        for (auto j = 0; j < cols; ++j)
         {
-            bool res = valid_res(row, col) == ms.c(row, col);
+            bool res = valid_res(i, j) == ms.c(i, j);
             if (!res)
             {
-                std::cout << "row: " << row << ", col: " << col << std::endl;
+                std::cout << "row: " << i << ", col: " << j << std::endl;
             }
-            ASSERT_EQ(valid_res(row, col), ms.c(row, col));
+            ASSERT_EQ(valid_res(i, j), ms.c(i, j));
         }
     }
 }
@@ -272,7 +272,6 @@ TEST_F(MatrixMulTest, matMulAutotune)
 TEST_F(MatrixMulTest, matMulSimd)
 {
     matMulSimd(matrices.a, matrices.b, matrices.c);
-    // analyzeResults(matrices.c, valid_res);
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
