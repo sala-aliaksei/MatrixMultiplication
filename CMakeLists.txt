@@ -153,7 +153,7 @@ endif()
 
 ######     APPLICATIONS      #####
 
-add_executable(MulMatrixApp matrixMultiplication/MulMatrixApp.cpp)
+add_executable(MulMatrixApp src/MulMatrixApp.cpp)
 target_link_libraries(MulMatrixApp  ${PROJECT_NAME})
 target_include_directories(MulMatrixApp PUBLIC ${CMAKE_SOURCE_DIR})
 
@@ -179,12 +179,12 @@ endif()
 if(ENABLE_UNIT_TESTS)
     find_package(GTest REQUIRED)
 
-    add_executable(UT_Matmul matrixMultiplication/UTMatMul.cpp)
+    add_executable(UT_Matmul src/unitTests/UTMatMul.cpp)
     target_link_libraries(UT_Matmul ${PROJECT_NAME} ${PROJECT_NAME} MatMulAutotune GenAI TPI GTest::gtest GTest::gtest_main )
     target_include_directories(UT_Matmul PUBLIC ${CMAKE_SOURCE_DIR})
 
 
-    add_executable(UT_Repacking matrixMultiplication/UTRepacking.cpp)
+    add_executable(UT_Repacking src/unitTests/UTRepacking.cpp)
     target_link_libraries(UT_Repacking ${PROJECT_NAME} GTest::gtest GTest::gtest_main )
     target_include_directories(UT_Repacking PUBLIC ${CMAKE_SOURCE_DIR})
 endif()
