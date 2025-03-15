@@ -1,32 +1,29 @@
 
 # Enable perf
-sudo sysctl kernel.perf_event_paranoid=0
-
-# Run perf, support -d option (up to 3 times)
-perf stat -d -d ./Multithreads
-
-# perf can be used to record multithread app track for debug.
+`sudo sysctl kernel.perf_event_paranoid=0`
 
 ### PROFILING
-# perf record ./binary
-# perf report
+Run `perf`, support -d option (up to 3 times)
+```bash
+perf stat -d -d {AppName}
+perf record {AppName}
+perf report
+```
 
-# static is thread safe, think about overhead when use it. (some arch without atomic don't support it? https://youtu.be/JRUbzoVfkkw?t=4679)
+`perf` can be used to record multithread app track for debug.
 
-Data race in single thread is possible.
-Find an example
 
-/*
-Optimization abbreviations:
-1. transposition TP
-2. blocks        BL (arg - size of the block) https://en.wikipedia.org/wiki/Strassen_algorithm
-3. multithreads  MT (arg - amount of threads)
-4. vectorization VT (compile cond - support instructions) set automaticaly during compile time,
-                     ability to use older SIMD/ARCH?
-*/
+### Optimization abbreviations
+1. TP - transposition
+2. BL - blocks(arg - size of the block) https://en.wikipedia.org/wiki/Strassen_algorithm
+3. MT - multithreads(arg - amount of threads)
+4. VT - vectorization(compile cond - support instructions) set automaticaly during compile time, ability to use older SIMD/ARCH?
+
 
 Compiler flags:
 -fopt-info-missed  show missing optimization
 
-# Use cpupower to disable autoscaling
+Use cpupower to disable autoscaling:
+```bash
 cpupower frequency-info -o proc
+```

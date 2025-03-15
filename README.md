@@ -7,33 +7,7 @@
 
 This project is designed to explore and benchmark various matrix multiplication algorithms in C++. The goal is to implement custom matrix multiplication functions, optimize them using different techniques, and compare their performance against industry-standard libraries such as Intel MKL, Eigen, and OpenBLAS.
 
-## Project Structure
 
-```
-MatrixMultiplication/
-│
-├── matrixMultiplication/
-│   ├── MulMatrixApp.cpp               # Main entry point of the application
-│   ├── Benchmarks.cpp                 # Benchmarking code
-│   ├── UnitTests.cpp                  # Unit tests for custom implementations
-│   ├── matrix/cmatrix.h               # Header file for matrix multiplication in c
-│   ├── matrix/cmatrix.c               # Source file for matrix multiplication in c
-│   ├── matrix/Matrix.hpp              # Header file for Matrix class for representing and manipulating matrices
-│   ├── matrix/Matrix.cpp              # Source file for Matrix class for representing and manipulating matrices
-│   ├── matrix/MatrixMul.hpp           # Header file for parametrized matrix multiplication functions
-│   ├── matrix/MatrixMul.cpp           # Implementation of parametrized matrix multiplication functions
-│   ├── matrix/MatrixMulFunctions.hpp  # Header file for matrix multiplication functions
-│   └── matrix/MatrixMulFunctions.cpp  # Implementation of matrix multiplication functions
-│
-├── gpu/
-│   └── matrixMul.cu                   # GPU implementation of matrix multiplication
-│
-├── CMakeLists.txt          # CMake build script
-├── conanfile.txt           # configuration file to manage dependencies for the MatrixMultiplication project. 
-├── cmake-build.sh          # Helper script for setting up and building the MatrixMultiplication project.
-├── README.md               # Project overview and setup instructions
-└── LICENSE                 # License information
-```
 
 ## Features
 
@@ -74,13 +48,13 @@ MatrixMultiplication/
 3. Run the benchmarks:
 
    ```bash
-   ./build/Benchmarks
+   ./build/BM_Matmul
    ```
 
 4. Run the unit tests:
 
    ```bash
-   ./build/UnitTests
+   ./build/UT_Matmul
    ```
 
 ## Optimization Techniques
