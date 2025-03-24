@@ -13,6 +13,18 @@
 
 /*****************     KERNELS     *******************/
 
+// TODO: Block size should be private info
+// looks like b[32x32] fit into l1 cache
+// constexpr std::size_t block_size_i = 48; // 4;
+// constexpr std::size_t block_size_j = 48; // 12;
+// constexpr std::size_t block_size_k = 48; // 8;
+// TODO: Remove from header, otherwise ODR since vars are defined in so lib
+constexpr inline std::size_t block_size_i = 32;
+constexpr inline std::size_t block_size_j = 48;
+constexpr inline std::size_t block_size_k = 64;
+
+static_assert(block_size_j % 4 == 0, "invalid block_size_j");
+
 namespace kernels
 {
 
@@ -60,18 +72,18 @@ std::array<double, M * N> packMatrix(const double* b, int col)
 void matmul_NV(double* __restrict c,
                const double* __restrict a,
                const double* __restrict mb,
-               const std::size_t i_size,
-               const std::size_t j_size,
-               const std::size_t k_size)
+               const std::size_t M,
+               const std::size_t N,
+               const std::size_t K)
 {
     //
     const double* b = mb;
-    for (int i2 = 0; i2 < i_size; ++i2, c += j_size, a += k_size)
+    for (int i2 = 0; i2 < M; ++i2, c += N, a += K)
     {
         b = mb;
-        for (int k2 = 0; k2 < k_size; ++k2, b += j_size)
+        for (int k2 = 0; k2 < K; ++k2, b += N)
         {
-            for (int j2 = 0; j2 < j_size; ++j2)
+            for (int j2 = 0; j2 < N; ++j2)
             {
                 c[j2] += a[k2] * b[j2];
             }

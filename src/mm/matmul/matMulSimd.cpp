@@ -1,7 +1,12 @@
 #include "mm/matmul/matMulSimd.hpp"
 #include "mm/core/reorderMatrix.hpp"
 
+// #include "mm/core/kernels.hpp"
+
 #include <experimental/simd>
+// TODO: Check with mdspan
+
+#include <mdspan/mdspan.hpp>
 
 #include "omp.h"
 
@@ -12,6 +17,12 @@ using simd_d = stdx::native_simd<double>;
 template<typename T>
 using simd = stdx::native_simd<T>;
 
+template<typename T, int Mc, int Kc>
+using tile = Kokkos::mdspan<double, Kokkos::extents<int, Mc, Kc>>;
+
+template<typename T, int Mc, int Kc>
+using ctile = Kokkos::mdspan<double, Kokkos::extents<int, Mc, Kc>>;
+
 static_assert(simd<double>::size() == 4, "Expect 4 doubles per simd register");
 
 static inline void load_inc_store_double(double* __restrict ptr, simd_d increment)
@@ -19,6 +30,63 @@ static inline void load_inc_store_double(double* __restrict ptr, simd_d incremen
     simd_d vector(ptr, stdx::vector_aligned);
     vector += increment;
     vector.copy_to(ptr, stdx::vector_aligned);
+}
+
+template<int Nr, int Mr, int Kc>
+static void cpp_upkernelSpan(tile<double, Kc, Mr> a,
+                             tile<double, Kc, Nr> b,
+                             double* __restrict mc,
+                             int N)
+{
+
+    double* c     = mc;
+    simd_d  r[Nr] = {};
+
+    for (int k = 0; k < Kc; ++k)
+    {
+        simd_d b0(&b[k, 0], stdx::element_aligned);
+        simd_d b1(&b[k, 4], stdx::element_aligned);
+        simd_d b2(&b[k, 8], stdx::element_aligned);
+
+        simd_d a0(a[k, 0]);
+        r[0] += a0 * b0;
+        r[1] += a0 * b1;
+        r[2] += a0 * b2;
+
+        a0 = simd_d(a[k, 1]);
+        r[3] += a0 * b0;
+        r[4] += a0 * b1;
+        r[5] += a0 * b2;
+
+        a0 = simd_d(a[k, 2]);
+        r[6] += a0 * b0;
+        r[7] += a0 * b1;
+        r[8] += a0 * b2;
+
+        a0 = simd_d(a[k, 3]);
+        r[9] += a0 * b0;
+        r[10] += a0 * b1;
+        r[11] += a0 * b2;
+    }
+
+    load_inc_store_double(&c[0], r[0]);
+    load_inc_store_double(&c[4], r[1]);
+    load_inc_store_double(&c[8], r[2]);
+    c += N;
+
+    load_inc_store_double(&c[0], r[3]);
+    load_inc_store_double(&c[4], r[4]);
+    load_inc_store_double(&c[8], r[5]);
+    c += N;
+
+    load_inc_store_double(&c[0], r[6]);
+    load_inc_store_double(&c[4], r[7]);
+    load_inc_store_double(&c[8], r[8]);
+    c += N;
+
+    load_inc_store_double(&c[0], r[9]);
+    load_inc_store_double(&c[4], r[10]);
+    load_inc_store_double(&c[8], r[11]);
 }
 
 template<int Nr, int Mr, int Kc>
@@ -97,63 +165,6 @@ static void upkernelAr(const double* __restrict ma,
                        const double* __restrict b,
                        double* __restrict mc,
                        int N)
-{
-    double* c     = mc;
-    simd_d  r[Nr] = {};
-
-    const double* a = ma;
-    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
-    {
-        simd_d b0(&b[0], stdx::element_aligned);
-        simd_d b1(&b[4], stdx::element_aligned);
-        simd_d b2(&b[8], stdx::element_aligned);
-
-        simd_d a0(a[0]);
-        r[0] += a0 * b0;
-        r[1] += a0 * b1;
-        r[2] += a0 * b2;
-
-        a0 = simd_d(a[1]);
-        r[3] += a0 * b0;
-        r[4] += a0 * b1;
-        r[5] += a0 * b2;
-
-        a0 = simd_d(a[2]);
-        r[6] += a0 * b0;
-        r[7] += a0 * b1;
-        r[8] += a0 * b2;
-
-        a0 = simd_d(a[3]);
-        r[9] += a0 * b0;
-        r[10] += a0 * b1;
-        r[11] += a0 * b2;
-    }
-
-    load_inc_store_double(&c[0], r[0]);
-    load_inc_store_double(&c[4], r[1]);
-    load_inc_store_double(&c[8], r[2]);
-    c += N;
-
-    load_inc_store_double(&c[0], r[3]);
-    load_inc_store_double(&c[4], r[4]);
-    load_inc_store_double(&c[8], r[5]);
-    c += N;
-
-    load_inc_store_double(&c[0], r[6]);
-    load_inc_store_double(&c[4], r[7]);
-    load_inc_store_double(&c[8], r[8]);
-    c += N;
-
-    load_inc_store_double(&c[0], r[9]);
-    load_inc_store_double(&c[4], r[10]);
-    load_inc_store_double(&c[8], r[11]);
-}
-
-template<int Nr, int Mr, int Kc>
-static void cpp_upkernelAr(const double* __restrict ma,
-                           const double* __restrict b,
-                           double* __restrict mc,
-                           int N)
 {
     double* c     = mc;
     simd_d  r[Nr] = {};
@@ -298,6 +309,7 @@ static inline void cpp_ukernel(const T* __restrict a, const T* __restrict b, T* 
     {
         compute_kernel(a, b, r, std::make_index_sequence<Mr>{}, std::make_index_sequence<Nrs>{});
     }
+    // handle k tail, no tail if inc with 1
 
     store_kernel<Nrs>(c, r, N, std::make_index_sequence<Mr>{});
 }
@@ -392,11 +404,84 @@ void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>
                         const double* Ac0 = buf + Kc * i;
 
                         cpp_ukernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
-
                         // upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                         // upkernelAr<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                         // cpp_ukernelLambda<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                     }
+                }
+            }
+        }
+    }
+}
+
+void matMulSimdTails(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
+{
+
+    // NEW BEST
+    constexpr int Nc = 720;
+    constexpr int Mc = 20;
+    constexpr int Kc = 80;
+
+    constexpr int Nr = 12;
+    constexpr int Mr = 4;
+
+    // consider to increase to improve repack perf
+    // Kr = 1, no need for padding over k dim
+    constexpr int Kr = 1;
+
+    static_assert(Mc % Mr == 0, "invalid cache/reg size of the block");
+    static_assert(Nc % Nr == 0, "invalid cache/reg size of the block");
+    static_assert(Kc % Kr == 0, "invalid cache/reg size of the block");
+
+    const auto N = B.col();
+    const auto K = A.col();
+    const auto M = A.row();
+
+    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(4 * Kc
+                                                                                  * (Mc + Nc));
+
+#pragma omp parallel for
+    for (int j_block = 0; j_block < N; j_block += Nc)
+    {
+        auto       tid = omp_get_thread_num();
+        const auto ofs = tid * Kc * (Mc + Nc);
+        double*    buf = buffer.data() + ofs;
+
+        for (int k_block = 0; k_block < K; k_block += Kc)
+        {
+            // Can be access out of bound if j+Nc > N
+            reorderRowMajorMatrix<Kc, Nc, Kr, Nr>(
+              B.data() + N * k_block + j_block, N, buf + Mc * Kc);
+
+            for (int i_block = 0; i_block < M; i_block += Mc)
+            {
+                // Can be access out of bound if i+Mc > M
+                // how to we reorder if there is a tail?
+                reorderColOrderMatrix<Mc, Kc, Mr, Kr>(A.data() + K * i_block + k_block, K, buf);
+
+                for (int j = 0; j < Nc; j += Nr)
+                {
+                    const double* Bc1 = buf + Mc * Kc + Kc * j;
+                    for (int i = 0; i < Mc; i += Mr)
+                    {
+                        double*       Cc0 = C.data() + N * i_block + j + N * i + j_block;
+                        const double* Ac0 = buf + Kc * i;
+
+                        // TODO: deduce args from span?
+                        cpp_ukernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                    }
+                    // compute i tail; 4,2,1
+                    // auto c = C(i+i_last_block,j+j_block);
+                    //  if( i>=2)  cpp_ukernel<Nr, 2, Kc>(Ac0, Bc1, c, N);
+                    //  else  cpp_ukernel<Nr, 1, Kc>(Ac0, Bc1, c, N);
+                }
+                // compute j tail
+                {
+                    // if( j>=8)
+                    // if( j>=6)
+                    // if( j>=4)
+                    // if( j>=2)
+                    // else //1
                 }
             }
         }

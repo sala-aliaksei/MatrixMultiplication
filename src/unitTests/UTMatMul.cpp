@@ -39,7 +39,8 @@ class MatrixMulTest : public testing::Test
       //: matrices(initMatrix(I, J, K))
       : matrices(initMatrix(I, J, K))
     {
-        // You can do set-up work for each test here.
+        std::cout << "I : " << I << " J: " << J << " K: " << K << "\n";
+
         matrixMulOpenBlas(matrices);
         valid_res  = std::move(matrices.c);
         matrices.c = Matrix<double>(I, J);
@@ -255,6 +256,13 @@ TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs_Unroll_BPack_MT)
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
+TEST_F(MatrixMulTest, CN_matMul_Tails)
+{
+    cppnow::matMul_Tails(matrices.a, matrices.b, matrices.c);
+
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
+
 TEST_F(MatrixMulTest, matMulPadding)
 {
     matMulPadding(matrices.a, matrices.b, matrices.c);
@@ -273,6 +281,31 @@ TEST_F(MatrixMulTest, matMulSimd)
 {
     matMulSimd(matrices.a, matrices.b, matrices.c);
     EXPECT_EQ((valid_res == matrices.c), true);
+}
+
+TEST_F(MatrixMulTest, CN_matMul_Tails_Range)
+{
+    constexpr int Mc = 180;
+    constexpr int Nc = 96;
+    constexpr int Kc = 48;
+
+    for (int i = I; i < I + 9; ++i)
+    {
+        for (int j = J; j < J + 13; ++j)
+        {
+            auto matrices = initMatrix(i, j, K);
+
+            std::cout << "Test - I : " << i << " J: " << j << " K: " << K << "\n";
+
+            matrixMulOpenBlas(matrices);
+            valid_res  = std::move(matrices.c);
+            matrices.c = Matrix<double>(i, j);
+
+            cppnow::matMul_Tails(matrices.a, matrices.b, matrices.c);
+
+            EXPECT_EQ((valid_res == matrices.c), true);
+        }
+    }
 }
 
 /********************       MAIN        ********************/

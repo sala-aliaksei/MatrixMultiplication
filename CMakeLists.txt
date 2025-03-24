@@ -35,6 +35,7 @@ set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -O3   -march=haswell -masm=intel")
 find_package(OpenBLAS REQUIRED)
 find_package(Boost REQUIRED) # for aligment allocator # COMPONENTS system
 find_package(Eigen3)
+#find_package(Kokkos REQUIRED)
 
 # Use blis from system path (no conan receipt)
 find_library(BLIS_LIB NAMES blis PATHS /usr/local/lib)
@@ -86,7 +87,7 @@ add_library(${PROJECT_NAME} SHARED
 
 target_include_directories(${PROJECT_NAME} PUBLIC Core)
 target_link_libraries(${PROJECT_NAME} Core)
-target_compile_definitions(${PROJECT_NAME} PUBLIC -DPROJECT_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(${PROJECT_NAME} PUBLIC -DPROJECT_VERSION="${PROJECT_VERSION}" MDSPAN_USE_BRACKET_OPERATOR)
 
 
 #########     3rd Party implementation      #######
@@ -99,12 +100,15 @@ add_library(TPI SHARED
     src/mm/tpi/matMulOpenBlas.cpp
     src/mm/tpi/matMulBlis.hpp
     src/mm/tpi/matMulBlis.cpp
+    src/mm/tpi/matMulKokkos.hpp
+    src/mm/tpi/matMulKokkos.cpp
 )
 
 target_include_directories(TPI PUBLIC
     Core
     ${CMAKE_SOURCE_DIR}
     ${BLIS_INCLUDE_DIR}
+    Kokkos::kokkos
     #std::linalg
 )
 
@@ -116,6 +120,10 @@ target_link_libraries(TPI
     #tensorflow::tensorflowlite
     #std::linalg
 )
+
+target_compile_definitions(TPI PRIVATE KOKKOS_ENABLE_OPENMP)
+# set(Kokkos_ENABLE_CUDA ON)
+
 
 
 
@@ -156,7 +164,7 @@ endif()
 add_executable(MulMatrixApp src/MulMatrixApp.cpp)
 target_link_libraries(MulMatrixApp  ${PROJECT_NAME})
 target_include_directories(MulMatrixApp PUBLIC ${CMAKE_SOURCE_DIR})
-
+target_compile_definitions(MulMatrixApp PUBLIC MDSPAN_USE_BRACKET_OPERATOR)
 
 
 if(ENABLE_BENCHMARKS)
@@ -173,6 +181,10 @@ if(ENABLE_BENCHMARKS)
     add_executable(BM_Repacking src/benchmarks/reorder/reorderBenchmark.cpp)
     target_link_libraries(BM_Repacking benchmark::benchmark)
     target_include_directories(BM_Repacking PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/matrixMultiplication)
+
+    add_executable(BM_Kernels src/benchmarks/kernelsBenchmarks.cpp)
+    target_link_libraries(BM_Kernels benchmark::benchmark Core)
+    target_include_directories(BM_Kernels PUBLIC ${CMAKE_SOURCE_DIR})
 endif()
 
 
@@ -180,12 +192,17 @@ if(ENABLE_UNIT_TESTS)
     find_package(GTest REQUIRED)
 
     add_executable(UT_Matmul src/unitTests/UTMatMul.cpp)
-    target_link_libraries(UT_Matmul ${PROJECT_NAME} ${PROJECT_NAME} MatMulAutotune GenAI TPI GTest::gtest GTest::gtest_main )
+    target_link_libraries(UT_Matmul ${PROJECT_NAME} MatMulAutotune GenAI TPI GTest::gtest GTest::gtest_main )
     target_include_directories(UT_Matmul PUBLIC ${CMAKE_SOURCE_DIR})
+
+    add_executable(UT_Kernels src/unitTests/UTKernels.cpp)
+    target_link_libraries(UT_Kernels Core GTest::gtest GTest::gtest_main )
+    target_include_directories(UT_Kernels PUBLIC ${CMAKE_SOURCE_DIR})
 
 
     add_executable(UT_Repacking src/unitTests/UTRepacking.cpp)
     target_link_libraries(UT_Repacking ${PROJECT_NAME} GTest::gtest GTest::gtest_main )
     target_include_directories(UT_Repacking PUBLIC ${CMAKE_SOURCE_DIR})
+
 endif()
 

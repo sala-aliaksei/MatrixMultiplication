@@ -21,6 +21,7 @@
 
 #include <benchmark/benchmark.h>
 
+// Most of the implementations don't handle matrix tailes, so we need to hardcode the size
 constexpr std::size_t NN        = 4 * 720;
 constexpr std::size_t ITER_NUM  = 1;
 benchmark::TimeUnit   TIME_UNIT = benchmark::kMillisecond;
@@ -371,6 +372,17 @@ static void BM_MatMulSimd(benchmark::State& state)
         matMulSimd(matrices.a, matrices.b, matrices.c);
     }
 }
+
+static void BM_MatMulTailed(benchmark::State& state)
+{
+    std::size_t N        = state.range(0);
+    auto        matrices = initMatrix(N, N, N);
+
+    for (auto _ : state)
+    {
+        cppnow::matMul_Tails(matrices.a, matrices.b, matrices.c);
+    }
+}
 //////////////////////////////////////////////////////////////////////////////
 
 // BM_CN_MatMulNaive/2880                               152089 ms       151374 ms            1
@@ -454,6 +466,8 @@ int main(int argc, char** argv)
     REGISTER(BM_MatMulPadding, matrix_dim);
     REGISTER(BM_MatMulAutotune, matrix_dim);
     REGISTER(BM_MatMulSimd, matrix_dim);
+
+    REGISTER(BM_MatMulTailed, matrix_dim);
 
     benchmark::Initialize(&argc, argv);
     benchmark::RunSpecifiedBenchmarks();

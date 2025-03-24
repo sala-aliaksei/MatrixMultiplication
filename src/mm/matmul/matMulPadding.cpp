@@ -1,7 +1,7 @@
 #include "mm/matmul/matMulPadding.hpp"
 #include "mm/core/reorderMatrix.hpp"
-
-// #include <experimental/simd>
+// #include "mm/core/kernels.hpp"
+//  #include <experimental/simd>
 
 #include "omp.h"
 
@@ -239,6 +239,7 @@ void matMulPadding(const Matrix<double>& A, const Matrix<double>& B, Matrix<doub
                         // We don't need to fill Kdim with zeroes (if Kr==1)
                         // calc Kp and pass it instead
                         upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        // kernels::cpp_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                     }
                 }
             }
