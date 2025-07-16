@@ -1,23 +1,8 @@
 #include "mm/matmul/matMulPadding.hpp"
 #include "mm/core/reorderMatrix.hpp"
-// #include "mm/core/kernels.hpp"
-//  #include <experimental/simd>
+#include "mm/core/ikernels.hpp"
 
 #include "omp.h"
-
-__attribute__((always_inline)) static inline void load_inc_store_double(double* __restrict ptr,
-                                                                        __m256d increment)
-{
-    // Load 4 double-precision values (256 bits) from memory into an AVX register
-    __m256d vector = _mm256_load_pd(ptr);
-
-    // Add the increment to the loaded vector
-    __m256d result = _mm256_add_pd(vector, increment);
-
-    // Store the result back to memory
-    _mm256_store_pd(ptr, result);
-    //    _mm256_stream_pd(ptr, result);
-}
 
 // NOTE: If Kc will be runtime arg? (Perf will drop)
 // u - micro
@@ -125,29 +110,29 @@ static void upkernel(const double* __restrict ma,
 
     //        _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r00);
-    load_inc_store_double(&c[4], r01);
-    load_inc_store_double(&c[8], r02);
+    ikernels::load_inc_store_double(&c[0], r00);
+    ikernels::load_inc_store_double(&c[4], r01);
+    ikernels::load_inc_store_double(&c[8], r02);
 
     c += N;
 
     //    _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r10);
-    load_inc_store_double(&c[4], r11);
-    load_inc_store_double(&c[8], r12);
+    ikernels::load_inc_store_double(&c[0], r10);
+    ikernels::load_inc_store_double(&c[4], r11);
+    ikernels::load_inc_store_double(&c[8], r12);
     c += N;
 
     //    _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r20);
-    load_inc_store_double(&c[4], r21);
-    load_inc_store_double(&c[8], r22);
+    ikernels::load_inc_store_double(&c[0], r20);
+    ikernels::load_inc_store_double(&c[4], r21);
+    ikernels::load_inc_store_double(&c[8], r22);
     c += N;
 
-    load_inc_store_double(&c[0], r30);
-    load_inc_store_double(&c[4], r31);
-    load_inc_store_double(&c[8], r32);
+    ikernels::load_inc_store_double(&c[0], r30);
+    ikernels::load_inc_store_double(&c[4], r31);
+    ikernels::load_inc_store_double(&c[8], r32);
 }
 
 void matMulPadding(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
@@ -166,10 +151,6 @@ void matMulPadding(const Matrix<double>& A, const Matrix<double>& B, Matrix<doub
     constexpr int Nc = 720;
     constexpr int Mc = 20;
     constexpr int Kc = 80;
-
-    //    constexpr int Nc = 3072;
-    //    constexpr int Mc = 144;
-    //    constexpr int Kc = 256;
 
     constexpr int Nr = 12;
     constexpr int Mr = 4;
@@ -249,34 +230,6 @@ void matMulPadding(const Matrix<double>& A, const Matrix<double>& B, Matrix<doub
             // reorderColOrderPaddingMatrix
             int Mlb = M - M_max;
             {
-                //                double*       Cc2  = Cc4 + N * M_max;
-                //                const double* Acc2 = Ac3 + K * M_max;
-
-                //                // M_LAST_BLOCK_SIZE < Mc
-                //                // apply only for corner subblock of cache block
-                //                reorderColOrderPaddingMatrix<Mc, Kc, Mr, Kr>(Acc2, K, buf, Mlb,
-                //                Kc); const double* Ac2 = buf;
-
-                //                for (int j = 0; j < Nc; j += Nr)
-                //                {
-                //                    const double* Bc1 = Bc3 + Kc * j;
-                //                    for (int i = 0; i < Mc; i += Mr)
-                //                    {
-                //                        double*       Cc0 = Cc2 + j + N * i;
-                //                        const double* Ac0 = Ac2 + Kc * i;
-
-                //                        // We don't need to fill Kdim with zeroes (only if Kr==1)
-                //                        // calc Kp and pass it instead
-
-                //                        // we need bufer for Cc0 [NrxMr] size
-                //                        // We handle only cases where we need to padd i dim,
-                //                        // Kernel should't have extra logic to handle corner cases
-
-                //                        upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
-                //                        // in that case we don't need to do load/inc/store with
-                //                        tmp buf?
-                //                    }
-                //                }
             }
         }
 

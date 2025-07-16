@@ -42,17 +42,17 @@ MatrixEigenSet initEigenMatrix(const Matrix<double>& a, const Matrix<double>& b)
     // Populate the matrix using two for loops
     for (int i = 0; i < M; ++i)
     {
-        for (int j = 0; j < K; ++j)
+        for (int k = 0; k < K; ++k)
         {
-            ms.a(i, j) = a(i, j);
+            ms.a(i, k) = a(i, k);
         }
     }
 
-    for (int i = 0; i < K; ++i)
+    for (int k = 0; k < K; ++k)
     {
         for (int j = 0; j < N; ++j)
         {
-            ms.b(i, j) = b(i, j);
+            ms.b(k, j) = b(k, j);
         }
     }
     return ms;

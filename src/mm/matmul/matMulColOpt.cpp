@@ -1,5 +1,7 @@
 #include "mm/matmul/matMulColOpt.hpp"
 #include "mm/core/utils/utils.hpp"
+#include "mm/core/reorderMatrix.hpp"
+#include "mm/core/ikernels.hpp"
 
 #include <immintrin.h>
 
@@ -12,34 +14,6 @@ constexpr auto GEMM_I = 120; // Q
 constexpr auto GEMM_J = 120; // P
 constexpr auto GEMM_K = 120;
 
-template<int M, int N, int ib, int jb, bool is_col_order>
-std::array<double, M * N> reorderMatrix(const double* b, int cols)
-{
-    // PROFILE("reorderMatrix");
-    std::array<double, M * N> result;
-    if constexpr (is_col_order)
-    {
-        int idx = 0;
-
-        // DON'T REORDER LOOPS
-        // Process columns in groups of 4
-        for (size_t i = 0; i < M; i += ib)
-        {
-            for (size_t j = 0; j < N; j += jb)
-            {
-                for (size_t jc = 0; jc < jb; ++jc)
-                {
-                    for (size_t ic = 0; ic < ib; ++ic)
-                    {
-                        result[idx++] = b[(i + ic) * cols + j + jc];
-                    }
-                }
-            }
-        }
-    }
-    return result;
-}
-
 static void massert(bool flag, std::string msg)
 {
     using namespace std::literals;
@@ -49,67 +23,13 @@ static void massert(bool flag, std::string msg)
     }
 }
 
-template<int I, int J>
-std::array<double, I * J> packMatrix(const double* b, int j_size)
-{
-    // BAD Implementation
-    //    std::array<double, I * J> b_packed;
-    //    for (int i = 0; i < I; i++)
-    //    {
-    //        for (int j = 0; j < J; j++)
-    //        {
-    //            b_packed[i * J + j] = b[i * j_size + j];
-    //        }
-    //    }
-
-    constexpr int istep{I / 2};
-    constexpr int jstep{J / 2};
-    static_assert(I % 2 == 0, "");
-    static_assert(J % 2 == 0, "");
-
-    std::array<double, I * J> b_packed;
-    for (int i = 0; i < I; i += istep)
-    {
-
-        for (int j = 0; j < J; j += jstep)
-        {
-            for (int i2 = 0; i2 < istep; i2++)
-            {
-                //_mm_prefetch(&b[(i + i2) * j_size + j], _MM_HINT_NTA);
-                std::memcpy(&b_packed[(i + i2) * J] + j, &b[(i + i2) * j_size + j], jstep * 8);
-            }
-        }
-    }
-    // if (k2 + 1 < BLOCK_SIZE)
-
-    return b_packed;
-}
-
-__attribute__((always_inline)) static inline void load_inc_store_double(double* __restrict ptr,
-                                                                        __m256d increment)
-{
-    // Load 4 double-precision values (256 bits) from memory into an AVX register
-    __m256d vector = _mm256_load_pd(ptr);
-
-    // Add the increment to the loaded vector
-    __m256d result = _mm256_add_pd(vector, increment);
-
-    // Store the result back to memory
-    _mm256_store_pd(ptr, result);
-    //_mm256_stream_pd(ptr, result);
-}
-
 void matMulColOptNaive(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
 
     constexpr auto GEMM_Q = 32; // Q
     constexpr auto GEMM_P = 48; // P
     constexpr auto GEMM_R = 64;
-    // need vectorize writing to c
-    // impl diff kernels
-    // add tail computation for diff kernels
-    // a and b must be reordered
-    // std::array should be reused and have same addess al the time to be in hot path/cache
+
     const std::size_t num_threads = std::thread::hardware_concurrency();
 
     const auto i_size = A.row();
@@ -118,7 +38,6 @@ void matMulColOptNaive(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
     const size_t block_inc = i_size / num_threads;
 
-    // TODO: Will be replaced with tail computation
     massert(i_size % num_threads == 0, "i_size % num_threads == 0");
     massert(block_inc % GEMM_Q == 0, "block_inc % GEMM_I == 0");
     massert(j_size % GEMM_P == 0, "j_size % GEMM_J == 0");
@@ -172,14 +91,6 @@ void matMulColOptNaive(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
 void matMulColOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
-    //    matMulColOptNaive(A, B, C);
-    //    return;
-
-    // need vectorize writing to c
-    // impl diff kernels
-    // add tail computation for diff kernels
-    // a and b must be reordered
-    // std::array should be reused and have same addess al the time to be in hot path/cache
     const std::size_t num_threads = std::thread::hardware_concurrency();
 
     const auto i_size = A.row();
@@ -188,7 +99,6 @@ void matMulColOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
 
     const size_t block_inc = j_size / num_threads;
 
-    // TODO: Will be replaced with tail computation
     massert(j_size % num_threads == 0, "i_size % num_threads == 0");
     massert(block_inc % GEMM_I == 0, "block_inc % GEMM_I == 0");
     massert(j_size % GEMM_J == 0, "j_size % GEMM_J == 0");
@@ -225,11 +135,11 @@ void matMulColOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
                         {
                             for (int j2 = 0; j2 < GEMM_J; ++j2)
                             {
-                                const auto pa =
-                                  reorderMatrix<GEMM_I, GEMM_K, I_BLOCK, K_BLOCK, true>(
-                                    &na[j3 + k3 * j_size], i_size);
+                                std::array<double, GEMM_I * GEMM_K> pa;
 
-                                // TODO: reorder as well
+                                reorderColOrderMatrix<GEMM_I, GEMM_K, I_BLOCK, K_BLOCK>(
+                                  &na[j3 + k3 * j_size], i_size, pa.data());
+
                                 const auto pb =
                                   packMatrix<GEMM_K, GEMM_J>(&nb[k3 + i3 * k_size], k_size);
 
@@ -334,29 +244,29 @@ void matMulColOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
 
                                         _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-                                        load_inc_store_double(&c[0], r00);
-                                        load_inc_store_double(&c[4], r01);
-                                        load_inc_store_double(&c[8], r02);
+                                        ikernels::load_inc_store_double(&c[0], r00);
+                                        ikernels::load_inc_store_double(&c[4], r01);
+                                        ikernels::load_inc_store_double(&c[8], r02);
 
                                         c += j_size;
 
                                         _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-                                        load_inc_store_double(&c[0], r10);
-                                        load_inc_store_double(&c[4], r11);
-                                        load_inc_store_double(&c[8], r12);
+                                        ikernels::load_inc_store_double(&c[0], r10);
+                                        ikernels::load_inc_store_double(&c[4], r11);
+                                        ikernels::load_inc_store_double(&c[8], r12);
                                         c += j_size;
 
                                         _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-                                        load_inc_store_double(&c[0], r20);
-                                        load_inc_store_double(&c[4], r21);
-                                        load_inc_store_double(&c[8], r22);
+                                        ikernels::load_inc_store_double(&c[0], r20);
+                                        ikernels::load_inc_store_double(&c[4], r21);
+                                        ikernels::load_inc_store_double(&c[8], r22);
                                         c += j_size;
 
-                                        load_inc_store_double(&c[0], r30);
-                                        load_inc_store_double(&c[4], r31);
-                                        load_inc_store_double(&c[8], r32);
+                                        ikernels::load_inc_store_double(&c[0], r30);
+                                        ikernels::load_inc_store_double(&c[4], r31);
+                                        ikernels::load_inc_store_double(&c[8], r32);
                                     }
                                 }
                             }

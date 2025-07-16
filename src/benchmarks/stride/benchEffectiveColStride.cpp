@@ -53,17 +53,21 @@ static void BM_ColStridePrefetch(benchmark::State& state)
     auto        arr = std::vector<int>(N * N);
     benchmark::DoNotOptimize(arr);
 
-    constexpr auto prefetch_type = _MM_HINT_T2;
+    constexpr auto prefetch_type = _MM_HINT_T0;
     for (auto _ : state)
     {
         for (int cnt = 0; cnt < N; cnt++)
         {
             for (int i = 0, stride = 0; i < N; i++, stride += N)
             {
+
                 _mm_prefetch(arr.data() + stride + N, prefetch_type);
                 _mm_prefetch(arr.data() + stride + 2 * N, prefetch_type);
                 _mm_prefetch(arr.data() + stride + 3 * N, prefetch_type);
                 _mm_prefetch(arr.data() + stride + 4 * N, prefetch_type);
+                _mm_prefetch(arr.data() + stride + 5 * N, prefetch_type);
+                _mm_prefetch(arr.data() + stride + 6 * N, prefetch_type);
+                _mm_prefetch(arr.data() + stride + 7 * N, prefetch_type);
 
                 arr[stride] += 1;
             }

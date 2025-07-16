@@ -22,6 +22,7 @@
 #include <benchmark/benchmark.h>
 
 // Most of the implementations don't handle matrix tailes, so we need to hardcode the size
+
 constexpr std::size_t NN        = 4 * 720;
 constexpr std::size_t ITER_NUM  = 1;
 benchmark::TimeUnit   TIME_UNIT = benchmark::kMillisecond;
@@ -129,14 +130,14 @@ static void BM_MatMulLoopRepack(benchmark::State& state)
     }
 }
 
-static void BM_MatMulLoopRepackV2(benchmark::State& state)
+static void BM_MatMulLoopRepackIKJ(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
     auto        matrices = initMatrix(N, N, N);
 
     for (auto _ : state)
     {
-        matMulLoopsRepackV2(matrices.a, matrices.b, matrices.c);
+        matMulLoopsRepackIKJ(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -182,7 +183,7 @@ static void BM_CN_MatMulNaive_Block(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Naive_Block(matrices.a, matrices.b, matrices.c);
+        cppnow::matMul_Naive_Tile(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -238,17 +239,6 @@ static void BM_CN_MatMul_Avx_AddRegs(benchmark::State& state)
     for (auto _ : state)
     {
         cppnow::matMul_Avx_AddRegs(matrices.a, matrices.b, matrices.c);
-    }
-}
-
-static void BM_CN_MatMul_Avx_AddRegsV2(benchmark::State& state)
-{
-    std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(N, N, N);
-
-    for (auto _ : state)
-    {
-        cppnow::matMul_Avx_AddRegsV2(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -415,7 +405,7 @@ static void BM_MatMulTailed(benchmark::State& state)
 // BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT/2880        477 ms          473 ms            2
 // BM_MatMulRegOpt/2880                                    398 ms          390 ms            2
 // BM_MatMulLoopRepack/2880                                369 ms          365 ms            2
-// BM_MatMulLoopRepackV2/2880                              415 ms          412 ms            2
+// BM_MatMulLoopRepackIKJ/2880                             415 ms          412 ms            2
 // BM_MatMulLoopBPacked/2880                               472 ms          467 ms            2
 // BM_MatrixMulOpenBLAS/2880                               330 ms          327 ms            2
 
@@ -439,14 +429,13 @@ int main(int argc, char** argv)
 // Matmul
 #ifdef ENABLE_NAIVE_BENCHMARKS
     REGISTER(BM_CN_MatMulNaive, matrix_dim);
-    REGISTER(BM_CN_MatMulNaive_Block, matrix_dim);
     REGISTER(BM_CN_MatMulNaive_Order, matrix_dim);
     REGISTER(BM_CN_MatMulNaive_Order_KIJ, matrix_dim);
 #endif
+    REGISTER(BM_CN_MatMulNaive_Block, matrix_dim);
     REGISTER(BM_CN_MatMul_Simd, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_AddRegs, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx_AddRegsV2, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_AddRegs_Unroll, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_Cache, matrix_dim);
     REGISTER(BM_CN_MatMul_Avx_Cache_Regs, matrix_dim);
@@ -459,7 +448,7 @@ int main(int argc, char** argv)
     REGISTER(BM_MatMulRegOpt, matrix_dim);
 
     REGISTER(BM_MatMulLoopRepack, matrix_dim);
-    REGISTER(BM_MatMulLoopRepackV2, matrix_dim); // slower
+    // REGISTER(BM_MatMulLoopRepackIKJ, matrix_dim); // slower
     REGISTER(BM_MatMulLoopBPacked, matrix_dim);
 
     //
@@ -534,3 +523,39 @@ int main(int argc, char** argv)
 //        mul(matrices.a, matrices.b, matrices.c);
 //    }
 //}
+
+// Address	Source Line	Assembly	Clockticks	Instructions Retired	CPI Rate	Retiring
+// Front-End Bound	Bad Speculation	Back-End Bound
+
+// prefetcht0z  (%r10,%r15,1)
+// vmovsdq  (%r8,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x58(%r11)
+// vmovsdq  (%rdx,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x50(%r11)
+// vmovsdq  (%r9,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x48(%r11)
+// vmovsdq  (%rdi,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x40(%r11)
+// vmovsdq  (%rbx,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x38(%r11)
+// vmovsdq  (%rsi,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x30(%r11)
+// movq  0x38(%rsp), %r14
+// prefetcht0z  (%r14,%r15,1)
+// vmovsdq  (%r10,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x28(%r11)
+// vmovsdq  0x8(%rdx,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x20(%r11)
+// vmovsdq  0x8(%r9,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x18(%r11)
+// vmovsdq  0x8(%rdi,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x10(%r11)
+// vmovsdq  0x8(%rbx,%r15,1), %xmm0
+// vmovsdq  %xmm0, -0x8(%r11)
+// vmovsdq  0x8(%rsi,%r15,1), %xmm0
+// vmovsdq  %xmm0, (%r11)	0
+// add $0x60, %r11
+// add $0x10, %r15
+// cmp $0x300, %r15
+// jnz 0x11180
+// Block 24:

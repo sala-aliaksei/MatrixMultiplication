@@ -18,6 +18,19 @@ constexpr int Kc = 80;
 constexpr int Nr = 8;
 constexpr int Mr = 4;
 
+static void BM_CppGenericKern(benchmark::State& state)
+{
+    std::size_t N        = state.range(0);
+    auto        matrices = initMatrix(M, N, K);
+
+    for (auto _ : state)
+    {
+        // Nr*Mr + Nr*Kc + Mr*Kc = Nr*Mr + Kc(Nr+Mr)
+        kernels::cpp_generic_ukern<12, 4, Kc>(
+          matrices.a.data(), matrices.b.data(), matrices.c.data(), N, K);
+    }
+}
+
 static void BM_PackedKernelGeneric12x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
@@ -185,6 +198,7 @@ int main(int argc, char** argv)
 {
     int matrix_dim = NN;
 
+    REGISTER(BM_CppGenericKern, matrix_dim);
     REGISTER(BM_PackedKernelGeneric12x4, matrix_dim);
     REGISTER(BM_GenericKernel8x4, matrix_dim);
     REGISTER(BM_PackedKernel8x4, matrix_dim);

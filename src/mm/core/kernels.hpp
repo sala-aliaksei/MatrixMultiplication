@@ -4,10 +4,14 @@
 
 #include <experimental/simd>
 
+#include <immintrin.h>
+
 namespace stdx = std::experimental;
 
 namespace kernels
 {
+
+////////////////////////////     SIMD KERNELS
 
 using simd_d     = stdx::fixed_size_simd<double, 4>;
 using halfsimd_d = stdx::fixed_size_simd<double, 2>;
@@ -19,53 +23,6 @@ using simd_to_double = stdx::fixed_size_simd<double, 1>;
 
 template<typename T, int WIDTH>
 using fix_simd = stdx::fixed_size_simd<T, WIDTH>;
-
-void matmul_NV(const double* __restrict a,
-               const double* __restrict mb,
-               double* __restrict c,
-               const std::size_t i_size,
-               const std::size_t j_size,
-               const std::size_t k_size);
-
-void matmul_TP_NV(double* __restrict c,
-                  const double* __restrict a,
-                  const double* __restrict mb,
-                  const std::size_t i_size,
-                  const std::size_t j_size,
-                  const std::size_t k_size);
-
-// Kernels, wrap to namespace.
-void kernelMulMatrix_BL_NV(double* __restrict c,
-                           const double* __restrict a,
-                           const double* __restrict b,
-                           const std::size_t i_size,
-                           const std::size_t j_size,
-                           const std::size_t k_size,
-                           const std::size_t ii,
-                           const std::size_t jj,
-                           const std::size_t kk);
-
-void kernelMulMatrix_TP_BL_NV(double*           r,
-                              const double*     a,
-                              const double*     b,
-                              const std::size_t j_size,
-                              const std::size_t k_size);
-
-void kernelMulMatrix_VT_BL_TP(double*           r,
-                              const double*     a,
-                              const double*     b,
-                              const std::size_t j_size,
-                              const std::size_t k_size);
-
-void kernelMulMatrix_VT_BL(double* __restrict c,
-                           const double* __restrict a,
-                           const double* __restrict b,
-                           const std::size_t i_size,
-                           const std::size_t j_size,
-                           const std::size_t k_size,
-                           const std::size_t ii,
-                           const std::size_t jj,
-                           const std::size_t kk);
 
 template<typename T, int WIDTH>
 static inline void load_inc_store_double(T* __restrict ptr, fix_simd<T, WIDTH> increment)
@@ -90,7 +47,7 @@ static inline void store_kernel(T*                  c,
     (..., (store_row<RowIndices>(c, r, std::make_index_sequence<Nrs>{}), c += N));
 }
 
-//////////////////////////////    PACKED
+//////////////////////////////    PACKED , MANUL (NOT GENERIC)
 ///
 template<int Kc>
 static void packed_ukernel8x4(const double* __restrict ma,

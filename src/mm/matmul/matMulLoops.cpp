@@ -1,25 +1,10 @@
 #include "mm/matmul/matMulLoops.hpp"
 #include "mm/core/reorderMatrix.hpp"
+#include "mm/core/ikernels.hpp"
 
 #include "omp.h"
 
 #include <immintrin.h>
-
-/// utils
-
-__attribute__((always_inline)) static inline void load_inc_store_double(double* __restrict ptr,
-                                                                        __m256d increment)
-{
-    // Load 4 double-precision values (256 bits) from memory into an AVX register
-    __m256d vector = _mm256_load_pd(ptr);
-
-    // Add the increment to the loaded vector
-    __m256d result = _mm256_add_pd(vector, increment);
-
-    // Store the result back to memory
-    _mm256_store_pd(ptr, result);
-    //    _mm256_stream_pd(ptr, result);
-}
 
 //////////////////////     KERNELS
 
@@ -79,21 +64,21 @@ static void upkernel_v2(const double* __restrict ma,
         r01 = _mm256_fmadd_pd(a0, b1, r01);
         r02 = _mm256_fmadd_pd(a0, b2, r02);
 
-        _mm_prefetch(b + 16, _MM_HINT_T0);
+        _mm_prefetch(b + 8 * 2, _MM_HINT_T0);
         a0 = _mm256_broadcast_sd(&a[1]);
 
         r10 = _mm256_fmadd_pd(a0, b0, r10);
         r11 = _mm256_fmadd_pd(a0, b1, r11);
         r12 = _mm256_fmadd_pd(a0, b2, r12);
 
-        _mm_prefetch(b + 24, _MM_HINT_T0);
+        _mm_prefetch(b + 8 * 3, _MM_HINT_T0);
         a0 = _mm256_broadcast_sd(&a[2]);
 
         r20 = _mm256_fmadd_pd(a0, b0, r20);
         r21 = _mm256_fmadd_pd(a0, b1, r21);
         r22 = _mm256_fmadd_pd(a0, b2, r22);
 
-        _mm_prefetch(b + 64, _MM_HINT_T0);
+        _mm_prefetch(b + 8 * 4, _MM_HINT_T0);
         a0 = _mm256_broadcast_sd(&a[3]);
 
         r30 = _mm256_fmadd_pd(a0, b0, r30);
@@ -106,14 +91,14 @@ static void upkernel_v2(const double* __restrict ma,
         b1 = _mm256_loadu_pd(&b[16]);
         b2 = _mm256_loadu_pd(&b[20]);
 
-        _mm_prefetch(b + 64 * 2, _MM_HINT_T0);
+        _mm_prefetch(b + 8 * 5, _MM_HINT_T0);
         a0 = _mm256_broadcast_sd(&a[4]);
 
         r00 = _mm256_fmadd_pd(a0, b0, r00);
         r01 = _mm256_fmadd_pd(a0, b1, r01);
         r02 = _mm256_fmadd_pd(a0, b2, r02);
 
-        _mm_prefetch(b + 64 * 3, _MM_HINT_T0);
+        _mm_prefetch(b + 8 * 6, _MM_HINT_T0);
         a0 = _mm256_broadcast_sd(&a[5]);
 
         r10 = _mm256_fmadd_pd(a0, b0, r10);
@@ -126,7 +111,7 @@ static void upkernel_v2(const double* __restrict ma,
         r21 = _mm256_fmadd_pd(a0, b1, r21);
         r22 = _mm256_fmadd_pd(a0, b2, r22);
 
-        _mm_prefetch(a + 8, _MM_HINT_T0);
+        _mm_prefetch(b + 8 * 7, _MM_HINT_T0);
         a0 = _mm256_broadcast_sd(&a[7]);
 
         r30 = _mm256_fmadd_pd(a0, b0, r30);
@@ -239,11 +224,12 @@ static void upkernel_v2(const double* __restrict ma,
         r01 = _mm256_fmadd_pd(a0, b1, r01);
         r02 = _mm256_fmadd_pd(a0, b2, r02);
 
-        load_inc_store_double(&c[0], r00);
-        load_inc_store_double(&c[4], r01);
-        load_inc_store_double(&c[8], r02);
+        ikernels::load_inc_store_double(&c[0], r00);
+        ikernels::load_inc_store_double(&c[4], r01);
+        ikernels::load_inc_store_double(&c[8], r02);
 
         c += N;
+        _mm_prefetch(c, _MM_HINT_NTA);
 
         a0 = _mm256_broadcast_sd(&a[5]);
 
@@ -251,10 +237,11 @@ static void upkernel_v2(const double* __restrict ma,
         r11 = _mm256_fmadd_pd(a0, b1, r11);
         r12 = _mm256_fmadd_pd(a0, b2, r12);
 
-        load_inc_store_double(&c[0], r10);
-        load_inc_store_double(&c[4], r11);
-        load_inc_store_double(&c[8], r12);
+        ikernels::load_inc_store_double(&c[0], r10);
+        ikernels::load_inc_store_double(&c[4], r11);
+        ikernels::load_inc_store_double(&c[8], r12);
         c += N;
+        _mm_prefetch(c, _MM_HINT_NTA);
 
         a0 = _mm256_broadcast_sd(&a[6]);
 
@@ -262,10 +249,11 @@ static void upkernel_v2(const double* __restrict ma,
         r21 = _mm256_fmadd_pd(a0, b1, r21);
         r22 = _mm256_fmadd_pd(a0, b2, r22);
 
-        load_inc_store_double(&c[0], r20);
-        load_inc_store_double(&c[4], r21);
-        load_inc_store_double(&c[8], r22);
+        ikernels::load_inc_store_double(&c[0], r20);
+        ikernels::load_inc_store_double(&c[4], r21);
+        ikernels::load_inc_store_double(&c[8], r22);
         c += N;
+        _mm_prefetch(c, _MM_HINT_NTA);
 
         a0 = _mm256_broadcast_sd(&a[7]);
 
@@ -273,9 +261,9 @@ static void upkernel_v2(const double* __restrict ma,
         r31 = _mm256_fmadd_pd(a0, b1, r31);
         r32 = _mm256_fmadd_pd(a0, b2, r32);
 
-        load_inc_store_double(&c[0], r30);
-        load_inc_store_double(&c[4], r31);
-        load_inc_store_double(&c[8], r32);
+        ikernels::load_inc_store_double(&c[0], r30);
+        ikernels::load_inc_store_double(&c[4], r31);
+        ikernels::load_inc_store_double(&c[8], r32);
     }
 
     //        _mm_prefetch(c + N, _MM_HINT_NTA);
@@ -399,34 +387,74 @@ static void upkernel(const double* __restrict ma,
 
     //        _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r00);
-    load_inc_store_double(&c[4], r01);
-    load_inc_store_double(&c[8], r02);
+    ikernels::load_inc_store_double(&c[0], r00);
+    ikernels::load_inc_store_double(&c[4], r01);
+    ikernels::load_inc_store_double(&c[8], r02);
 
     c += N;
 
     //    _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r10);
-    load_inc_store_double(&c[4], r11);
-    load_inc_store_double(&c[8], r12);
+    ikernels::load_inc_store_double(&c[0], r10);
+    ikernels::load_inc_store_double(&c[4], r11);
+    ikernels::load_inc_store_double(&c[8], r12);
     c += N;
 
     //    _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r20);
-    load_inc_store_double(&c[4], r21);
-    load_inc_store_double(&c[8], r22);
+    ikernels::load_inc_store_double(&c[0], r20);
+    ikernels::load_inc_store_double(&c[4], r21);
+    ikernels::load_inc_store_double(&c[8], r22);
     c += N;
 
-    load_inc_store_double(&c[0], r30);
-    load_inc_store_double(&c[4], r31);
-    load_inc_store_double(&c[8], r32);
+    ikernels::load_inc_store_double(&c[0], r30);
+    ikernels::load_inc_store_double(&c[4], r31);
+    ikernels::load_inc_store_double(&c[8], r32);
+}
+
+template<int Nr, int Mr, int Kc>
+inline void pack_ukernel_arr(const double* __restrict a,
+                             const double* __restrict b,
+                             double* __restrict c,
+                             int N)
+{
+    constexpr int CREG_CNT{Mr * Nr / 4};
+
+    std::array<__m256d, CREG_CNT> res;
+    for (int idx = 0; idx < CREG_CNT; ++idx)
+    {
+        res[idx] = _mm256_setzero_pd();
+    }
+
+    //_mm_prefetch(&a[8], _MM_HINT_NTA); // prefetch next cache line
+
+    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
+    {
+        int idx = 0;
+        for (int i = 0; i < Mr; ++i)
+        {
+            __m256d areg = _mm256_broadcast_sd(&a[i]);
+            for (int j = 0; j < Nr; j += 4, ++idx)
+            {
+                res[idx] = _mm256_fmadd_pd(areg, _mm256_loadu_pd(&b[j]), res[idx]);
+            }
+        }
+    }
+
+    int idx = 0;
+    for (int i = 0; i < Mr; ++i, c += N)
+    {
+        for (int j = 0; j < Nr; j += 4, ++idx)
+        {
+            __m256d cr     = _mm256_loadu_pd(&c[j]);
+            __m256d result = _mm256_add_pd(cr, res[idx]);
+            _mm256_store_pd(&c[j], result);
+        }
+    }
 }
 
 //////////////////
 
-// TODO: Do we need to encode loop order ?
 template<int Nr, int Mr, int Kc>
 static void ukernel(const double* const __restrict ma,
                     const double* __restrict b,
@@ -495,28 +523,28 @@ static void ukernel(const double* const __restrict ma,
 
     _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r00);
-    load_inc_store_double(&c[4], r01);
-    load_inc_store_double(&c[8], r02);
+    ikernels::load_inc_store_double(&c[0], r00);
+    ikernels::load_inc_store_double(&c[4], r01);
+    ikernels::load_inc_store_double(&c[8], r02);
     c += N;
 
     _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r10);
-    load_inc_store_double(&c[4], r11);
-    load_inc_store_double(&c[8], r12);
+    ikernels::load_inc_store_double(&c[0], r10);
+    ikernels::load_inc_store_double(&c[4], r11);
+    ikernels::load_inc_store_double(&c[8], r12);
     c += N;
 
     _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r20);
-    load_inc_store_double(&c[4], r21);
-    load_inc_store_double(&c[8], r22);
+    ikernels::load_inc_store_double(&c[0], r20);
+    ikernels::load_inc_store_double(&c[4], r21);
+    ikernels::load_inc_store_double(&c[8], r22);
     c += N;
 
-    load_inc_store_double(&c[0], r30);
-    load_inc_store_double(&c[4], r31);
-    load_inc_store_double(&c[8], r32);
+    ikernels::load_inc_store_double(&c[0], r30);
+    ikernels::load_inc_store_double(&c[4], r31);
+    ikernels::load_inc_store_double(&c[8], r32);
 }
 
 template<int Nr, int Mr, int Kc, int Nc>
@@ -587,28 +615,28 @@ static void ukernelBpacked(const double* const __restrict ma,
 
     _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r00);
-    load_inc_store_double(&c[4], r01);
-    load_inc_store_double(&c[8], r02);
+    ikernels::load_inc_store_double(&c[0], r00);
+    ikernels::load_inc_store_double(&c[4], r01);
+    ikernels::load_inc_store_double(&c[8], r02);
     c += N;
 
     _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r10);
-    load_inc_store_double(&c[4], r11);
-    load_inc_store_double(&c[8], r12);
+    ikernels::load_inc_store_double(&c[0], r10);
+    ikernels::load_inc_store_double(&c[4], r11);
+    ikernels::load_inc_store_double(&c[8], r12);
     c += N;
 
     _mm_prefetch(c + N, _MM_HINT_NTA);
 
-    load_inc_store_double(&c[0], r20);
-    load_inc_store_double(&c[4], r21);
-    load_inc_store_double(&c[8], r22);
+    ikernels::load_inc_store_double(&c[0], r20);
+    ikernels::load_inc_store_double(&c[4], r21);
+    ikernels::load_inc_store_double(&c[8], r22);
     c += N;
 
-    load_inc_store_double(&c[0], r30);
-    load_inc_store_double(&c[4], r31);
-    load_inc_store_double(&c[8], r32);
+    ikernels::load_inc_store_double(&c[0], r30);
+    ikernels::load_inc_store_double(&c[4], r31);
+    ikernels::load_inc_store_double(&c[8], r32);
 }
 
 //////////////////////////      MATMUL     ///////////////////////////////////
@@ -798,6 +826,11 @@ void matMulLoopsIKJ(const Matrix<double>& A, const Matrix<double>& B, Matrix<dou
 void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
     // BEST
+
+    constexpr int Mc = 24;
+    constexpr int Kc = 96;
+    constexpr int Nc = 720;
+
     // constexpr int Mc = 180;
     // constexpr int Kc = 240;
     // constexpr int Nc = 720;
@@ -806,10 +839,9 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
     //    constexpr int Kc = 360;
     //    constexpr int Nc = 720;
 
-    // BEST
-    constexpr int Mc = 180;
-    constexpr int Kc = 240;
-    constexpr int Nc = 720;
+    //    constexpr int Mc = 180;
+    //    constexpr int Kc = 240;
+    //    constexpr int Nc = 720;
 
     //    constexpr int Mc = 256;
     //    constexpr int Kc = 2;
@@ -870,8 +902,9 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                         double*       Cc0 = Cc1 + N * ib;
                         const double* Ac0 = Ac2 + Kc * ib;
 
-                        upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
-                        // upkernel_v2<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        // upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        upkernel_v2<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        // pack_ukernel_arr<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                     }
                 }
             }
@@ -881,21 +914,25 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
     // DONE
 }
 
-void matMulLoopsRepackV2(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
+void matMulLoopsRepackIKJ(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
     // BEST
-    // constexpr int Mc = 180;
-    // constexpr int Kc = 240;
-    // constexpr int Nc = 720;
-
-    //    constexpr int Mc = 96;
-    //    constexpr int Kc = 360;
+    //    constexpr int Mc = 180;
+    //    constexpr int Kc = 240;
     //    constexpr int Nc = 720;
 
+    //    constexpr int Mc = 720;
+    //    constexpr int Kc = 90;
+    //    constexpr int Nc = 24;
+
+    //        constexpr int Mc = 96;
+    //        constexpr int Kc = 360;
+    //        constexpr int Nc = 720;
+
     // BEST
-    constexpr int Mc = 180;
-    constexpr int Kc = 180;
-    constexpr int Nc = 180;
+    constexpr int Mc = 720 / 4;
+    constexpr int Kc = 90;
+    constexpr int Nc = 24;
 
     //    constexpr int Mc = 256;
     //    constexpr int Kc = 2;
@@ -956,8 +993,9 @@ void matMulLoopsRepackV2(const Matrix<double>& A, const Matrix<double>& B, Matri
                         double*       Cc0 = Cc1 + N * ib;
                         const double* Ac0 = Ac2 + Kc * ib;
 
-                        upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
-                        // upkernel_v2<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        //                        upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        //  upkernel_v2<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        pack_ukernel_arr<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                     }
                 }
             }

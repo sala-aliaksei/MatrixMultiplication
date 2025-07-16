@@ -1,200 +1,460 @@
 #include "matMulAutotune.hpp"
 #include "mm/core/reorderMatrix.hpp"
+// #include "mm/core/kernels.hpp"
 
 #include "omp.h"
 
 #include <immintrin.h>
 
+// TODO: I copy impl to speed up compilation, go back to reuse existing impl
+
 // BEST
-// constexpr int Mc = 180;
-// constexpr int Kc = 240;
-// constexpr int Nc = 720;
-#ifdef N_CACHE_SIZE
-constexpr int Nc = N_CACHE_SIZE;
-#else
 constexpr int Nc = 720;
-#endif
+constexpr int Mc = 20;
+constexpr int Kc = 90;
 
-#ifdef M_CACHE_SIZE
-constexpr int Mc = M_CACHE_SIZE;
-#else
-constexpr int Mc = 180;
-#endif
+// constexpr int Mc = 128;
+// constexpr int Kc = 256;
 
-#ifdef K_CACHE_SIZE
-constexpr int Kc = K_CACHE_SIZE;
-#else
-constexpr int Kc = 240;
-#endif
+// #ifdef N_CACHE_SIZE
+// constexpr int Nc = N_CACHE_SIZE;
+// #else
+// constexpr int Nc = 720;
+// #endif
 
-/// utils
+// #ifdef M_CACHE_SIZE
+// constexpr int Mc = M_CACHE_SIZE;
+// #else
+// constexpr int Mc = 20;
+// #endif
 
-__attribute__((always_inline)) static inline void load_inc_store_double(double* __restrict ptr,
-                                                                        __m256d increment)
+// #ifdef K_CACHE_SIZE
+// constexpr int Kc = K_CACHE_SIZE;
+// #else
+// constexpr int Kc = 90;
+// #endif
+
+constexpr int N_LOG_DIM = 1;
+
+#include <experimental/simd>
+
+namespace stdx = std::experimental;
+
+template<typename T, int WIDTH>
+using fix_simd = stdx::fixed_size_simd<T, WIDTH>;
+
+namespace kernels
 {
-    // Load 4 double-precision values (256 bits) from memory into an AVX register
-    __m256d vector = _mm256_load_pd(ptr);
 
-    // Add the increment to the loaded vector
-    __m256d result = _mm256_add_pd(vector, increment);
-
-    // Store the result back to memory
-    _mm256_store_pd(ptr, result);
-    //    _mm256_stream_pd(ptr, result);
+template<typename T, int WIDTH>
+static inline void load_inc_store_double(T* __restrict ptr, fix_simd<T, WIDTH> increment)
+{
+    fix_simd<T, WIDTH> vector(ptr, stdx::element_aligned);
+    vector += increment;
+    vector.copy_to(ptr, stdx::element_aligned);
 }
 
-template<int Nr, int Mr, int Kc>
-static void upkernel(const double* __restrict ma,
-                     const double* __restrict b,
-                     double* __restrict mc,
-                     int N)
+template<std::size_t RowIdx, typename T, int WIDTH, std::size_t... I>
+static inline void store_row(T* c, fix_simd<T, WIDTH>* r, std::index_sequence<I...>)
 {
-    double* c = mc;
+    (..., (load_inc_store_double(&c[I * WIDTH], r[RowIdx * sizeof...(I) + I])));
+}
 
-    __m256d r00;
-    __m256d r01;
-    __m256d r02;
-    __m256d r10;
-    __m256d r11;
-    __m256d r12;
-    __m256d r20;
-    __m256d r21;
-    __m256d r22;
-    __m256d r30;
-    __m256d r31;
-    __m256d r32;
+template<int Nrs, typename T, int WIDTH, std::size_t... RowIndices>
+static inline void store_kernel(T*                  c,
+                                fix_simd<T, WIDTH>* r,
+                                int                 N,
+                                std::index_sequence<RowIndices...>)
+{
+    (..., (store_row<RowIndices>(c, r, std::make_index_sequence<Nrs>{}), c += N));
+}
 
-    r00 = _mm256_xor_pd(r00, r00);
-    r01 = _mm256_xor_pd(r01, r01);
-    r02 = _mm256_xor_pd(r02, r02);
-    r10 = _mm256_xor_pd(r10, r10);
-    r11 = _mm256_xor_pd(r11, r11);
-    r12 = _mm256_xor_pd(r12, r12);
-    r20 = _mm256_xor_pd(r20, r20);
-    r21 = _mm256_xor_pd(r21, r21);
-    r22 = _mm256_xor_pd(r22, r22);
-    r30 = _mm256_xor_pd(r30, r30);
-    r31 = _mm256_xor_pd(r31, r31);
-    r32 = _mm256_xor_pd(r32, r32);
+template<typename T, int WIDTH, std::size_t... J>
+static inline void packed_compute_row(const fix_simd<T, WIDTH>& a,
+                                      fix_simd<T, WIDTH>*       b,
+                                      fix_simd<T, WIDTH>*       r,
+                                      std::index_sequence<J...>)
+{
+    (..., (r[J] += a * b[J]));
+}
 
-    const double* a = ma;
+template<typename T, int WIDTH, size_t... I, size_t... J>
+static inline void packed_compute_kernel(const T*            a,
+                                         const T*            b,
+                                         fix_simd<T, WIDTH>* r,
+                                         std::index_sequence<I...>,
+                                         std::index_sequence<J...>)
+{
+    constexpr int Nrs = sizeof...(J);
+    // constexpr int Mrs = sizeof...(I);
+    //  Nrs*Mrs - size of r array
 
-    //                _mm_prefetch(b + 8, _MM_HINT_NTA);
-    //                _mm_prefetch(b + 16, _MM_HINT_NTA);
-    //                _mm_prefetch(b + 24, _MM_HINT_NTA);
-    // _mm_prefetch(a + 8, _MM_HINT_NTA);
+    fix_simd<T, WIDTH> bs[Nrs] = {fix_simd<T, WIDTH>(&b[J * WIDTH], stdx::element_aligned)...};
+    (...,
+     (packed_compute_row(
+       fix_simd<T, WIDTH>(a[I]), bs, &r[I * Nrs], std::make_index_sequence<Nrs>{})));
+}
 
-    //    _mm_prefetch(a + 8, _MM_HINT_T0);
-    //    _mm_prefetch(b + 8, _MM_HINT_T0);
-    //    _mm_prefetch(b + 16, _MM_HINT_T0);
-    //    _mm_prefetch(b + 24, _MM_HINT_T0);
-    //    _mm_prefetch(b + 64, _MM_HINT_T0);
-    //    _mm_prefetch(b + 64 * 2, _MM_HINT_T0);
-    //    _mm_prefetch(b + 64 * 3, _MM_HINT_T0);
+// Same perf as manual impl for Nr = 12, 8, 4;
+template<int Nr, int Mr, int Kc, typename T>
+static inline void cpp_packed_kernel(const T* __restrict a,
+                                     const T* __restrict b,
+                                     T* __restrict c,
+                                     int N)
+    requires(Nr % 4 == 0)
+{
+    constexpr int Nrs{Nr / 4};
 
-    for (int k = 0; k < Kc; k += 2, b += 2 * Nr, a += 2 * Mr)
+    fix_simd<T, 4> r[Nrs * Mr] = {};
+    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
     {
-        _mm_prefetch(b + 8, _MM_HINT_T0);
-        __m256d b0 = _mm256_loadu_pd(&b[0]);
-        __m256d b1 = _mm256_loadu_pd(&b[4]);
-        __m256d b2 = _mm256_loadu_pd(&b[8]);
+        packed_compute_kernel(
+          a, b, r, std::make_index_sequence<Mr>{}, std::make_index_sequence<Nrs>{});
+    }
+    store_kernel<Nrs>(c, r, N, std::make_index_sequence<Mr>{});
+}
 
-        __m256d a0 = _mm256_broadcast_sd(&a[0]);
+template<int Nr, int Mr, int Kc, typename T>
+inline void cpp_packed_kernel(const T* __restrict ma, const T* __restrict b, T* __restrict c, int N)
+    requires(Nr == 6 && Mr == 4)
+{
+    // TODO: IT is not packed!!!
+    static_assert(std::is_same_v<T, double>);
+    packed_ukernel6x4<Kc>(ma, b, c, N);
+}
 
-        r00 = _mm256_fmadd_pd(a0, b0, r00);
-        r01 = _mm256_fmadd_pd(a0, b1, r01);
-        r02 = _mm256_fmadd_pd(a0, b2, r02);
+template<int Nr, int Mr, int Kc, typename T>
+static inline void cpp_packed_kernel(const T* __restrict a,
+                                     const T* __restrict b,
+                                     T* __restrict c,
+                                     int N)
+    requires(Nr == 2 or Nr == 1)
+{
+    constexpr int Nrs = 1;
 
-        a0 = _mm256_broadcast_sd(&a[1]);
-
-        r10 = _mm256_fmadd_pd(a0, b0, r10);
-        r11 = _mm256_fmadd_pd(a0, b1, r11);
-        r12 = _mm256_fmadd_pd(a0, b2, r12);
-
-        a0 = _mm256_broadcast_sd(&a[2]);
-
-        r20 = _mm256_fmadd_pd(a0, b0, r20);
-        r21 = _mm256_fmadd_pd(a0, b1, r21);
-        r22 = _mm256_fmadd_pd(a0, b2, r22);
-
-        a0 = _mm256_broadcast_sd(&a[3]);
-
-        r30 = _mm256_fmadd_pd(a0, b0, r30);
-        r31 = _mm256_fmadd_pd(a0, b1, r31);
-        r32 = _mm256_fmadd_pd(a0, b2, r32);
-
-        // iter with prefetech
-
-        b0 = _mm256_loadu_pd(&b[12]);
-        b1 = _mm256_loadu_pd(&b[16]);
-        b2 = _mm256_loadu_pd(&b[20]);
-
-        a0 = _mm256_broadcast_sd(&a[4]);
-
-        r00 = _mm256_fmadd_pd(a0, b0, r00);
-        r01 = _mm256_fmadd_pd(a0, b1, r01);
-        r02 = _mm256_fmadd_pd(a0, b2, r02);
-
-        a0 = _mm256_broadcast_sd(&a[5]);
-
-        r10 = _mm256_fmadd_pd(a0, b0, r10);
-        r11 = _mm256_fmadd_pd(a0, b1, r11);
-        r12 = _mm256_fmadd_pd(a0, b2, r12);
-
-        a0 = _mm256_broadcast_sd(&a[6]);
-
-        r20 = _mm256_fmadd_pd(a0, b0, r20);
-        r21 = _mm256_fmadd_pd(a0, b1, r21);
-        r22 = _mm256_fmadd_pd(a0, b2, r22);
-
-        _mm_prefetch(a + 8, _MM_HINT_T0);
-        a0 = _mm256_broadcast_sd(&a[7]);
-
-        r30 = _mm256_fmadd_pd(a0, b0, r30);
-        r31 = _mm256_fmadd_pd(a0, b1, r31);
-        r32 = _mm256_fmadd_pd(a0, b2, r32);
+    fix_simd<T, Nr> r[Mr] = {};
+    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
+    {
+        packed_compute_kernel(
+          a, b, r, std::make_index_sequence<Mr>{}, std::make_index_sequence<Nrs>{});
     }
 
-    //        _mm_prefetch(c + N, _MM_HINT_NTA);
+    store_kernel<Nrs>(c, r, N, std::make_index_sequence<Mr>{});
+}
+} // namespace kernels
 
-    load_inc_store_double(&c[0], r00);
-    load_inc_store_double(&c[4], r01);
-    load_inc_store_double(&c[8], r02);
+template<int Nr, int Kr, int Kc, int... TailSize>
+static inline void handleItail(double*       a_buf,
+                               const double* a,
+                               const double* packed_b,
+                               double*       c,
+                               int           M,
+                               int           N,
+                               int           K,
+                               int           dNc,
+                               int           i_tail_size)
+{
+    // TODO: Add multithreading
 
-    c += N;
+    int i_ofs = 0;
 
-    //    _mm_prefetch(c + N, _MM_HINT_NTA);
+    (...,
+     (
+       [&]
+       {
+           constexpr int Mrr = TailSize;
+           if (i_tail_size >= Mrr)
+           {
 
-    load_inc_store_double(&c[0], r10);
-    load_inc_store_double(&c[4], r11);
-    load_inc_store_double(&c[8], r12);
-    c += N;
+               int dMc = i_tail_size - i_tail_size % Mrr;
+               reorderColOrderMatrixTail<Mrr, Kr>(a + K * i_ofs, K, a_buf, dMc, Kc);
 
-    //    _mm_prefetch(c + N, _MM_HINT_NTA);
+               // TODO:[Critical] What if dNc%Nr!=0 ??? We need to handle tail here as well
+               for (int j = 0; j < dNc; j += Nr)
+               {
 
-    load_inc_store_double(&c[0], r20);
-    load_inc_store_double(&c[4], r21);
-    load_inc_store_double(&c[8], r22);
-    c += N;
+                   int  idx    = 0;
+                   auto i_tail = i_tail_size;
+                   while (i_tail >= Mrr)
+                   {
+                       kernels::cpp_packed_kernel<Nr, Mrr, Kc>(
+                         &a_buf[idx * Kc], &packed_b[Kc * j], &c[(idx + i_ofs) * N + j], N);
 
-    load_inc_store_double(&c[0], r30);
-    load_inc_store_double(&c[4], r31);
-    load_inc_store_double(&c[8], r32);
+                       idx += Mrr;
+                       i_tail -= Mrr;
+                   }
+               }
+
+               i_ofs += i_tail_size - i_tail_size % Mrr;
+               i_tail_size %= Mrr;
+           }
+       }()));
+}
+
+template<int Nr, int Kr, int Nc, int Kc, int... TailSize>
+static inline void handleItail(double*       a_buf,
+                               const double* a,
+                               const double* packed_b,
+                               double*       c,
+                               int           M,
+                               int           N,
+                               int           K,
+                               int           i_tail_size)
+{
+    // TODO: Add multithreading
+
+    int i_ofs = 0;
+
+    (...,
+     (
+       [&]
+       {
+           constexpr int Mrr = TailSize;
+           if (i_tail_size >= Mrr)
+           {
+               int dMc = i_tail_size - i_tail_size % Mrr;
+               reorderColOrderMatrixTail<Mrr, Kr>(a + K * i_ofs, K, a_buf, dMc, Kc);
+
+               // TODO: What if Nc%Nr!=0 ???
+               for (int j = 0; j < Nc; j += Nr)
+               {
+                   int  idx    = 0;
+                   auto i_tail = i_tail_size;
+                   while (i_tail >= Mrr)
+                   {
+                       kernels::cpp_packed_kernel<Nr, Mrr, Kc>(
+                         &a_buf[idx * Kc], &packed_b[Kc * j], &c[(i_ofs + idx) * N + j], N);
+
+                       idx += Mrr;
+                       i_tail -= Mrr;
+                   }
+               }
+
+               i_ofs += i_tail_size - i_tail_size % Mrr;
+               i_tail_size %= Mrr;
+           }
+       }()));
+}
+
+template<int Mr, int Nr, int Kr, int Mc, int... TailSize>
+static inline void handleKtail(double*       a_buf,
+                               double*       b_buf,
+                               const double* a,
+                               const double* b,
+                               double*       c,
+                               int           M,
+                               int           N,
+                               int           K,
+                               int           dNc,
+                               int           k_tail_size)
+{
+    // TODO: Add multithreading
+    int kofs = 0;
+    (...,
+     (
+       [&]
+       {
+           constexpr int Kcc = TailSize;
+           if (k_tail_size >= Kcc)
+           {
+
+               int dKc = k_tail_size - k_tail_size % Kcc;
+               int kdx = kofs;
+
+               for (int k_block = 0; k_block < dKc; k_block += Kcc)
+               {
+                   reorderRowMajorMatrix<Kr, Nr>(b + N * (k_block + kdx), N, b_buf, Kcc, dNc);
+
+                   int dMc   = M % Mc;
+                   int ilast = M - dMc;
+                   for (int i_block = 0; i_block < ilast; i_block += Mc)
+                   {
+                       reorderColOrderMatrix<Mc, Kcc, Mr, Kr>(
+                         a + K * i_block + (k_block + kdx), K, a_buf);
+
+                       for (int j = 0; j < dNc; j += Nr)
+                       {
+                           const double* Bc1 = b_buf + Kcc * j;
+                           for (int i = 0; i < Mc; i += Mr)
+                           {
+                               double*       Cc0 = c + N * (i_block + i) + j;
+                               const double* Ac0 = a_buf + Kcc * i;
+
+                               // TODO: deduce args from span?
+                               kernels::cpp_packed_kernel<Nr, Mr, Kcc>(Ac0, Bc1, Cc0, N);
+                           }
+                       }
+                   }
+
+                   const double* Ac1 = a + (k_block + kdx) + K * ilast;
+                   double*       Cc1 = c + N * ilast;
+
+                   handleItail<Nr, Kr, Kcc, 4, 3, 2, 1>(a_buf, Ac1, b_buf, Cc1, M, N, K, dNc, dMc);
+               }
+
+               kofs += dKc;
+               k_tail_size %= Kcc;
+           }
+       }()));
+}
+
+template<int Mr, int Nr, int Kr, int Mc, int Nc, int... TailSize>
+static inline void handleKtail(double*       a_buf,
+                               double*       b_buf,
+                               const double* a,
+                               const double* b,
+                               double*       c,
+                               int           M,
+                               int           N,
+                               int           K,
+                               int           k_tail_size)
+{
+    // TODO: Add multithreading
+    int kofs = 0;
+    (...,
+     (
+       [&]
+       {
+           constexpr int Kcc = TailSize;
+           if (k_tail_size >= Kcc)
+           {
+
+               int dKc = k_tail_size - k_tail_size % Kcc;
+               int kdx = kofs;
+
+               for (int k_block = 0; k_block < dKc; k_block += Kcc)
+               {
+                   reorderRowMajorMatrix<Kcc, Nc, Kr, Nr>(b + N * (k_block + kdx), N, b_buf);
+
+                   int dMc   = M % Mc;
+                   int ilast = M - dMc;
+                   for (int i_block = 0; i_block < ilast; i_block += Mc)
+                   {
+                       reorderColOrderMatrix<Mc, Kcc, Mr, Kr>(
+                         a + K * i_block + k_block + kdx, K, a_buf);
+
+                       for (int j = 0; j < Nc; j += Nr)
+                       {
+                           const double* Bc1 = b_buf + Kcc * j;
+                           for (int i = 0; i < Mc; i += Mr)
+                           {
+                               double*       Cc0 = c + N * (i_block + i) + j;
+                               const double* Ac0 = a_buf + Kcc * i;
+
+                               // TODO: deduce args from span?
+                               kernels::cpp_packed_kernel<Nr, Mr, Kcc>(Ac0, Bc1, Cc0, N);
+                           }
+                       }
+                   }
+
+                   // What if we don't have Mr rows anymore and tail is 1, (new Mr == 1)?
+
+                   const double* Ac1 = a + k_block + kdx + K * ilast;
+                   double*       Cc1 = c + N * ilast;
+
+                   handleItail<Nr, Kr, Nc, Kcc, 4, 3, 2, 1>(a_buf, Ac1, b_buf, Cc1, M, N, K, dMc);
+               }
+
+               kofs += dKc;
+               k_tail_size %= Kcc;
+           }
+       }()));
+}
+
+template<int Mr, int Kr, int Mc, int Kc, int... TailSize>
+static inline void handleJtail(double*       buf,
+                               const double* ma,
+                               const double* mb,
+                               double*       mc,
+                               int           M,
+                               int           K,
+                               int           N,
+                               int           j_tail_size)
+{
+
+    // TODO: Add multithreading
+    int j_ofs = 0;
+    (...,
+     (
+       [&]
+       {
+           constexpr int Nrr = TailSize;
+           if (j_tail_size >= Nrr)
+           {
+               // dNc % Nrr == 0 always
+               int dNc = j_tail_size - j_tail_size % Nrr;
+
+               double* a_buf = buf;
+               double* b_buf = a_buf + Mc * Kc;
+
+               int dKc   = K % Kc;
+               int klast = K - dKc;
+               for (int k_block = 0; k_block < klast; k_block += Kc)
+               {
+                   int i_tail_size = M % Mc;
+                   int ilast       = M - i_tail_size;
+
+                   for (int i_block = 0; i_block < ilast; i_block += Mc)
+                   {
+
+                       reorderColOrderMatrix<Mc, Kc, Mr, Kr>(ma + K * i_block + k_block, K, a_buf);
+
+                       int j_tail = j_tail_size;
+                       int jjdx   = j_ofs;
+
+                       while (j_tail >= Nrr)
+                       {
+                           reorderRowMajorMatrix<Kr, Nrr>(
+                             mb + N * k_block + jjdx, N, b_buf, Kc, dNc);
+
+                           // TODO: What if Mc%Mr != 0 ?
+                           for (int i = 0; i < Mc; i += Mr)
+                           {
+                               double*       Cc0 = mc + N * (i_block + i) + jjdx;
+                               const double* Ac0 = a_buf + Kc * i;
+
+                               kernels::cpp_packed_kernel<Nrr, Mr, Kc>(Ac0, b_buf, Cc0, N);
+                           }
+
+                           j_tail -= Nrr;
+                           jjdx += Nrr;
+                       }
+                   }
+
+                   const double* Ac1 = ma + k_block + K * ilast;
+                   const double* Bc1 = mb + N * k_block + j_ofs;
+                   double*       Cc1 = mc + N * ilast + j_ofs;
+
+                   reorderRowMajorMatrix<Kr, Nrr>(Bc1, N, b_buf, Kc, dNc);
+
+                   handleItail<Nrr, Kr, Kc, 4, 3, 2, 1>(
+                     a_buf, Ac1, b_buf, Cc1, M, N, K, dNc, i_tail_size);
+               }
+
+               // TODO: Choose probel block sizes for Kcc
+               handleKtail<Mr, Nrr, Kr, Mc, 20, 10, 4, 2, 1>(
+                 a_buf, b_buf, ma + klast, mb + N * klast + j_ofs, mc + j_ofs, M, N, K, dNc, dKc);
+
+               j_ofs += dNc;
+               j_tail_size %= Nrr;
+           }
+       }()));
 }
 
 void matMulAutotune(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
-    // BEST
-    // constexpr int Mc = 180;
-    // constexpr int Kc = 240;
-    // constexpr int Nc = 720;
+
+    // NEW BEST
+    //    constexpr int Nc = 180;
+    //    constexpr int Mc = 20;
+    //    constexpr int Kc = 80;
 
     constexpr int Nr = 12;
     constexpr int Mr = 4;
-    constexpr int Kr = 1; // consider to increase to improve repack perf
 
-    std::cout << "Dimension : " << A.row() << " " << A.col() << std::endl;
-    std::cout << "Nc: " << Nc << " Mc: " << Mc << " Kc: " << Kc << std::endl;
+    // consider to increase to improve repack perf
+    // Kr = 1, no need for padding over k dim
+    constexpr int Kr = 1;
 
     static_assert(Mc % Mr == 0, "invalid cache/reg size of the block");
     static_assert(Nc % Nr == 0, "invalid cache/reg size of the block");
@@ -207,48 +467,76 @@ void matMulAutotune(const Matrix<double>& A, const Matrix<double>& B, Matrix<dou
     std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(4 * Kc
                                                                                   * (Mc + Nc));
 
+    // tail is only in last block
+    int dNc = N % Nc;
+    int jl  = N - dNc;
+
 #pragma omp parallel for
-    for (int j = 0; j < N; j += Nc)
+    for (int j_block = 0; j_block < jl; j_block += Nc)
     {
-        auto       tid = omp_get_thread_num();
-        const auto ofs = tid * Kc * (Mc + Nc);
-        double*    buf = buffer.data() + ofs;
+        auto       tid   = omp_get_thread_num();
+        const auto ofs   = tid * Kc * (Mc + Nc);
+        double*    b_buf = buffer.data() + ofs + Mc * Kc;
+        double*    a_buf = buffer.data() + ofs;
 
-        double*       Cc4 = &C(0, j);
-        const double* Bc4 = &B(0, j);
+        int dKc   = K % Kc;
+        int klast = K - dKc;
 
-        for (int k = 0; k < K; k += Kc)
+        for (int k_block = 0; k_block < klast; k_block += Kc)
         {
-            const double* Ac3  = &A(0, k);
-            const double* Bcc3 = Bc4 + N * k;
+            // Can be access out of bound if j+Nc > N
+            // TODO : I can guarantee the we always within the block and no padding needed
+            reorderRowMajorMatrix<Kc, Nc, Kr, Nr>(B.data() + N * k_block + j_block, N, b_buf);
 
-            double* Bc3 = (buf + Mc * Kc);
-            reorderRowMajorMatrix<Kc, Nc, Kr, Nr>(Bcc3, N, Bc3);
-
-            for (int i = 0; i < M; i += Mc)
+            int dMc   = M % Mc;
+            int ilast = M - dMc;
+            for (int i_block = 0; i_block < ilast; i_block += Mc)
             {
-                double*       Cc2  = Cc4 + N * i;
-                const double* Acc2 = Ac3 + K * i;
+                // Can be access out of bound if i+Mc > M
+                // how to we reorder if there is a tail?
+                reorderColOrderMatrix<Mc, Kc, Mr, Kr>(A.data() + K * i_block + k_block, K, a_buf);
 
-                reorderColOrderMatrix<Mc, Kc, Mr, Kr>(Acc2, K, buf);
-                const double* Ac2 = buf;
-
-                for (int jb = 0; jb < Nc; jb += Nr)
+                for (int j = 0; j < Nc; j += Nr)
                 {
-                    double*       Cc1 = Cc2 + jb;
-                    const double* Bc1 = Bc3 + Kc * jb;
-
-                    for (int ib = 0; ib < Mc; ib += Mr)
+                    const double* Bc1 = b_buf + Kc * j;
+                    for (int i = 0; i < Mc; i += Mr)
                     {
-                        double*       Cc0 = Cc1 + N * ib;
-                        const double* Ac0 = Ac2 + Kc * ib;
+                        double*       Cc0 = C.data() + N * (i_block + i) + j_block + j;
+                        const double* Ac0 = a_buf + Kc * i;
 
-                        upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        // TODO: deduce args from span?
+                        kernels::cpp_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                     }
                 }
             }
+
+            // TODO: reorder I tail
+            // reorderColOrderPaddingMatrix
+
+            // What if we don't have Mr rows anymore and tail is 1, (new Mr == 1)?
+
+            const double* Ac1 = A.data() + k_block + ilast * K;
+            double*       Cc1 = C.data() + j_block + ilast * N;
+
+            handleItail<Nr, Kr, Nc, Kc, 4, 3, 2, 1>(a_buf, Ac1, b_buf, Cc1, M, N, K, dMc);
         }
+
+        // TODO: Choose Ktails properly
+        handleKtail<Mr, Nr, Kr, Mc, Nc, 20, 10, 4, 2, 1>(a_buf,
+                                                         b_buf,
+                                                         A.data() + klast,
+                                                         B.data() + N * klast + j_block,
+                                                         C.data() + j_block,
+                                                         M,
+                                                         N,
+                                                         K,
+                                                         dKc);
+
+        // TODO: Can recalc b_buf address to be cllsoer to a_buf
     }
 
-    // DONE
+    // TODO: Add multithreading
+
+    handleJtail<Mr, Kr, Mc, Kc, 12, 8, 4, 2, 1>(
+      buffer.data(), A.data(), &B(0, jl), &C(0, jl), M, K, N, dNc);
 }

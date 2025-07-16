@@ -6,7 +6,7 @@
 #include <cmath>
 
 // TODO: Debug logs
-#include <iostream>
+// #include <iostream>
 
 static constexpr int mceil(int value, int elem)
 {
@@ -161,7 +161,7 @@ void reorderColOrderMatrixTail(const double* matrix, int N, double* dest, int Mc
     // Don't handle Nr case, since we use Kr heere which is 1
     int idx = 0;
 
-    if (Mc > Mr)
+    // if (Mc > Mr)
     {
         // Process full tiles
         int i_limit = Mc - Mc % Mr; //(Mc / Ir) * Ir;
@@ -206,38 +206,38 @@ void reorderColOrderMatrixTail(const double* matrix, int N, double* dest, int Mc
             }
         }
     }
-    else if (Mc == Mr)
-    {
-        // Process full tiles
-        int i_limit = Mc - Mc % Mr; //(Mc / Ir) * Ir;
-        int j_limit = Nc - Nc % Nr; //(Nc / Jr) * Jr;
+    //    else if (Mc == Mr)
+    //    {
+    //        // Process full tiles
+    //        int i_limit = Mc - Mc % Mr; //(Mc / Ir) * Ir;
+    //        int j_limit = Nc - Nc % Nr; //(Nc / Jr) * Jr;
 
-        for (int j = 0; j < j_limit; j += Nr)
-        {
-            for (int jc = 0; jc < Nr; ++jc)
-            {
-                for (int ic = 0; ic < Mr; ++ic)
-                {
-                    dest[idx++] = matrix[(ic)*N + j + jc];
-                }
-            }
-        }
+    //        for (int j = 0; j < j_limit; j += Nr)
+    //        {
+    //            for (int jc = 0; jc < Nr; ++jc)
+    //            {
+    //                for (int ic = 0; ic < Mr; ++ic)
+    //                {
+    //                    dest[idx++] = matrix[(ic)*N + j + jc];
+    //                }
+    //            }
+    //        }
 
-        for (int j = j_limit; j < Nc; ++j)
-        {
-            for (int ic = 0; ic < Mr; ++ic)
-            {
-                dest[idx++] = matrix[(ic)*N + j];
-            }
-        }
-    }
-    else
-    {
-        throw std::runtime_error("Undefined Mr,Nr sizes");
-    }
+    //        for (int j = j_limit; j < Nc; ++j)
+    //        {
+    //            for (int ic = 0; ic < Mr; ++ic)
+    //            {
+    //                dest[idx++] = matrix[(ic)*N + j];
+    //            }
+    //        }
+    //    }
+    //    else
+    //    {
+    //        throw std::runtime_error("Undefined Mr,Nr sizes");
+    //    }
 }
 
-template<int Mc, int Nc, int Ir, int Jr>
+template<int Mc, int Nc, int Mr, int Nr>
 void reorderColOrderMatrix(const double* matrix, int cols, double* dest)
 {
     /*
@@ -247,20 +247,32 @@ void reorderColOrderMatrix(const double* matrix, int cols, double* dest)
     ||   |
     v    v
     */
-    static_assert(Mc % Ir == 0, "Invalid m pattern");
-    static_assert(Nc % Jr == 0, "Invalid n pattern");
+    static_assert(Mc % Mr == 0, "Invalid m pattern");
+    static_assert(Nc % Nr == 0, "Invalid n pattern");
     int idx = 0;
+
+    constexpr auto prefetch_type = _MM_HINT_NTA;
 
     // DON'T REORDER LOOPS
     // Process columns in groups of 4
-    for (int i = 0; i < Mc; i += Ir)
+    for (int i = 0; i < Mc; i += Mr)
     {
-        for (int j = 0; j < Nc; j += Jr)
+        for (int j = 0; j < Nc; j += Nr)
         {
-            for (int jc = 0; jc < Jr; ++jc)
+            _mm_prefetch(matrix + (i + 0) * cols + j + Nr, prefetch_type);
+            //_mm_prefetch(matrix + (i + 1) * cols + j + Nr, prefetch_type);
+            //_mm_prefetch(matrix + (i + 2) * cols + j + Nr, prefetch_type);
+            //_mm_prefetch(matrix + (i + 3) * cols + j + Nr, prefetch_type);
+
+            for (int jc = 0; jc < Nr; ++jc)
             {
-                for (int ic = 0; ic < Ir; ++ic)
+                //                _mm_prefetch(matrix + (i + 1) * cols + j, prefetch_type);
+                //                _mm_prefetch(matrix + (i + 2) * cols + j, prefetch_type);
+                //                _mm_prefetch(matrix + (i + 3) * cols + j, prefetch_type);
+
+                for (int ic = 0; ic < Mr; ++ic)
                 {
+
                     dest[idx++] = matrix[(i + ic) * cols + j + jc];
                 }
             }
@@ -303,6 +315,159 @@ void reorderRowMajorMatrix(const double* b, int cols, double* dest, int M, int N
     }
 }
 
+__attribute__((no_sanitize("coverage"))) static inline void*
+inline_memcpy(void* __restrict dst_, const void* __restrict src_, size_t size)
+{
+    /// We will use pointer arithmetic, so char pointer will be used.
+    /// Note that __restrict makes sense (otherwise compiler will reload data from memory
+    /// instead of using the value of registers due to possible aliasing).
+    char* __restrict dst       = reinterpret_cast<char* __restrict>(dst_);
+    const char* __restrict src = reinterpret_cast<const char* __restrict>(src_);
+
+    /// Standard memcpy returns the original value of dst. It is rarely used but we have to do it.
+    /// If you use memcpy with small but non-constant sizes, you can call inline_memcpy directly
+    /// for inlining and removing this single instruction.
+    void* ret = dst;
+
+tail:
+    /// Small sizes and tails after the loop for large sizes.
+    /// The order of branches is important but in fact the optimal order depends on the distribution
+    /// of sizes in your application. This order of branches is from the disassembly of glibc's
+    /// code. We copy chunks of possibly uneven size with two overlapping movs. Example: to copy 5
+    /// bytes [0, 1, 2, 3, 4] we will copy tail [1, 2, 3, 4] first and then head [0, 1, 2, 3].
+    if (size <= 16)
+    {
+        if (size >= 8)
+        {
+            /// Chunks of 8..16 bytes.
+            __builtin_memcpy(dst + size - 8, src + size - 8, 8);
+            __builtin_memcpy(dst, src, 8);
+        }
+        else if (size >= 4)
+        {
+            /// Chunks of 4..7 bytes.
+            __builtin_memcpy(dst + size - 4, src + size - 4, 4);
+            __builtin_memcpy(dst, src, 4);
+        }
+        else if (size >= 2)
+        {
+            /// Chunks of 2..3 bytes.
+            __builtin_memcpy(dst + size - 2, src + size - 2, 2);
+            __builtin_memcpy(dst, src, 2);
+        }
+        else if (size >= 1)
+        {
+            /// A single byte.
+            *dst = *src;
+        }
+        /// No bytes remaining.
+    }
+    else
+    {
+        /// Medium and large sizes.
+        if (size <= 128)
+        {
+            /// Medium size, not enough for full loop unrolling.
+
+            /// We will copy the last 16 bytes.
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(dst + size - 16),
+                             _mm_loadu_si128(reinterpret_cast<const __m128i*>(src + size - 16)));
+
+            /// Then we will copy every 16 bytes from the beginning in a loop.
+            /// The last loop iteration will possibly overwrite some part of already copied last 16
+            /// bytes. This is Ok, similar to the code for small sizes above.
+            while (size > 16)
+            {
+                _mm_storeu_si128(reinterpret_cast<__m128i*>(dst),
+                                 _mm_loadu_si128(reinterpret_cast<const __m128i*>(src)));
+                dst += 16;
+                src += 16;
+                size -= 16;
+            }
+        }
+        else
+        {
+            /// Large size with fully unrolled loop.
+
+            /// Align destination to 16 bytes boundary.
+            size_t padding = (16 - (reinterpret_cast<size_t>(dst) & 15)) & 15;
+
+            /// If not aligned - we will copy first 16 bytes with unaligned stores.
+            if (padding > 0)
+            {
+                __m128i head = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src));
+                _mm_storeu_si128(reinterpret_cast<__m128i*>(dst), head);
+                dst += padding;
+                src += padding;
+                size -= padding;
+            }
+
+            /// Aligned unrolled copy. We will use half of available SSE registers.
+            /// It's not possible to have both src and dst aligned.
+            /// So, we will use aligned stores and unaligned loads.
+            __m128i c0, c1, c2, c3, c4, c5, c6, c7;
+
+            while (size >= 128)
+            {
+                c0 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src) + 0);
+                c1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src) + 1);
+                c2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src) + 2);
+                c3 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src) + 3);
+                c4 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src) + 4);
+                c5 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src) + 5);
+                c6 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src) + 6);
+                c7 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src) + 7);
+                src += 128;
+                _mm_store_si128((reinterpret_cast<__m128i*>(dst) + 0), c0);
+                _mm_store_si128((reinterpret_cast<__m128i*>(dst) + 1), c1);
+                _mm_store_si128((reinterpret_cast<__m128i*>(dst) + 2), c2);
+                _mm_store_si128((reinterpret_cast<__m128i*>(dst) + 3), c3);
+                _mm_store_si128((reinterpret_cast<__m128i*>(dst) + 4), c4);
+                _mm_store_si128((reinterpret_cast<__m128i*>(dst) + 5), c5);
+                _mm_store_si128((reinterpret_cast<__m128i*>(dst) + 6), c6);
+                _mm_store_si128((reinterpret_cast<__m128i*>(dst) + 7), c7);
+                dst += 128;
+
+                size -= 128;
+            }
+
+            /// The latest remaining 0..127 bytes will be processed as usual.
+            goto tail;
+        }
+    }
+
+    return ret;
+}
+template<int M, int N, int ib, int jb>
+void reorderRowMajorMatrixAVX(const double* b, int cols, double* dest)
+{
+    static_assert(ib == 1, "ib != 1, but we optimize for ib =1");
+    // reorder B; J I I J order
+
+    /*
+     * ------->
+     *      -
+     *    -
+     *  -
+     * ------->
+     *
+     */
+
+    int            idx           = 0;
+    constexpr auto prefetch_type = _MM_HINT_NTA;
+
+    for (int j = 0; j < N; j += jb)
+    {
+        //_mm_prefetch(b + jb + j, prefetch_type);
+        for (int i = 0; i < M; i += ib)
+        {
+            _mm_prefetch(b + (i + 1) * cols + j, prefetch_type);
+            inline_memcpy(dest + idx, &b[i * cols + j], sizeof(double) * jb);
+            idx += jb;
+        }
+    }
+}
+
 template<int M, int N, int ib, int jb>
 void reorderRowMajorMatrix(const double* b, int cols, double* dest)
 {
@@ -322,11 +487,13 @@ void reorderRowMajorMatrix(const double* b, int cols, double* dest)
 
     for (int j = 0; j < N; j += jb)
     {
+        //_mm_prefetch(b + jb + j, prefetch_type);
         for (int i = 0; i < M; i += ib)
         {
             for (int ic = 0; ic < ib; ++ic)
             {
                 const auto col = (i + ic) * cols;
+                _mm_prefetch(b + (i + ic + 1) * cols + j, prefetch_type);
                 for (int jc = 0; jc < jb; ++jc)
                 {
                     dest[idx++] = b[col + j + jc];

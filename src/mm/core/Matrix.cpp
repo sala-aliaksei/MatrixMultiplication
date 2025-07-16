@@ -40,8 +40,6 @@ MatrixSet initPredictedMatrix(int isize, int jsize, int ksize)
     return set;
 }
 
-// TODO: What if we have matrix<float>?
-// we need i,j,k for matrix init
 MatrixSet initMatrix(int M, int N, int K)
 {
     std::random_device rd;

@@ -6,8 +6,7 @@
 
 
 if [ -z "$1" ]; then
-    # BM_Name="BM_MatMulAutotune"
-    BM_Name="BM_MatMulPadding"
+    BM_Name="BM_MatMulSimd"
 else
     BM_Name=$1
 fi
@@ -22,4 +21,4 @@ fi
 # --benchmark_out=./build/results/$BM_Name/$Matrix_Size.json
 WORKSPACE=$(realpath $(dirname $0)/..)
 
-MATRIX_DIM=$Matrix_Size ${WORKSPACE}/build/BM_Matmul --benchmark_filter=$BM_Name/$Matrix_Size$ --benchmark_time_unit=ms 
+MATRIX_DIM=$Matrix_Size perf stat -d -d ${WORKSPACE}/build/BM_Matmul --benchmark_filter=$BM_Name/$Matrix_Size$ --benchmark_time_unit=ms  --benchmark_repetitions=10 --benchmark_report_aggregates_only=false

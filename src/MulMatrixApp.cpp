@@ -1,5 +1,6 @@
-#include <mm/matmul/matMul.hpp>
-#include <mm/matmul/matMulSimd.hpp>
+#include "mm/matmul/matMul.hpp"
+// #include <mm/matmul/matMulSimd.hpp>
+#include <mm/matmul/matMulAutotune.hpp>
 
 #include <iostream>
 
@@ -16,7 +17,6 @@ struct MDArray
     {
     }
 
-    // TODO: Compile time out of bound check
     T& operator()(int i, int j)
     {
         // i < Mc
@@ -92,6 +92,7 @@ int main()
         auto matrices = initMatrix(I, J, K);
 
         // matMulSimd(matrices.a, matrices.b, matrices.c);
+        matMulAutotune(matrices.a, matrices.b, matrices.c);
 
         // testMDSpan();
 

@@ -1,6 +1,7 @@
 #include "mm/matmul/matMulRegOpt.hpp"
 #include "mm/core/utils/utils.hpp"
 #include "mm/core/reorderMatrix.hpp"
+#include "mm/core/ikernels.hpp"
 
 #include <immintrin.h>
 #include <array>
@@ -406,61 +407,6 @@ std::array<double, M * N> reorderMatrix_4x8(const double* b, int cols)
     return result;
 }
 
-template<int M, int N>
-std::array<double, M * N> repackMatrix(const double* b, int cols)
-{
-
-    constexpr int             I_BLOCK = 4;
-    std::array<double, M * N> result;
-
-    int idx = 0;
-    // Process columns in groups of 4
-    for (size_t colStart = 0; colStart < N; colStart += I_BLOCK)
-    {
-        for (size_t row = 0; row < M; ++row)
-        {
-            for (size_t col = colStart; col < colStart + I_BLOCK; ++col)
-            {
-                result[idx++] = (b[row * cols + col]);
-            }
-        }
-    }
-
-    return result;
-}
-
-template<int M, int N>
-std::array<double, M * N> packTMatrix(const double* b, int col)
-{
-    // TODO: TRY transposed matrix
-    int idx = 0;
-
-    std::array<double, M * N> b_packed;
-
-    for (int k = 0; k < M; k++)
-    {
-        for (int j = 0; j < N; j++)
-        {
-            b_packed[j * M + k] = b[k * col + j];
-        }
-    }
-    return b_packed;
-}
-
-__attribute__((always_inline)) static inline void load_inc_store_double(double* __restrict ptr,
-                                                                        __m256d increment)
-{
-    // Load 4 double-precision values (256 bits) from memory into an AVX register
-    __m256d vector = _mm256_load_pd(ptr);
-
-    // Add the increment to the loaded vector
-    __m256d result = _mm256_add_pd(vector, increment);
-
-    // Store the result back to memory
-    _mm256_store_pd(ptr, result);
-    //_mm256_stream_pd(ptr, result);
-}
-
 static void massert(bool flag, std::string msg)
 {
     using namespace std::literals;
@@ -593,30 +539,30 @@ void mulMatrix_y(double*           pc,
 
             _mm_prefetch(cnext, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r00);
-            load_inc_store_double(&c[4], r01);
-            load_inc_store_double(&c[8], r02);
+            ikernels::load_inc_store_double(&c[0], r00);
+            ikernels::load_inc_store_double(&c[4], r01);
+            ikernels::load_inc_store_double(&c[8], r02);
 
             c = cnext;
             cnext += j_size;
             _mm_prefetch(cnext, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r10);
-            load_inc_store_double(&c[4], r11);
-            load_inc_store_double(&c[8], r12);
+            ikernels::load_inc_store_double(&c[0], r10);
+            ikernels::load_inc_store_double(&c[4], r11);
+            ikernels::load_inc_store_double(&c[8], r12);
 
             c = cnext;
             cnext += j_size;
             _mm_prefetch(cnext, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r20);
-            load_inc_store_double(&c[4], r21);
-            load_inc_store_double(&c[8], r22);
+            ikernels::load_inc_store_double(&c[0], r20);
+            ikernels::load_inc_store_double(&c[4], r21);
+            ikernels::load_inc_store_double(&c[8], r22);
             c = cnext;
 
-            load_inc_store_double(&c[0], r30);
-            load_inc_store_double(&c[4], r31);
-            load_inc_store_double(&c[8], r32);
+            ikernels::load_inc_store_double(&c[0], r30);
+            ikernels::load_inc_store_double(&c[4], r31);
+            ikernels::load_inc_store_double(&c[8], r32);
         }
     }
 }
@@ -637,10 +583,8 @@ void mulMatrix_yy(double*           pc,
     static_assert(GEMM_J % J_BLOCK == 0, "invalid GEMM_J or J_BLOCK");
     static_assert(GEMM_K % K_BLOCK == 0, "invalid GEMM_K or K_BLOCK");
 
-    // no impact? try to tune cache size
-    // TODO: Must be moved to upper layer since no deps from J
+    // no impact frpm pa? try to tune cache size
     const auto pa = packMatrix<GEMM_I, GEMM_K>(na, k_size);
-
     const auto pb = packMatrix<GEMM_K, GEMM_J>(nb, j_size);
 
     const auto    a_cols = GEMM_K;
@@ -722,28 +666,28 @@ void mulMatrix_yy(double*           pc,
 
             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r00);
-            load_inc_store_double(&c[4], r01);
-            load_inc_store_double(&c[8], r02);
+            ikernels::load_inc_store_double(&c[0], r00);
+            ikernels::load_inc_store_double(&c[4], r01);
+            ikernels::load_inc_store_double(&c[8], r02);
             c += j_size;
 
             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r10);
-            load_inc_store_double(&c[4], r11);
-            load_inc_store_double(&c[8], r12);
+            ikernels::load_inc_store_double(&c[0], r10);
+            ikernels::load_inc_store_double(&c[4], r11);
+            ikernels::load_inc_store_double(&c[8], r12);
             c += j_size;
 
             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r20);
-            load_inc_store_double(&c[4], r21);
-            load_inc_store_double(&c[8], r22);
+            ikernels::load_inc_store_double(&c[0], r20);
+            ikernels::load_inc_store_double(&c[4], r21);
+            ikernels::load_inc_store_double(&c[8], r22);
             c += j_size;
 
-            load_inc_store_double(&c[0], r30);
-            load_inc_store_double(&c[4], r31);
-            load_inc_store_double(&c[8], r32);
+            ikernels::load_inc_store_double(&c[0], r30);
+            ikernels::load_inc_store_double(&c[4], r31);
+            ikernels::load_inc_store_double(&c[8], r32);
         }
     }
 }
@@ -771,7 +715,6 @@ void mulMatrix_z(double*           pc,
     // Must be moved  to upper layer
     const auto pb = packMatrix<GEMM_K, GEMM_J>(nb, j_size);
 
-    // TODO: Repack A in col order,
     // const auto pa = reorderMatrix<GEMM_I, GEMM_K, I_BLOCK, K_BLOCK, true>(&na[k3], k_size);
     const auto pa = reorderMatrix<GEMM_I, GEMM_K, I_BLOCK, K_BLOCK, true>(na, k_size);
     // const auto pa = reorderMatrix_4x8<GEMM_I, GEMM_K, true>(&na[k3], k_size);
@@ -786,12 +729,6 @@ void mulMatrix_z(double*           pc,
 
     for (size_t i = 0; i < GEMM_I; i += I_BLOCK, ma += I_BLOCK * GEMM_K)
     {
-        //            std::cout << "a kernel \n";
-        //            printPointer<I_BLOCK, GEMM_K>(ma);
-        //                    _mm_prefetch(ma, _MM_HINT_T0);
-        //                    _mm_prefetch(ma + 8, _MM_HINT_T0);
-        //                    _mm_prefetch(ma + 16, _MM_HINT_T0);
-        //                    _mm_prefetch(ma + 24, _MM_HINT_T0);
         for (size_t j = 0; j < GEMM_J; j += J_BLOCK)
         {
             __m256d r00 = _mm256_setzero_pd();
@@ -822,15 +759,6 @@ void mulMatrix_z(double*           pc,
 
                 for (int k2 = 0; k2 < K_BLOCK; k2 += 2, b += b_cols, a += 2 * I_BLOCK)
                 {
-                    //                        _mm_prefetch(a + 8, _MM_HINT_NTA);
-                    // no impact
-
-                    // TODO: If a read with stride 1, we can load  whole a to reg and use perm
-                    // to retrieve proper elem
-                    //                        std::cout << "a{ " << a[0] << "," << a[1] << ","
-                    //                        << a[2] << "," << a[3]
-                    //                                  << "}\n";
-
                     __m256d b0 = _mm256_loadu_pd(&b[0]);
                     __m256d b1 = _mm256_loadu_pd(&b[4]);
                     __m256d b2 = _mm256_loadu_pd(&b[8]);
@@ -896,29 +824,29 @@ void mulMatrix_z(double*           pc,
 
             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r00);
-            load_inc_store_double(&c[4], r01);
-            load_inc_store_double(&c[8], r02);
+            ikernels::load_inc_store_double(&c[0], r00);
+            ikernels::load_inc_store_double(&c[4], r01);
+            ikernels::load_inc_store_double(&c[8], r02);
 
             c += j_size;
 
             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r10);
-            load_inc_store_double(&c[4], r11);
-            load_inc_store_double(&c[8], r12);
+            ikernels::load_inc_store_double(&c[0], r10);
+            ikernels::load_inc_store_double(&c[4], r11);
+            ikernels::load_inc_store_double(&c[8], r12);
             c += j_size;
 
             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r20);
-            load_inc_store_double(&c[4], r21);
-            load_inc_store_double(&c[8], r22);
+            ikernels::load_inc_store_double(&c[0], r20);
+            ikernels::load_inc_store_double(&c[4], r21);
+            ikernels::load_inc_store_double(&c[8], r22);
             c += j_size;
 
-            load_inc_store_double(&c[0], r30);
-            load_inc_store_double(&c[4], r31);
-            load_inc_store_double(&c[8], r32);
+            ikernels::load_inc_store_double(&c[0], r30);
+            ikernels::load_inc_store_double(&c[4], r31);
+            ikernels::load_inc_store_double(&c[8], r32);
         }
     }
     //}
@@ -948,7 +876,6 @@ void mulMatrix_zIJK(double*           pc,
     // Must be moved to upper layer
     const auto pb = packMatrix<GEMM_K, GEMM_J>(nb, j_size);
 
-    // TODO: Repack A in col order,
     // const auto pa = reorderMatrix<GEMM_I, GEMM_K, I_BLOCK, K_BLOCK, true>(&na[k3], k_size);
     const auto pa = reorderMatrix<GEMM_I, GEMM_K, I_BLOCK, K_BLOCK, true>(na, k_size);
     // const auto pa = reorderMatrix_4x8<GEMM_I, GEMM_K, true>(&na[k3], k_size);
@@ -983,24 +910,13 @@ void mulMatrix_zIJK(double*           pc,
 
         for (size_t k = 0; k < GEMM_K; k += K_BLOCK)
         {
-            //                    std::cout << "--------------- i=" << i << "j=" << j << "
-            //                    k=" << k
-            //                              << "----------------\n";
+
             const auto    b_cols = GEMM_J;
             const double* b      = &pb[k * b_cols + j];
             for (size_t i = 0; i < GEMM_I; i += I_BLOCK, ma += I_BLOCK * GEMM_K)
             {
                 for (int k2 = 0; k2 < K_BLOCK; k2 += 2, b += b_cols, a += 2 * I_BLOCK)
                 {
-                    //                        _mm_prefetch(a + 8, _MM_HINT_NTA);
-                    // no impact
-
-                    // TODO: If a read with stride 1, we can load  whole a to reg and use perm
-                    // to retrieve proper elem
-                    //                        std::cout << "a{ " << a[0] << "," << a[1] << ","
-                    //                        << a[2] << "," << a[3]
-                    //                                  << "}\n";
-
                     __m256d b0 = _mm256_loadu_pd(&b[0]);
                     __m256d b1 = _mm256_loadu_pd(&b[4]);
                     __m256d b2 = _mm256_loadu_pd(&b[8]);
@@ -1065,29 +981,29 @@ void mulMatrix_zIJK(double*           pc,
 
                 //_mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-                load_inc_store_double(&c[0], r00);
-                load_inc_store_double(&c[4], r01);
-                load_inc_store_double(&c[8], r02);
+                ikernels::load_inc_store_double(&c[0], r00);
+                ikernels::load_inc_store_double(&c[4], r01);
+                ikernels::load_inc_store_double(&c[8], r02);
 
                 c += j_size;
 
                 // _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-                load_inc_store_double(&c[0], r10);
-                load_inc_store_double(&c[4], r11);
-                load_inc_store_double(&c[8], r12);
+                ikernels::load_inc_store_double(&c[0], r10);
+                ikernels::load_inc_store_double(&c[4], r11);
+                ikernels::load_inc_store_double(&c[8], r12);
                 c += j_size;
 
                 //_mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-                load_inc_store_double(&c[0], r20);
-                load_inc_store_double(&c[4], r21);
-                load_inc_store_double(&c[8], r22);
+                ikernels::load_inc_store_double(&c[0], r20);
+                ikernels::load_inc_store_double(&c[4], r21);
+                ikernels::load_inc_store_double(&c[8], r22);
                 c += j_size;
 
-                load_inc_store_double(&c[0], r30);
-                load_inc_store_double(&c[4], r31);
-                load_inc_store_double(&c[8], r32);
+                ikernels::load_inc_store_double(&c[0], r30);
+                ikernels::load_inc_store_double(&c[4], r31);
+                ikernels::load_inc_store_double(&c[8], r32);
             }
         }
     }
@@ -1123,16 +1039,8 @@ void mulMatrix_zz(double*           pc,
 
     // MUL KERNEL
 
-    //        _mm_prefetch(ma, _MM_HINT_NTA);
-    //        _mm_prefetch(ma + 8, _MM_HINT_NTA);
-    //        _mm_prefetch(ma + 16, _MM_HINT_NTA);
-    //        _mm_prefetch(ma + 24, _MM_HINT_NTA);
-
     for (size_t i = 0; i < GEMM_I; i += I_BLOCK, ma += I_BLOCK * GEMM_K)
     {
-        //            std::cout << "a kernel \n";
-        //            printPointer<I_BLOCK, GEMM_K>(ma);
-
         const double* b = mb;
         for (size_t j = 0; j < GEMM_J; j += J_BLOCK) // mb += J_BLOCK * GEMM_K
         {
@@ -1155,10 +1063,6 @@ void mulMatrix_zz(double*           pc,
             const double* a = ma;
             for (size_t k = 0; k < GEMM_K; k += K_BLOCK)
             {
-
-                //                _mm_prefetch(b + 8, _MM_HINT_NTA);
-                //                _mm_prefetch(b + 16, _MM_HINT_NTA);
-                //                _mm_prefetch(b + 24, _MM_HINT_NTA);
                 for (int k2 = 0; k2 < K_BLOCK; k2 += 2, b += 2 * J_BLOCK, a += 2 * I_BLOCK)
                 {
                     __m256d b0 = _mm256_loadu_pd(&b[0]);
@@ -1224,29 +1128,29 @@ void mulMatrix_zz(double*           pc,
 
             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r00);
-            load_inc_store_double(&c[4], r01);
-            load_inc_store_double(&c[8], r02);
+            ikernels::load_inc_store_double(&c[0], r00);
+            ikernels::load_inc_store_double(&c[4], r01);
+            ikernels::load_inc_store_double(&c[8], r02);
 
             c += j_size;
 
             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r10);
-            load_inc_store_double(&c[4], r11);
-            load_inc_store_double(&c[8], r12);
+            ikernels::load_inc_store_double(&c[0], r10);
+            ikernels::load_inc_store_double(&c[4], r11);
+            ikernels::load_inc_store_double(&c[8], r12);
             c += j_size;
 
             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-            load_inc_store_double(&c[0], r20);
-            load_inc_store_double(&c[4], r21);
-            load_inc_store_double(&c[8], r22);
+            ikernels::load_inc_store_double(&c[0], r20);
+            ikernels::load_inc_store_double(&c[4], r21);
+            ikernels::load_inc_store_double(&c[8], r22);
             c += j_size;
 
-            load_inc_store_double(&c[0], r30);
-            load_inc_store_double(&c[4], r31);
-            load_inc_store_double(&c[8], r32);
+            ikernels::load_inc_store_double(&c[0], r30);
+            ikernels::load_inc_store_double(&c[4], r31);
+            ikernels::load_inc_store_double(&c[8], r32);
         }
     }
 }
@@ -1257,8 +1161,6 @@ void mulMatrix_zz(double*           pc,
 
 void matMulRegOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
-    //    matMulRegOptBuff(A, B, C);
-    //    return;
     const std::size_t num_threads = std::thread::hardware_concurrency();
 
     const auto i_size = A.row();
@@ -1267,7 +1169,6 @@ void matMulRegOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
 
     const size_t block_inc = i_size / num_threads;
 
-    // TODO: Will be replaced with tail computation
     massert(i_size % num_threads == 0, "i_size % num_threads == 0");
     massert(block_inc % GEMM_I == 0, "block_inc % GEMM_I == 0");
     massert(j_size % GEMM_J == 0, "j_size % GEMM_J == 0");
@@ -1310,25 +1211,6 @@ void matMulRegOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
     {
         t.join();
     }
-
-    //    task(0);
-
-    // #pragma omp parallel for
-    //     for (size_t i3 = 0; i3 < i_size; i3 += GEMM_I)
-    //     {
-    //         for (size_t k3 = 0; k3 < k_size; k3 += GEMM_K)
-    //         {
-    //             for (size_t j3 = 0; j3 < j_size; j3 += GEMM_J)
-    //             {
-
-    //                mulMatrix_y(&mc[i3 * j_size + j3],
-    //                            &ma[i3 * k_size + k3],
-    //                            &mb[k3 * j_size + j3],
-    //                            j_size,
-    //                            k_size);
-    //            }
-    //        }
-    //    }
 }
 
 void matMulRegOptBuff(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
@@ -1341,7 +1223,6 @@ void matMulRegOptBuff(const Matrix<double>& A, const Matrix<double>& B, Matrix<d
 
     const size_t block_inc = i_size / num_threads;
 
-    // TODO: Will be replaced with tail computation
     massert(i_size % num_threads == 0, "i_size % num_threads == 0");
     massert(block_inc % GEMM_I == 0, "block_inc % GEMM_I == 0");
     massert(j_size % GEMM_J == 0, "j_size % GEMM_J == 0");
@@ -1368,13 +1249,13 @@ void matMulRegOptBuff(const Matrix<double>& A, const Matrix<double>& B, Matrix<d
                 for (size_t j3 = 0; j3 < j_size; j3 += GEMM_J)
                 {
 
-                    //                    mulMatrix_y(
-                    //                      &mc[i3 * j_size + j3], &ma[i3 * k_size + 0], &mb[0 +
-                    //                      j3], j_size, k_size);
+                    // mulMatrix_y(
+                    //   &mc[i3 * j_size + j3], &ma[i3 * k_size + 0], &mb[0 +
+                    //   j3], j_size, k_size);
 
-                    //                mulMatrix_yy(
-                    //                  &mc[i3 * j_size + j3], &ma[i3 * k_size + 0], &mb[0 + j3],
-                    //                  j_size, k_size);
+                    // mulMatrix_yy(
+                    //   &mc[i3 * j_size + j3], &ma[i3 * k_size + 0], &mb[0 + j3],
+                    //   j_size, k_size);
 
                     mulMatrix_zz(&mc[i3 * j_size + j3],
                                  &ma[i3 * k_size + k3],
@@ -1405,11 +1286,6 @@ void matMulRegOptBuff(const Matrix<double>& A, const Matrix<double>& B, Matrix<d
 
 void matMulRegOptNoL2(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
-    // need vectorize writing to c
-    // impl diff kernels
-    // add tail computation for diff kernels
-    // a and b must be reordered
-    // std::array should be reused and have same addess al the time to be in hot path/cache
     const std::size_t num_threads = std::thread::hardware_concurrency();
 
     const auto i_size = A.row();
@@ -1418,7 +1294,6 @@ void matMulRegOptNoL2(const Matrix<double>& A, const Matrix<double>& B, Matrix<d
 
     const size_t block_inc = i_size / num_threads;
 
-    // TODO: Will be replaced with tail computation
     massert(i_size % num_threads == 0, "i_size % num_threads == 0");
     massert(block_inc % GEMM_I == 0, "block_inc % GEMM_I == 0");
     massert(j_size % GEMM_J == 0, "j_size % GEMM_J == 0");
@@ -1459,17 +1334,12 @@ void matMulRegOptNoL2(const Matrix<double>& A, const Matrix<double>& B, Matrix<d
 
                 for (size_t k3 = 0; k3 < k_size; k3 += GEMM_K)
                 {
-
                     const auto pb = packMatrix<GEMM_K, GEMM_J>(&mb[k3 * j_size + j3], j_size);
-                    // std::cout << "--------------- k=" << k3 << "----------------\n";
 
-                    // TODO: Repack A in col order,
                     const auto pa = reorderMatrix<GEMM_I, GEMM_K, I_BLOCK, K_BLOCK, true>(
                       &ma[i3 * k_size + k3], k_size);
                     // const auto pa = reorderMatrix_4x8<GEMM_I, GEMM_K, true>(&na[k3], k_size);
                     //  const auto pa = reorderMatrix_4x8_AVX<GEMM_I, GEMM_K>(&na[k3], k_size);
-
-                    // printArr<GEMM_I, GEMM_K>(pa);
 
                     constexpr auto a_cols = GEMM_K;
                     const double*  ma     = pa.data();
@@ -1571,29 +1441,29 @@ void matMulRegOptNoL2(const Matrix<double>& A, const Matrix<double>& B, Matrix<d
 
                             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-                            load_inc_store_double(&c[0], r00);
-                            load_inc_store_double(&c[4], r01);
-                            load_inc_store_double(&c[8], r02);
+                            ikernels::load_inc_store_double(&c[0], r00);
+                            ikernels::load_inc_store_double(&c[4], r01);
+                            ikernels::load_inc_store_double(&c[8], r02);
 
                             c += j_size;
 
                             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-                            load_inc_store_double(&c[0], r10);
-                            load_inc_store_double(&c[4], r11);
-                            load_inc_store_double(&c[8], r12);
+                            ikernels::load_inc_store_double(&c[0], r10);
+                            ikernels::load_inc_store_double(&c[4], r11);
+                            ikernels::load_inc_store_double(&c[8], r12);
                             c += j_size;
 
                             _mm_prefetch(c + j_size, _MM_HINT_NTA);
 
-                            load_inc_store_double(&c[0], r20);
-                            load_inc_store_double(&c[4], r21);
-                            load_inc_store_double(&c[8], r22);
+                            ikernels::load_inc_store_double(&c[0], r20);
+                            ikernels::load_inc_store_double(&c[4], r21);
+                            ikernels::load_inc_store_double(&c[8], r22);
                             c += j_size;
 
-                            load_inc_store_double(&c[0], r30);
-                            load_inc_store_double(&c[4], r31);
-                            load_inc_store_double(&c[8], r32);
+                            ikernels::load_inc_store_double(&c[0], r30);
+                            ikernels::load_inc_store_double(&c[4], r31);
+                            ikernels::load_inc_store_double(&c[8], r32);
                         }
                     }
                 }
@@ -1613,67 +1483,3 @@ void matMulRegOptNoL2(const Matrix<double>& A, const Matrix<double>& B, Matrix<d
         t.join();
     }
 }
-
-// BOOST THREAD POOL
-
-//    boost::asio::io_service       io_service;
-//    boost::asio::io_service::work work(io_service);
-
-//    boost::thread_group thread_pool;
-//    for (int i = 0; i < num_threads - 1; ++i)
-//    {
-//        thread_pool.create_thread(boost::bind(&boost::asio::io_service::run,
-//        &io_service));
-//    }
-
-//    for (int i = 0; i < num_threads - 1; ++i)
-//    { // Posting more tasks to utilize all cores effectively
-//        io_service.post([&]() { task(i); });
-//    }
-
-//    task(3);
-//    io_service.stop();
-//    thread_pool.join_all();
-
-//                    for (int k2 = 0; k2 < K_BLOCK; ++k2, b += b_cols, a +=
-//                    I_BLOCK)
-//                    {
-//                        // no impact
-//                        //_mm_prefetch(b + 8, _MM_HINT_NTA);
-
-//                        // TODO: If a read with stride 1, we can load  whole a
-//                        to reg and use perm
-//                        // to retrieve proper elem
-//                        //                        std::cout << "a{ " << a[0]
-//                        << "," << a[1] << ","
-//                        //                        << a[2] << "," << a[3]
-//                        //                                  << "}\n";
-
-//                        __m256d b0 = _mm256_loadu_pd(&b[0]);
-//                        __m256d b1 = _mm256_loadu_pd(&b[4]);
-//                        __m256d b2 = _mm256_loadu_pd(&b[8]);
-
-//                        __m256d a0 = _mm256_broadcast_sd(&a[0]);
-
-//                        r00 = _mm256_fmadd_pd(a0, b0, r00);
-//                        r01 = _mm256_fmadd_pd(a0, b1, r01);
-//                        r02 = _mm256_fmadd_pd(a0, b2, r02);
-
-//                        a0 = _mm256_broadcast_sd(&a[1]);
-
-//                        r10 = _mm256_fmadd_pd(a0, b0, r10);
-//                        r11 = _mm256_fmadd_pd(a0, b1, r11);
-//                        r12 = _mm256_fmadd_pd(a0, b2, r12);
-
-//                        a0 = _mm256_broadcast_sd(&a[2]);
-
-//                        r20 = _mm256_fmadd_pd(a0, b0, r20);
-//                        r21 = _mm256_fmadd_pd(a0, b1, r21);
-//                        r22 = _mm256_fmadd_pd(a0, b2, r22);
-
-//                        a0 = _mm256_broadcast_sd(&a[3]);
-
-//                        r30 = _mm256_fmadd_pd(a0, b0, r30);
-//                        r31 = _mm256_fmadd_pd(a0, b1, r31);
-//                        r32 = _mm256_fmadd_pd(a0, b2, r32);
-//                    }

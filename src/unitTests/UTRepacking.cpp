@@ -1,6 +1,6 @@
 #include "mm/core/Matrix.hpp"
 #include "mm/core/reorderMatrix.hpp"
-
+#include "mm/core/utils/utils.hpp"
 #include <gtest/gtest.h>
 
 // reorderColOrderPaddingMatrix()
@@ -8,35 +8,27 @@
 constexpr int M = 2880;
 constexpr int N = 2880;
 
-// class ReorderTest : public testing::Test
-//{
-//   protected:
-//     ReorderTest()
-//       //: matrices(initMatrix(I, J, K))
-//       : valid_res(M, N)
-//     {
-//         // You can do set-up work for each test here.
-//     }
+// Helper to generate a test matrix (row-major)
+std::vector<double> generateMatrix(int rows, int cols)
+{
+    std::vector<double> m(rows * cols);
+    for (int i = 0; i < rows; ++i)
+        for (int j = 0; j < cols; ++j)
+            m[i * cols + j] = i * 10 + j; // unique value per element
+    return m;
+}
 
-//    ~ReorderTest() override
-//    {
-//        // You can do clean-up work that doesn't throw exceptions here.
-//    }
+// Helper to compare floating point vectors
+void assertEqualMatrix(const std::vector<double>& actual, const std::vector<double>& expected)
+{
+    ASSERT_EQ(actual.size(), expected.size());
+    for (size_t i = 0; i < actual.size(); ++i)
+    {
+        ASSERT_DOUBLE_EQ(actual[i], expected[i]) << "Mismatch at index " << i;
+    }
+}
 
-//    void SetUp() override
-//    {
-//        // Code here will be called immediately after the constructor (right
-//        // before each test).
-//    }
-
-//    void TearDown() override
-//    {
-//        // Code here will be called immediately after each test (right
-//        // before the destructor).
-//    }
-
-//    Matrix<double> valid_res;
-//};
+/*****************************************************************************************************/
 
 // **Google Test Fixture**
 class ReorderTest : public ::testing::Test
@@ -47,7 +39,7 @@ class ReorderTest : public ::testing::Test
     {
         Matrix<double> output(Mc, Nc);
         reorderColOrderPaddingMatrix<Mc, Nc, Mr, Nr>(
-          input.data(), input.col(), output.data(), Mb, Nb);
+          input.data(), input.row(), input.col(), output.data());
 
         bool is_succeed = output == expected;
         if (!is_succeed)
@@ -204,6 +196,181 @@ TEST_F(ReorderTest, EdgeCase_3x3)
 
     runTest<Mc, Nc, Mr, Nr>(Mb, Nb, input, expected);
 }
+
+/*****************************************************************************************************/
+
+// ------------------ TEST CASES ----------------------
+
+TEST(ReorderColOrderMatrixTailTest, NoTails)
+{
+    constexpr int Ir = 2, Jr = 2;
+    const int     Mc = 4, Nc = 4, N = 4;
+
+    auto input = generateMatrix(Mc, N);
+    // std::cout << "input matrix" << input << std::endl;
+
+    std::vector<double> output(Mc * Nc, 0);
+
+    reorderColOrderMatrixTail<Ir, Jr>(input.data(), N, output.data(), Mc, Nc);
+
+    // clang-format off
+    std::vector<double> expected = {
+        0, 10, 1, 11,
+        2, 12, 3, 13,
+        20, 30, 21, 31,
+        22, 32, 23, 33
+    };
+    // clang-format on
+
+    assertEqualMatrix(output, expected);
+}
+
+TEST(ReorderColOrderMatrixTailTest, TailInRows)
+{
+    constexpr int Ir = 2, Jr = 2;
+    const int     Mc = 5, Nc = 4, N = 4;
+
+    auto                input = generateMatrix(Mc, N);
+    std::vector<double> output(Mc * Nc, 0);
+
+    reorderColOrderMatrixTail<Ir, Jr>(input.data(), N, output.data(), Mc, Nc);
+
+    // Expected: First 4 rows are processed in blocks,
+    // Last row (row 4) is handled as a tail in rows
+    // clang-format off
+    std::vector<double> expected = {
+        0,  10, 1,  11,
+        2,  12, 3,  13,
+        20, 30, 21, 31,
+        22, 32, 23, 33,
+        40, 41, 42, 43 // tail row
+    };
+    // clang-format on
+
+    assertEqualMatrix(output, expected);
+}
+
+TEST(ReorderColOrderMatrixTailTest, TailInCols)
+{
+    constexpr int Ir = 2, Jr = 2;
+    const int     Mc = 4, Nc = 5, N = 5;
+
+    auto                input = generateMatrix(Mc, N);
+    std::vector<double> output(Mc * Nc, 0);
+
+    reorderColOrderMatrixTail<Ir, Jr>(input.data(), N, output.data(), Mc, Nc);
+
+    // clang-format off
+    std::vector<double> expected = {
+        0,  10, 1,  11,
+        2,  12, 3,  13,
+        4,  14,
+        20, 30, 21, 31,
+        22, 32, 23, 33,
+        24, 34,         // tail col
+    };
+    // clang-format on
+
+    // Flatten expected into row-major shape to match output
+    assertEqualMatrix(output, expected);
+}
+
+TEST(ReorderColOrderMatrixTailTest, TailInRowsAndCols)
+{
+    constexpr int Ir = 2, Jr = 2;
+    const int     Mc = 5, Nc = 5, N = 5;
+
+    auto input = generateMatrix(Mc, N);
+
+    std::vector<double> output(Mc * Nc, 0);
+
+    reorderColOrderMatrixTail<Ir, Jr>(input.data(), N, output.data(), Mc, Nc);
+
+    // clang-format off
+    std::vector<double> expected = {
+        0,  10, 1,  11,
+        2,  12, 3,  13,
+        4,  14,
+        20, 30, 21, 31,
+        22, 32, 23, 33,
+        24, 34,         // tail col
+        40, 41, 42, 43, // tail row
+        44              // tail col
+    };
+    // clang-format on
+
+    assertEqualMatrix(output, expected);
+}
+
+TEST(ReorderColOrderMatrixTailTest, OnlyITails)
+{
+    constexpr int Ir = 1, Jr = 2;
+    const int     Mc = 2, Nc = 4, N = 4, M = 4;
+
+    auto input = generateMatrix(M, N);
+    // std::cout << "input matrix" << input << std::endl;
+
+    std::vector<double> output(Mc * Nc, 0);
+
+    reorderColOrderMatrixTail<Ir, Jr>(input.data(), N, output.data(), Mc, Nc);
+
+    // clang-format off
+    std::vector<double> expected = {
+        0, 1 ,2, 3, 10, 11, 12, 13
+    };
+    // clang-format on
+
+    assertEqualMatrix(output, expected);
+}
+
+TEST(ReorderColOrderMatrixTailTest, OnlyJTails)
+{
+    constexpr int Ir = 2, Jr = 1;
+    const int     Mc = 4, Nc = 2, N = 2, M = 4;
+
+    auto input = generateMatrix(M, N);
+    // std::cout << "input matrix" << input << std::endl;
+
+    std::vector<double> output(Mc * Nc, 0);
+
+    reorderColOrderMatrixTail<Ir, Jr>(input.data(), N, output.data(), Mc, Nc);
+
+    // clang-format off
+    std::vector<double> expected = {
+        0, 10, 1, 11, 20, 30, 21, 31
+    };
+    // clang-format on
+
+    assertEqualMatrix(output, expected);
+}
+
+TEST(ReorderColOrderMatrixTailTest, ItailHigherMc)
+{
+    constexpr int Ir = 4, Jr = 4;
+    const int     Mc = 4, Nc = 4, N = 32, M = 32;
+
+    constexpr int ITAIL = 4;
+
+    auto input = generateMatrix(M, N);
+    // std::cout << "input matrix" << input << std::endl;
+
+    std::vector<double> output(M * N, 0);
+
+    blasReorderRowOrder4x4(M, N, input.data(), N, output.data());
+    // reorderColOrderMatrixTail<Ir, Jr>(input.data() + M * N, N, output.data(), ITAIL, Nc);
+
+    // clang-format off
+    std::vector<double> expected = {
+        0, 10, 1, 11, 20, 30, 21, 31
+    };
+    // clang-format on
+    std::cout << input << std::endl;
+    std::cout << "---------------------------------------" << std::endl;
+    std::cout << output << std::endl;
+    assertEqualMatrix(output, expected);
+}
+
+/*****************************************************************************************************/
 
 // **Main Function**
 int main(int argc, char** argv)

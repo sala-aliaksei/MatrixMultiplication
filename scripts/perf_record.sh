@@ -7,7 +7,6 @@ BENCHMARK_LIST=(
     "BM_CN_MatMul_Simd"
     "BM_CN_MatMul_Avx"
     "BM_CN_MatMul_Avx_AddRegs"
-    "BM_CN_MatMul_Avx_AddRegsV2"
     "BM_CN_MatMul_Avx_AddRegs_Unroll"
     "BM_CN_MatMul_Avx_Cache"
     "BM_CN_MatMul_Avx_Cache_Regs"
@@ -20,6 +19,7 @@ BENCHMARK_LIST=(
     "BM_MatMulLoopRepack"
     "BM_MatMulLoopBPacked"
     "BM_MatrixMulOpenBLAS"
+    "BM_MatMulSimd"
 )
 
 set -e

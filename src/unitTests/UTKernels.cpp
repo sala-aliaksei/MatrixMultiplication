@@ -6,10 +6,6 @@
 
 #include <gtest/gtest.h>
 
-// #define ENABLE_NAIVE_TESTS
-
-// TODO: add ability to init matrices from cmdline
-// constexpr std::size_t N = 12 * 4 * 2;
 constexpr std::size_t NN = 4 * 720;
 
 constexpr std::size_t M = NN;

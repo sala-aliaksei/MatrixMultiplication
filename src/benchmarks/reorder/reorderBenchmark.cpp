@@ -13,11 +13,13 @@ static void BM_NaiveColumnReorder(benchmark::State& state)
     auto        arr = std::vector<double>(N * N);
     benchmark::DoNotOptimize(arr);
 
-    constexpr int Mc = 180;
-    constexpr int Nc = 720;
+    constexpr int Mc = 24;
+    constexpr int Nc = 96;
+    //    constexpr int Mc = 180;
+    //    constexpr int Nc = 720;
 
     constexpr int Mr = 4;
-    constexpr int Nr = 1;
+    constexpr int Nr = 12;
 
     std::vector<double> buf(Mc * Nc);
 

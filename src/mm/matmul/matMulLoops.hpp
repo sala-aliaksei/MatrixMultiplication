@@ -6,4 +6,4 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 void matMulLoopsIKJ(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 void matMulLoopsBPacked(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 
-void matMulLoopsRepackV2(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
+void matMulLoopsRepackIKJ(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);

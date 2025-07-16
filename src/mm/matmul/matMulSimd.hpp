@@ -8,6 +8,8 @@ void matMulSimdTails(const Matrix<double>& A, const Matrix<double>& B, Matrix<do
 #include "mm/core/reorderMatrix.hpp"
 #include <iostream>
 
+constexpr int N_LOG_DIM = 25;
+
 // TODO: What is analogy from std lib?
 static void printArr(const double* arr, int row, int col)
 {
@@ -21,6 +23,7 @@ static void printArr(const double* arr, int row, int col)
     }
 }
 
+// TODO: Move to Utils??? We have same in Unit tests
 static void printArr(const double* arr, int row, int col, int col_ofs)
 {
     for (int i = 0; i < row; i++)
@@ -55,7 +58,7 @@ static inline void handleItail(double*       a_buf,
            constexpr int Mrr = TailSize;
            if (i_tail_size >= Mrr)
            {
-               if (N < 25)
+               if (N < N_LOG_DIM)
                {
                    std::cout << "-----------------    COMPUTE ITAIL dNc with Mrr = " << Mrr
                              << "  -----------------\n";
@@ -66,7 +69,7 @@ static inline void handleItail(double*       a_buf,
                // TODO:[Critical] What if Nc%Nr!=0 ??? We need to handle tail here as well
                for (int j = 0; j < dNc; j += Nr)
                {
-                   // if (N < 25)
+                   // if (N < N_LOG_DIM)
                    // {
                    //     std::cout << "-----------------     COMPUTE KERNEL IN I
                    //     TAIL for j=" << j
@@ -113,7 +116,7 @@ static inline void handleItail(double*       a_buf,
            if (i_tail_size >= Mrr)
            {
 
-               if (N < 25)
+               if (N < N_LOG_DIM)
                {
                    std::cout << "-----------------    COMPUTE ITAIL Nc   -----------------\n";
                }
@@ -152,7 +155,6 @@ static inline void handleKtail(double*       a_buf,
                                int           N,
                                int           K,
                                int           dNc,
-                               int           klast,
                                int           k_tail_size)
 {
     // TODO: Add multithreading
@@ -164,25 +166,39 @@ static inline void handleKtail(double*       a_buf,
            constexpr int Kcc = TailSize;
            if (k_tail_size >= Kcc)
            {
-               if (N < 25)
+
+               if (N < N_LOG_DIM)
                {
-                   std::cout << "-----------------    COMPUTE KTAIL dNc   -----------------\n";
+                   std::cout << "-----------------    COMPUTE KTAIL    -----------------\n";
+                   std::cout << "k_tail_size = " << k_tail_size << std::endl;
+                   std::cout << "Kcc = " << Kcc << std::endl;
+                   std::cout << "dNc = " << dNc << std::endl;
+                   std::cout << "dNc%Nr = " << dNc % Nr << std::endl;
+                   std::cout << "Mc%Mr = " << Mc % Mr << std::endl;
+                   std::cout << "kofs = " << kofs << std::endl;
                }
 
-               int new_k_tail = k_tail_size % Kcc;
-               int kdx        = kofs;
+               int dKc = k_tail_size - k_tail_size % Kcc;
+               int kdx = kofs;
 
-               for (int k_block = 0; k_block < k_tail_size - new_k_tail; k_block += Kcc)
+               for (int k_block = 0; k_block < dKc; k_block += Kcc)
                {
-                   reorderColOrderMatrixTail<Kr, Nr>(b + N * (k_block + kdx), N, b_buf, Kcc, dNc);
+                   reorderRowMajorMatrix<Kr, Nr>(b + N * (k_block + kdx), N, b_buf, Kcc, dNc);
 
-                   int i_tail_size = M % Mc;
-                   int ilast       = M - i_tail_size;
+                   int dMc   = M % Mc;
+                   int ilast = M - dMc;
                    for (int i_block = 0; i_block < ilast; i_block += Mc)
                    {
                        reorderColOrderMatrix<Mc, Kcc, Mr, Kr>(
-                         a + K * i_block + k_block + kdx, K, a_buf);
+                         a + K * i_block + (k_block + kdx), K, a_buf);
 
+                       if (N < N_LOG_DIM)
+                       {
+
+                           std::cout
+                             << "-----------------     COMPUTE KERNEL IN K TAIL for i_block="
+                             << i_block << ", k_block = " << k_block << "  -----------------\n";
+                       }
                        for (int j = 0; j < dNc; j += Nr)
                        {
                            const double* Bc1 = b_buf + Kcc * j;
@@ -197,14 +213,13 @@ static inline void handleKtail(double*       a_buf,
                        }
                    }
 
-                   const double* Ac1 = a + k_block + K * ilast;
+                   const double* Ac1 = a + (k_block + kdx) + K * ilast;
                    double*       Cc1 = c + N * ilast;
 
-                   handleItail<Nr, Kr, Kcc, 4, 3, 2, 1>(
-                     a_buf, Ac1, b_buf, Cc1, M, N, K, dNc, i_tail_size);
+                   handleItail<Nr, Kr, Kcc, 4, 3, 2, 1>(a_buf, Ac1, b_buf, Cc1, M, N, K, dNc, dMc);
                }
 
-               kofs += k_tail_size - k_tail_size % Kcc;
+               kofs += dKc;
                k_tail_size %= Kcc;
            }
        }()));
@@ -219,7 +234,6 @@ static inline void handleKtail(double*       a_buf,
                                int           M,
                                int           N,
                                int           K,
-                               int           klast,
                                int           k_tail_size)
 {
     // TODO: Add multithreading
@@ -231,19 +245,20 @@ static inline void handleKtail(double*       a_buf,
            constexpr int Kcc = TailSize;
            if (k_tail_size >= Kcc)
            {
-               if (N < 25)
+               if (N < N_LOG_DIM)
                {
                    std::cout << "-----------------    COMPUTE KTAIL Nc   -----------------\n";
                }
-               int new_k_tail = k_tail_size % Kcc;
-               int kdx        = kofs;
 
-               for (int k_block = 0; k_block < k_tail_size - new_k_tail; k_block += Kcc)
+               int dKc = k_tail_size - k_tail_size % Kcc;
+               int kdx = kofs;
+
+               for (int k_block = 0; k_block < dKc; k_block += Kcc)
                {
                    reorderRowMajorMatrix<Kcc, Nc, Kr, Nr>(b + N * (k_block + kdx), N, b_buf);
 
-                   int i_tail_size = M % Mc;
-                   int ilast       = M - i_tail_size;
+                   int dMc   = M % Mc;
+                   int ilast = M - dMc;
                    for (int i_block = 0; i_block < ilast; i_block += Mc)
                    {
                        reorderColOrderMatrix<Mc, Kcc, Mr, Kr>(
@@ -265,14 +280,13 @@ static inline void handleKtail(double*       a_buf,
 
                    // What if we don't have Mr rows anymore and tail is 1, (new Mr == 1)?
 
-                   const double* Ac1 = a + k_block + K * ilast;
+                   const double* Ac1 = a + k_block + kdx + K * ilast;
                    double*       Cc1 = c + N * ilast;
 
-                   handleItail<Nr, Kr, Nc, Kcc, 4, 3, 2, 1>(
-                     a_buf, Ac1, b_buf, Cc1, M, N, K, i_tail_size);
+                   handleItail<Nr, Kr, Nc, Kcc, 4, 3, 2, 1>(a_buf, Ac1, b_buf, Cc1, M, N, K, dMc);
                }
 
-               kofs += k_tail_size - k_tail_size % Kcc;
+               kofs += dKc;
                k_tail_size %= Kcc;
            }
        }()));
@@ -302,7 +316,7 @@ static inline void handleJtail(double*       buf,
                // dNc % Nrr == 0 always
                int dNc = j_tail_size - j_tail_size % Nrr;
 
-               if (N < 25)
+               if (N < N_LOG_DIM)
                {
                    std::cout << "-----------------    COMPUTE JTAIL    -----------------\n";
                    std::cout << "j_tail_size = " << j_tail_size << std::endl;
@@ -314,8 +328,8 @@ static inline void handleJtail(double*       buf,
                double* a_buf = buf;
                double* b_buf = a_buf + Mc * Kc;
 
-               int k_tail_size = K % Kc;
-               int klast       = K - k_tail_size;
+               int dKc   = K % Kc;
+               int klast = K - dKc;
                for (int k_block = 0; k_block < klast; k_block += Kc)
                {
                    int i_tail_size = M % Mc;
@@ -326,7 +340,7 @@ static inline void handleJtail(double*       buf,
 
                        reorderColOrderMatrix<Mc, Kc, Mr, Kr>(ma + K * i_block + k_block, K, a_buf);
 
-                       if (N < 25)
+                       if (N < N_LOG_DIM)
                        {
                            //  std::cout << "ma\n";
                            //  printArr(ma + K * i_block + k_block, Mc, Kc,
@@ -342,7 +356,7 @@ static inline void handleJtail(double*       buf,
                            reorderRowMajorMatrix<Kr, Nrr>(
                              mb + N * k_block + jjdx, N, b_buf, Kc, dNc);
 
-                           if (N < 25)
+                           if (N < N_LOG_DIM)
                            {
                                //  std::cout << "mb\n";
                                //  printArr(mb + N * k_block + jjdx,
@@ -352,10 +366,11 @@ static inline void handleJtail(double*       buf,
 
                                std::cout
                                  << "-----------------     COMPUTE KERNEL IN J TAIL for i_block="
-                                 << i_block << ", jjdx= " << jjdx << "   -----------------\n";
+                                 << i_block << ", jjdx= " << jjdx << ", k_block = " << k_block
+                                 << "  -----------------\n";
                            }
 
-                           // TODO: What if Mc%Mr != 0 ?
+                           // TODO: What if Mc%Mr != 0 ? It can't happen here
                            for (int i = 0; i < Mc; i += Mr)
                            {
                                double*       Cc0 = mc + N * (i_block + i) + jjdx;
@@ -381,19 +396,10 @@ static inline void handleJtail(double*       buf,
 
                // TODO: Need to handle K tail; Kc == 80, Ncc is not compile time
                // TODO: Choose probel block sizes for Kcc
-               handleKtail<Mr, Nrr, Kr, Mc, 20, 10, 4, 2, 1>(a_buf,
-                                                             b_buf,
-                                                             ma + klast,
-                                                             mb + N * klast + j_ofs,
-                                                             mc + j_ofs,
-                                                             M,
-                                                             N,
-                                                             K,
-                                                             dNc,
-                                                             klast,
-                                                             k_tail_size);
+               handleKtail<Mr, Nrr, Kr, Mc, 20, 10, 4, 2, 1>(
+                 a_buf, b_buf, ma + klast, mb + N * klast + j_ofs, mc + j_ofs, M, N, K, dNc, dKc);
 
-               j_ofs += j_tail_size - j_tail_size % Nrr;
+               j_ofs += dNc;
                j_tail_size %= Nrr;
            }
        }()));
