@@ -1,7 +1,7 @@
 #include "mm/matmul/matMulSimd.hpp"
 #include "mm/core/reorderMatrix.hpp"
 
-// #include "mm/core/kernels.hpp"
+#include "mm/core/kernels.hpp"
 
 #include <experimental/simd>
 // TODO: Check with mdspan
@@ -346,14 +346,8 @@ static void cpp_ukernelLambda(const T* __restrict ma,
 
 void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
-
     // BEST
-    //    constexpr int Nc = 720;
-    //    constexpr int Mc = 180;
-    //    constexpr int Kc = 240;
-
-    // NEW BEST
-    constexpr int Nc = 720;
+    constexpr int Nc = 180;
     constexpr int Mc = 20;
     constexpr int Kc = 80;
 
@@ -414,11 +408,15 @@ void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>
     }
 }
 
+/////       TAILS
+///
+///
+
 void matMulSimdTails(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
 
     // NEW BEST
-    constexpr int Nc = 720;
+    constexpr int Nc = 180;
     constexpr int Mc = 20;
     constexpr int Kc = 80;
 
@@ -440,50 +438,75 @@ void matMulSimdTails(const Matrix<double>& A, const Matrix<double>& B, Matrix<do
     std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(4 * Kc
                                                                                   * (Mc + Nc));
 
-#pragma omp parallel for
-    for (int j_block = 0; j_block < N; j_block += Nc)
-    {
-        auto       tid = omp_get_thread_num();
-        const auto ofs = tid * Kc * (Mc + Nc);
-        double*    buf = buffer.data() + ofs;
+    // tail is only in last block
+    int j_tail_size = N % Nc;
+    int jl          = N - j_tail_size;
 
-        for (int k_block = 0; k_block < K; k_block += Kc)
+#pragma omp parallel for
+    for (int j_block = 0; j_block < jl; j_block += Nc)
+    {
+        auto       tid   = omp_get_thread_num();
+        const auto ofs   = tid * Kc * (Mc + Nc);
+        double*    a_buf = buffer.data() + ofs;
+        double*    b_buf = a_buf + Mc * Kc;
+
+        int k_tail_size = K % Kc;
+        int klast       = K - k_tail_size;
+
+        for (int k_block = 0; k_block < klast; k_block += Kc)
         {
             // Can be access out of bound if j+Nc > N
-            reorderRowMajorMatrix<Kc, Nc, Kr, Nr>(
-              B.data() + N * k_block + j_block, N, buf + Mc * Kc);
+            // TODO : I can guarantee the we always within the block and no padding needed
+            reorderRowMajorMatrix<Kc, Nc, Kr, Nr>(B.data() + N * k_block + j_block, N, b_buf);
 
-            for (int i_block = 0; i_block < M; i_block += Mc)
+            int i_tail_size = M % Mc;
+            int ilast       = M - i_tail_size;
+            for (int i_block = 0; i_block < ilast; i_block += Mc)
             {
                 // Can be access out of bound if i+Mc > M
                 // how to we reorder if there is a tail?
-                reorderColOrderMatrix<Mc, Kc, Mr, Kr>(A.data() + K * i_block + k_block, K, buf);
+                reorderColOrderMatrix<Mc, Kc, Mr, Kr>(A.data() + K * i_block + k_block, K, a_buf);
 
                 for (int j = 0; j < Nc; j += Nr)
                 {
-                    const double* Bc1 = buf + Mc * Kc + Kc * j;
+                    const double* Bc1 = b_buf + Kc * j;
                     for (int i = 0; i < Mc; i += Mr)
                     {
-                        double*       Cc0 = C.data() + N * i_block + j + N * i + j_block;
-                        const double* Ac0 = buf + Kc * i;
+                        double*       Cc0 = C.data() + N * (i_block + i) + j_block + j;
+                        const double* Ac0 = a_buf + Kc * i;
 
                         // TODO: deduce args from span?
-                        cpp_ukernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        kernels::cpp_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                     }
-                    // compute i tail; 4,2,1
-                    // auto c = C(i+i_last_block,j+j_block);
-                    //  if( i>=2)  cpp_ukernel<Nr, 2, Kc>(Ac0, Bc1, c, N);
-                    //  else  cpp_ukernel<Nr, 1, Kc>(Ac0, Bc1, c, N);
-                }
-                // compute j tail
-                {
-                    // if( j>=8)
-                    // if( j>=6)
-                    // if( j>=4)
-                    // if( j>=2)
-                    // else //1
                 }
             }
+
+            // TODO: reorder I tail
+            // reorderColOrderPaddingMatrix
+
+            // What if we don't have Mr rows anymore and tail is 1, (new Mr == 1)?
+
+            const double* Ac1 = A.data() + k_block + ilast * K;
+            double*       Cc1 = C.data() + j_block + ilast * N;
+
+            handleItail<Nr, Kr, Nc, Kc, 4, 3, 2, 1>(a_buf, Ac1, b_buf, Cc1, M, N, K, i_tail_size);
         }
+
+        // Choose Ktails properly
+        handleKtail<Mr, Nr, Kr, Mc, Nc, 20, 10, 4, 2, 1>(a_buf,
+                                                         b_buf,
+                                                         A.data(),
+                                                         B.data() + j_block,
+                                                         C.data() + j_block,
+                                                         M,
+                                                         N,
+                                                         K,
+                                                         klast,
+                                                         k_tail_size);
     }
+
+    // TODO: Add multithreading
+
+    handleJtail<Mr, Kr, Mc, Kc, 12, 8, 4, 2, 1>(
+      buffer.data(), A.data(), &B(0, jl), &C(0, jl), M, K, N, j_tail_size);
 }

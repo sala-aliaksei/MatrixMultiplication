@@ -27,3 +27,11 @@ Use cpupower to disable autoscaling:
 ```bash
 cpupower frequency-info -o proc
 ```
+
+### Debugging
+
+Dump core to the file for debuggind purpose
+```bash
+coredumpctl dump --output=core.dump
+```
+

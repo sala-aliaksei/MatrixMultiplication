@@ -5,6 +5,9 @@
 #include <immintrin.h>
 #include <cmath>
 
+// TODO: Debug logs
+#include <iostream>
+
 static constexpr int mceil(int value, int elem)
 {
     auto v = value / elem;
@@ -47,7 +50,7 @@ std::array<double, I * J> packMatrix(const double* b, int j_size)
 }
 
 template<int Mc, int Nc, int Mr, int Nr>
-void reorderColOrderPaddingMatrix(const double* b, int cols, double* dest, int Mb, int Nb)
+void reorderColOrderPaddingMatrix(const double* b, int rows, int cols, double* dest)
 {
     /*
     |   ^|
@@ -82,7 +85,7 @@ void reorderColOrderPaddingMatrix(const double* b, int cols, double* dest, int M
                 for (int ic = 0; ic < Mr; ++ic)
                 {
                     // Check if we're out of original bounds
-                    if ((i + ic) < Mb && (j + jc) < Nb)
+                    if ((i + ic) < rows && (j + jc) < cols)
                     {
                         dest[idx] = b[(i + ic) * cols + (j + jc)];
                     }
@@ -100,6 +103,7 @@ void reorderColOrderPaddingMatrix(const double* b, int cols, double* dest, int M
 template<int Mc, int Nc, int Mr, int Nr>
 void reorderRowMajorPaddingMatrix(const double* b, int cols, double* dest)
 {
+    // TODO: Implement
     static_assert(Mc % Mr == 0, "Invalid m pattern");
     static_assert(Nc % Nr == 0, "Invalid n pattern");
 
@@ -139,8 +143,102 @@ void reorderRowMajorPaddingMatrix(const double* b, int cols, double* dest)
     }
 }
 
-template<int M, int N, int ib, int jb>
-void reorderColOrderMatrix(const double* b, int cols, double* dest)
+template<int Mr, int Nr>
+void reorderColOrderMatrixTail(const double* matrix, int N, double* dest, int Mc, int Nc)
+{
+    /*
+     *  IJJI
+    |   ^|
+    |  | |
+    | |  |
+    ||   |
+    v    v
+    */
+
+    // TODO:
+    // order loop shoud match order loop from matmul
+    // tail order should match order loop from matmul tail computation
+    // Don't handle Nr case, since we use Kr heere which is 1
+    int idx = 0;
+
+    if (Mc > Mr)
+    {
+        // Process full tiles
+        int i_limit = Mc - Mc % Mr; //(Mc / Ir) * Ir;
+        int j_limit = Nc - Nc % Nr; //(Nc / Jr) * Jr;
+
+        for (int i = 0; i < i_limit; i += Mr)
+        {
+            for (int j = 0; j < j_limit; j += Nr)
+            {
+                for (int jc = 0; jc < Nr; ++jc)
+                {
+                    for (int ic = 0; ic < Mr; ++ic)
+                    {
+                        dest[idx++] = matrix[(i + ic) * N + j + jc];
+                    }
+                }
+            }
+
+            for (int j = j_limit; j < Nc; ++j)
+            {
+                for (int ic = 0; ic < Mr; ++ic)
+                {
+                    dest[idx++] = matrix[(i + ic) * N + j];
+                }
+            }
+        }
+
+        // Tail in M (rows)
+        for (int i = i_limit; i < Mc; ++i)
+        {
+            for (int j = 0; j < j_limit; j += Nr)
+            {
+                for (int jc = 0; jc < Nr; ++jc)
+                {
+                    dest[idx++] = matrix[i * N + j + jc];
+                }
+            }
+
+            for (int j = j_limit; j < Nc; ++j)
+            {
+                dest[idx++] = matrix[i * N + j];
+            }
+        }
+    }
+    else if (Mc == Mr)
+    {
+        // Process full tiles
+        int i_limit = Mc - Mc % Mr; //(Mc / Ir) * Ir;
+        int j_limit = Nc - Nc % Nr; //(Nc / Jr) * Jr;
+
+        for (int j = 0; j < j_limit; j += Nr)
+        {
+            for (int jc = 0; jc < Nr; ++jc)
+            {
+                for (int ic = 0; ic < Mr; ++ic)
+                {
+                    dest[idx++] = matrix[(ic)*N + j + jc];
+                }
+            }
+        }
+
+        for (int j = j_limit; j < Nc; ++j)
+        {
+            for (int ic = 0; ic < Mr; ++ic)
+            {
+                dest[idx++] = matrix[(ic)*N + j];
+            }
+        }
+    }
+    else
+    {
+        throw std::runtime_error("Undefined Mr,Nr sizes");
+    }
+}
+
+template<int Mc, int Nc, int Ir, int Jr>
+void reorderColOrderMatrix(const double* matrix, int cols, double* dest)
 {
     /*
     |   ^|
@@ -149,21 +247,56 @@ void reorderColOrderMatrix(const double* b, int cols, double* dest)
     ||   |
     v    v
     */
-    static_assert(M % ib == 0, "Invalid m pattern");
-    static_assert(N % jb == 0, "Invalid n pattern");
+    static_assert(Mc % Ir == 0, "Invalid m pattern");
+    static_assert(Nc % Jr == 0, "Invalid n pattern");
     int idx = 0;
 
     // DON'T REORDER LOOPS
     // Process columns in groups of 4
-    for (int i = 0; i < M; i += ib)
+    for (int i = 0; i < Mc; i += Ir)
     {
-        for (int j = 0; j < N; j += jb)
+        for (int j = 0; j < Nc; j += Jr)
         {
-            for (int jc = 0; jc < jb; ++jc)
+            for (int jc = 0; jc < Jr; ++jc)
             {
-                for (int ic = 0; ic < ib; ++ic)
+                for (int ic = 0; ic < Ir; ++ic)
                 {
-                    dest[idx++] = b[(i + ic) * cols + j + jc];
+                    dest[idx++] = matrix[(i + ic) * cols + j + jc];
+                }
+            }
+        }
+    }
+
+    // TODO: Add tailes
+}
+
+template<int ib, int jb>
+void reorderRowMajorMatrix(const double* b, int cols, double* dest, int M, int N)
+{
+    // reorder B; J I I J order
+
+    /*
+     * ------->
+     *      -
+     *    -
+     *  -
+     * ------->
+     *
+     */
+
+    int            idx           = 0;
+    constexpr auto prefetch_type = _MM_HINT_T0;
+
+    for (int j = 0; j < N; j += jb)
+    {
+        for (int i = 0; i < M; i += ib)
+        {
+            for (int ic = 0; ic < ib; ++ic)
+            {
+                const auto col = (i + ic) * cols;
+                for (int jc = 0; jc < jb; ++jc)
+                {
+                    dest[idx++] = b[col + j + jc];
                 }
             }
         }
@@ -173,10 +306,165 @@ void reorderColOrderMatrix(const double* b, int cols, double* dest)
 template<int M, int N, int ib, int jb>
 void reorderRowMajorMatrix(const double* b, int cols, double* dest)
 {
-    static_assert(M % ib == 0, "Invalid m pattern");
-    static_assert(N % jb == 0, "Invalid n pattern");
+    // reorder B; J I I J order
 
-    // reorder B;
+    /*
+     * ------->
+     *      -
+     *    -
+     *  -
+     * ------->
+     *
+     */
+
+    int            idx           = 0;
+    constexpr auto prefetch_type = _MM_HINT_T0;
+
+    for (int j = 0; j < N; j += jb)
+    {
+        for (int i = 0; i < M; i += ib)
+        {
+            for (int ic = 0; ic < ib; ++ic)
+            {
+                const auto col = (i + ic) * cols;
+                for (int jc = 0; jc < jb; ++jc)
+                {
+                    dest[idx++] = b[col + j + jc];
+                }
+            }
+        }
+    }
+}
+
+template<int Mc, int Nc, int Mr, int Nr>
+void reorderRowMajorMatrix123(const double* b, int cols, double* dest)
+{
+    // reorder B; JIIJ order
+
+    int            idx           = 0;
+    constexpr auto prefetch_type = _MM_HINT_T0;
+
+    auto store_block = [&](int i_start, int j_start, int ib_size, int jb_size, bool pad = false)
+    {
+        for (int ic = 0; ic < ib_size; ++ic)
+        {
+            const int row  = i_start + ic;
+            const int base = row * cols;
+            for (int jc = 0; jc < jb_size; ++jc)
+            {
+                const int col = j_start + jc;
+                dest[idx++]   = b[base + col];
+            }
+        }
+    };
+
+    const int itail = Mc % Mr;
+    const int jtail = Nc % Nr;
+
+    const int i_full = Mc - itail;
+    const int j_full = Nc - jtail;
+
+    // Main blocks
+    for (int j = 0; j < j_full; j += Nr)
+    {
+        for (int i = 0; i < i_full; i += Mr)
+        {
+            store_block(i, j, Mr, Nr);
+        }
+
+        // i tail with j full
+        if (itail != 0)
+        {
+            store_block(i_full, j, itail, Nr);
+        }
+    }
+
+    // j tail blocks (with padding)
+    if (jtail != 0)
+    {
+        for (int i = 0; i < i_full; i += Mr)
+        {
+            store_block(i, j_full, Mr, Nr);
+        }
+
+        if (itail != 0)
+        {
+            store_block(i_full, j_full, itail, Nr);
+        }
+    }
+}
+
+/// TODO: Should be slow due to if cond in inner loop
+template<int Mc, int Nc, int Mr, int Nr>
+void reorderRowMajorMatrixWithPadding(const double* b, int cols, double* dest)
+{
+    // reorder B; JIIJ order
+
+    int            idx           = 0;
+    constexpr auto prefetch_type = _MM_HINT_T0;
+
+    auto store_block = [&](int i_start, int j_start, int ib_size, int jb_size, bool pad = false)
+    {
+        for (int ic = 0; ic < ib_size; ++ic)
+        {
+            const int row  = i_start + ic;
+            const int base = row * cols;
+            for (int jc = 0; jc < jb_size; ++jc)
+            {
+                const int col    = j_start + jc;
+                bool      inside = col < cols; // TODO: Add check for row; row < Mc &&
+                dest[idx++]      = (inside && !pad) ? b[base + col] : 0.0;
+            }
+        }
+    };
+
+    const int itail = Mc % Mr;
+    const int jtail = Nc % Nr;
+
+    const int i_full = Mc - itail;
+    const int j_full = Nc - jtail;
+
+    // Main blocks
+    for (int j = 0; j < j_full; j += Nr)
+    {
+        for (int i = 0; i < i_full; i += Mr)
+        {
+            store_block(i, j, Mr, Nr);
+        }
+
+        // i tail with j full
+        if (itail != 0)
+        {
+            store_block(i_full, j, itail, Nr);
+            store_block(Mc, j, Mr - itail, Nr, true);
+        }
+    }
+
+    // j tail blocks (with padding)
+    if (jtail != 0)
+    {
+        for (int i = 0; i < i_full; i += Mr)
+        {
+            store_block(i, j_full, Mr, Nr); // will zero-fill beyond N
+        }
+
+        // bottom-right corner (i tail + j tail)
+        if (itail != 0)
+        {
+            store_block(i_full, j_full, itail, Nr);
+            store_block(Mc, j_full, Mr - itail, Nr, true);
+        }
+    }
+}
+
+// TODO: Rename???
+template<int M, int N, int ib, int jb>
+void reorderRowMajorMatrixOldWithPadding(const double* b, int cols, double* dest)
+{
+    //    static_assert(M % ib == 0, "Invalid m pattern");
+    //    static_assert(N % jb == 0, "Invalid n pattern");
+
+    // reorder B; J I I J order
 
     /*
      * ------->
@@ -199,10 +487,6 @@ void reorderRowMajorMatrix(const double* b, int cols, double* dest)
             for (int ic = 0; ic < ib; ++ic)
             {
                 const auto col = (i + ic) * cols;
-                // _mm_prefetch(b + (i + ic + 1) * N + j, prefetch_type);
-                // _mm_prefetch(b + (i + ic + 2) * N + j, prefetch_type);
-                // _mm_prefetch(b + (i + ic + 3) * N + j, prefetch_type);
-
                 for (int jc = 0; jc < jb; ++jc)
                 {
                     dest[idx++] = b[col + j + jc];
@@ -214,9 +498,6 @@ void reorderRowMajorMatrix(const double* b, int cols, double* dest)
         {
             for (int i = M - itail; i < M; i++)
             {
-                //                _mm_prefetch(b + (j + 1) * N + i + ic, prefetch_type);
-                //                _mm_prefetch(b + (j + 2) * N + i + ic, prefetch_type);
-                //                _mm_prefetch(b + (j + 3) * N + i + ic, prefetch_type);
                 for (int jc = 0; jc < jb; ++jc)
                 {
                     dest[idx++] = b[i * cols + j + jc];
@@ -273,24 +554,6 @@ void reorderRowMajorMatrix(const double* b, int cols, double* dest)
             }
         }
     }
-
-    // DON'T REORDER LOOPS
-    // Process columns in groups of 4
-    //    for (int j = 0; j < N; j += jb)
-    //    {
-    //        for (int i = 0; i < M; i += ib)
-    //        {
-    //            for (int ic = 0; ic < ib; ++ic)
-    //            {
-    //                const auto col = (i + ic) * cols;
-
-    //                for (int jc = 0; jc < jb; ++jc)
-    //                {
-    //                    dest[idx++] = b[col + j + jc];
-    //                }
-    //            }
-    //        }
-    //    }
 }
 
 static int blasReorderRowOrder4x4(long m, long n, double* a, long lda, double* b)

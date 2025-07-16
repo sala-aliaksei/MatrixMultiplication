@@ -33,6 +33,15 @@ std::ostream& operator<<(std::ostream& os, std::vector<std::string> array)
     return os;
 }
 
+std::ostream& operator<<(std::ostream& os, std::vector<double> array)
+{
+    for (const int v : array)
+    {
+        os << v << ", ";
+    }
+    return os;
+}
+
 std::ostream& operator<<(std::ostream& os, std::vector<int> array)
 {
     for (const int v : array)

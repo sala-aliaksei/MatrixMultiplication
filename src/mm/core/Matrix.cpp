@@ -1,6 +1,7 @@
 #include "mm/core/Matrix.hpp"
 #include <random>
 #include <immintrin.h>
+#include <algorithm>
 
 bool operator==(const MatrixSet& s1, const MatrixSet& s2)
 {
@@ -19,23 +20,20 @@ MatrixSet initPredictedMatrix(int isize, int jsize, int ksize)
                   .b = Matrix<double>(ksize, jsize),
                   .c = Matrix<double>(isize, jsize)};
 
-    //    std::generate(A, A + N * N, [&] { return dis(gen); });
-    //      std::generate(B, B + N * N, [&] { return dis(gen); });
-    //      std::generate(C, C + N * N, [&] { return 0; });
-
+    int val = 0;
     for (auto i = 0; i < set.a.row(); ++i)
     {
         for (auto j = 0; j < set.a.col(); ++j)
         {
-            set.a[i * set.a.col() + j] = i;
+            set.a[i * set.a.col() + j] = ++val;
         }
     }
-
+    val = set.b.row() * set.b.col();
     for (auto i = 0; i < set.b.row(); ++i)
     {
         for (auto j = 0; j < set.b.col(); ++j)
         {
-            set.b[i * set.b.col() + j] = j;
+            set.b[i * set.b.col() + j] = --val;
         }
     }
 
@@ -44,37 +42,18 @@ MatrixSet initPredictedMatrix(int isize, int jsize, int ksize)
 
 // TODO: What if we have matrix<float>?
 // we need i,j,k for matrix init
-MatrixSet initMatrix(int isize, int jsize, int ksize)
+MatrixSet initMatrix(int M, int N, int K)
 {
-    std::random_device               rd;
-    std::mt19937                     gen(rd());
-    double                           lower_bound = 0.0;
-    double                           upper_bound = 10.0;
+    std::random_device rd;
+    std::mt19937       gen(rd());
+    double             lower_bound = 0.0;
+    double             upper_bound = 10.0;
+
+    MatrixSet set{.a = Matrix<double>(M, K), .b = Matrix<double>(K, N), .c = Matrix<double>(M, N)};
+
     std::uniform_real_distribution<> dis(lower_bound, upper_bound);
-
-    MatrixSet set{.a = Matrix<double>(isize, ksize),
-                  .b = Matrix<double>(ksize, jsize),
-                  .c = Matrix<double>(isize, jsize)};
-
-    //    std::generate(A, A + N * N, [&] { return dis(gen); });
-    //      std::generate(B, B + N * N, [&] { return dis(gen); });
-    //      std::generate(C, C + N * N, [&] { return 0; });
-
-    for (auto i = 0; i < set.a.row(); ++i)
-    {
-        for (auto j = 0; j < set.a.col(); ++j)
-        {
-            set.a[i * set.a.col() + j] = ((int)dis(gen));
-        }
-    }
-
-    for (auto i = 0; i < set.b.row(); ++i)
-    {
-        for (auto j = 0; j < set.b.col(); ++j)
-        {
-            set.b[i * set.b.col() + j] = ((int)dis(gen));
-        }
-    }
+    std::generate(set.a.data(), set.a.data() + set.a.size(), [&] { return (int)dis(gen); });
+    std::generate(set.b.data(), set.b.data() + set.b.size(), [&] { return (int)dis(gen); });
 
     return set;
 }

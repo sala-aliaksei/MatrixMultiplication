@@ -1536,39 +1536,137 @@ void matMul_Avx_AddRegs_Unroll(const Matrix<double>& A, const Matrix<double>& B,
     }
 }
 
-void matMul_Avx_Unroll_Cache_Regs(const Matrix<double>& A,
-                                  const Matrix<double>& B,
-                                  Matrix<double>&       C)
+////////////////////////    Not packed + tail
+
+// TODO: force inline?
+template<int Mr, int Mc, int Kc, int... TailSize>
+static inline void
+handleJtail(const double* a2, const double* mb, double* mc, int K, int N, int jl, int j_tail_size)
 {
+    // TODO: Add multithreading
+    (...,
+     (
+       [&]
+       {
+           double*       c2 = &mc[jl];
+           const double* b2 = &mb[jl];
+           while (j_tail_size >= TailSize)
+           {
+               for (int i2 = 0; i2 < Mc; i2 += Mr)
+               {
+                   kernels::cpp_generic_ukern<TailSize, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
+               }
+               jl += TailSize;
+               j_tail_size -= TailSize;
+           }
+       }()));
 }
 
-void matMul_Avx_Unroll_Cache_Regs_Rename(const Matrix<double>& A,
-                                         const Matrix<double>& B,
-                                         Matrix<double>&       C)
+template<int Nr, int Mr, int Nc, int Mc, int Kc, int... TailSize>
+static inline void handleItail(const double* ma,
+                               const double* mb,
+                               double*       mc,
+                               int           K,
+                               int           N,
+                               int           ilast,
+                               int           i_tail_size)
 {
-}
+    // TODO: Add multithreading
+    (...,
+     (
+       [&]
+       {
+           // #pragma omp parallel for
+           while (i_tail_size >= TailSize)
+           {
+               constexpr int Mrr = TailSize;
+               for (int kb = 0; kb < K; kb += Kc)
+               {
+                   const double* a = &ma[ilast * K + kb];
 
-void matMul_Avx_Unroll_Cache_Regs_Rename_PackB(const Matrix<double>& A,
-                                               const Matrix<double>& B,
-                                               Matrix<double>&       C)
-{
-}
+                   int j_tail_size = N % Nc;
+                   int jl          = N - j_tail_size;
 
-void matMul_Avx_Unroll_Cache_Regs_Rename_ReorderAB(const Matrix<double>& A,
-                                                   const Matrix<double>& B,
-                                                   Matrix<double>&       C)
-{
-}
+                   for (int jb = 0; jb < jl; jb += Nc)
+                   {
+                       double*       c2 = &mc[ilast * N + jb];
+                       const double* b2 = &mb[kb * N + jb];
 
-void matMul_Avx_Unroll_Cache_Regs_Rename_ReorderAB_Multithreads(const Matrix<double>& A,
-                                                                const Matrix<double>& B,
-                                                                Matrix<double>&       C)
-{
+                       for (int j2 = 0; j2 < Nc; j2 += Nr)
+                       {
+                           kernels::cpp_generic_ukern<Nr, Mrr, Kc>(a, &b2[j2], &c2[j2], N, K);
+                       }
+                   }
+
+                   handleJtail<Mrr, Mrr, Kc, 12, 8, 4, 2, 1>(
+                     a, &mb[kb * N], &mc[ilast * N], K, N, jl, j_tail_size);
+               }
+               ilast += Mrr;
+               i_tail_size -= Mrr;
+           }
+       }()));
 }
 
 void matMul_Tails(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
-    //  TODO : Add multithreading
+    auto M = A.row();
+    auto K = A.col();
+    auto N = B.col();
+
+    const double* ma = A.data();
+    const double* mb = B.data();
+    double*       mc = C.data();
+
+    constexpr int Mc = 180;
+    constexpr int Nc = 96;
+    constexpr int Kc = 48;
+
+    constexpr int Nr = 12;
+    constexpr int Mr = 4;
+
+    int i_tail_size = M % Mc;
+    int ilast       = M - i_tail_size;
+
+#pragma omp parallel for
+    for (int ib = 0; ib < ilast; ib += Mc)
+    {
+        for (int kb = 0; kb < K; kb += Kc)
+        {
+            const double* a2 = &ma[ib * K + kb];
+
+            int j_tail_size = N % Nc;
+            int jl          = N - j_tail_size;
+
+            for (int jb = 0; jb < jl; jb += Nc)
+            {
+                double*       c2 = &mc[ib * N + jb];
+                const double* b2 = &mb[kb * N + jb];
+
+                // What if Mc %Mr != 0?
+                for (int i2 = 0; i2 < Mc; i2 += Mr)
+                {
+                    const double* a = &a2[i2 * K];
+                    for (int j2 = 0; j2 < Nc; j2 += Nr)
+                    {
+                        kernels::cpp_generic_ukern<Nr, Mr, Kc>(a, &b2[j2], &c2[i2 * N + j2], N, K);
+                    }
+                }
+            }
+
+            // TODO: Simplifiy the call
+            handleJtail<Mr, Mc, Kc, 12, 8, 4, 2, 1>(
+              a2, &mb[kb * N], &mc[ib * N], K, N, jl, j_tail_size);
+        }
+    }
+
+    handleItail<Nr, Mr, Nc, Mc, Kc, 4, 3, 2, 1>(ma, mb, mc, K, N, ilast, i_tail_size);
+}
+
+//
+
+void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
+{
+
     auto M = A.row();
     auto K = A.col();
     auto N = B.col();
@@ -1595,11 +1693,9 @@ void matMul_Tails(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
             const double* a2 = &ma[ib * K + kb];
 
             // tail is only in last block
-            auto j_tail_size = N % Nc;
-            auto jl          = N - j_tail_size;
+            int j_tail_size = N % Nc;
+            int jl          = N - j_tail_size;
 
-            // TODO: We need to handle case where N%Nc != 0
-            //  jl % nc != 0 (if N=2880+95; Nc=96)
             for (int jb = 0; jb < jl; jb += Nc)
             {
                 double*       c2 = &mc[ib * N + jb];
@@ -1686,14 +1782,14 @@ void matMul_Tails(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
     while (i_tail_size >= 4)
     {
         constexpr int Mrr = 4;
-#pragma omp parallel for
+        // #pragma omp parallel for
         for (int kb = 0; kb < K; kb += Kc)
         {
             const double* a = &ma[ilast * K + kb];
 
             // tail is only in last block
-            auto j_tail_size = N % Nc;
-            auto jl          = N - j_tail_size;
+            int j_tail_size = N % Nc;
+            int jl          = N - j_tail_size;
 
             for (int jb = 0; jb < jl; jb += Nc)
             {
@@ -1764,7 +1860,7 @@ void matMul_Tails(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
     while (i_tail_size >= 2)
     {
         constexpr int Mrr = 2;
-#pragma omp parallel for
+        // #pragma omp parallel for
         for (int kb = 0; kb < K; kb += Kc)
         {
             const double* a = &ma[ilast * K + kb];
@@ -1842,7 +1938,7 @@ void matMul_Tails(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
     while (i_tail_size == 1)
     {
         constexpr int Mrr = 1;
-#pragma omp parallel for
+        // #pragma omp parallel for
         for (int kb = 0; kb < K; kb += Kc)
         {
             const double* a = &ma[ilast * K + kb];

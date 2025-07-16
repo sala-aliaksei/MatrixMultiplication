@@ -1,5 +1,7 @@
 #pragma once
 #include <iostream>
+#include <iomanip> // for std::setw
+
 #include <vector>
 #include <boost/align/aligned_allocator.hpp>
 
@@ -110,11 +112,12 @@ Matrix<T> transpose(const Matrix<T> m)
 template<typename Stream, typename T>
 Stream& operator<<(Stream& os, const Matrix<T>& m)
 {
+    constexpr int width = 6; // Adjust width as needed
     for (auto i = 0; i < m.row(); ++i)
     {
         for (auto j = 0; j < m.col(); ++j)
         {
-            os << m[i * m.col() + j] << ", ";
+            os << std::setw(width) << m[i * m.col() + j] << ", ";
         }
         os << "\n";
     }
@@ -133,23 +136,26 @@ bool operator==(const Matrix<T>& s1, const Matrix<T>& s2)
     if (row_cnt != s2.row())
         return false;
 
-    auto N = row_cnt * col_cnt;
-    for (auto idx = 0; idx < N; ++idx)
+    for (int i = 0; i < row_cnt; i++)
     {
-        if constexpr (std::is_floating_point_v<T>)
+        for (int j = 0; j < col_cnt; j++)
         {
-            if (std::abs(s1[idx] - s2[idx]) > __DBL_EPSILON__)
+            if constexpr (std::is_floating_point_v<T>)
             {
-                std::cout << "idx= " << idx << " doesn't match." << s1[idx] << " != " << s2[idx]
-                          << std::endl;
-                return false;
+                if (std::abs(s1[i * col_cnt + j] - s2[i * col_cnt + j]) > __DBL_EPSILON__)
+                {
+                    std::cout << "elem[" << i << "][" << j << "] doesn't match. "
+                              << s1[i * col_cnt + j] << " != " << s2[i * col_cnt + j] << std::endl;
+                    return false;
+                }
+            }
+            else
+            {
+                return s1[i * col_cnt + j] == s2[i * col_cnt + j];
             }
         }
-        else
-        {
-            return s1[idx] == s2[idx];
-        }
     }
+
     return true;
 }
 

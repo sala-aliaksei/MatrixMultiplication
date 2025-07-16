@@ -6,6 +6,9 @@
 
 namespace stdx = std::experimental;
 
+namespace kernels
+{
+
 using simd_d     = stdx::fixed_size_simd<double, 4>;
 using halfsimd_d = stdx::fixed_size_simd<double, 2>;
 
@@ -16,9 +19,6 @@ using simd_to_double = stdx::fixed_size_simd<double, 1>;
 
 template<typename T, int WIDTH>
 using fix_simd = stdx::fixed_size_simd<T, WIDTH>;
-
-namespace kernels
-{
 
 void matmul_NV(const double* __restrict a,
                const double* __restrict mb,
@@ -75,29 +75,6 @@ static inline void load_inc_store_double(T* __restrict ptr, fix_simd<T, WIDTH> i
     vector.copy_to(ptr, stdx::element_aligned);
 }
 
-// static inline void load_inc_store_double(double* __restrict ptr, simd_to_double increment)
-//{
-
-//    simd_to_double vector(ptr, stdx::element_aligned);
-//    vector += increment;
-//    vector.copy_to(ptr, stdx::element_aligned);
-//}
-
-// static inline void load_inc_store_double(double* __restrict ptr, halfsimd_d increment)
-//{
-//     // vector_aligned cause core dump for 6x2 case!!!
-//     halfsimd_d vector(ptr, stdx::element_aligned);
-//     vector += increment;
-//     vector.copy_to(ptr, stdx::element_aligned);
-// }
-
-// static inline void load_inc_store_double(double* __restrict ptr, simd_d increment)
-//{
-//     simd_d vector(ptr, stdx::element_aligned);
-//     vector += increment;
-//     vector.copy_to(ptr, stdx::element_aligned);
-// }
-
 template<std::size_t RowIdx, typename T, int WIDTH, std::size_t... I>
 static inline void store_row(T* c, fix_simd<T, WIDTH>* r, std::index_sequence<I...>)
 {
@@ -112,26 +89,6 @@ static inline void store_kernel(T*                  c,
 {
     (..., (store_row<RowIndices>(c, r, std::make_index_sequence<Nrs>{}), c += N));
 }
-
-// template<std::size_t RowIdx, typename T, std::size_t... I>
-// static inline void store_row(T* c, fix_simd<T, 2>* r, std::index_sequence<I...>)
-//{
-//     (..., (load_inc_store_double(&c[I * fix_simd<T, 2>::size()], r[RowIdx * sizeof...(I) + I])));
-// }
-
-// template<int Nrs, typename T, std::size_t... RowIndices>
-// static inline void store_kernel(T* c, fix_simd<T, 4>* r, int N,
-// std::index_sequence<RowIndices...>)
-//{
-//     (..., (store_row<RowIndices>(c, r, std::make_index_sequence<Nrs>{}), c += N));
-// }
-
-// template<int Nrs, typename T, std::size_t... RowIndices>
-// static inline void store_kernel(T* c, fix_simd<T, 2>* r, int N,
-// std::index_sequence<RowIndices...>)
-//{
-//     (..., (store_row<RowIndices>(c, r, std::make_index_sequence<Nrs>{}), c += N));
-// }
 
 //////////////////////////////    PACKED
 ///
@@ -316,8 +273,8 @@ static void packed_ukernel4x4(const double* __restrict ma,
     constexpr int Nr = 4;
     constexpr int Mr = 4;
 
-    double* c     = mc;
-    simd_d  r[Mr] = {};
+    double* c              = mc;
+    simd_d  r[Nr / 4 * Mr] = {};
 
     const double* a = ma;
     for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
@@ -350,6 +307,59 @@ static void packed_ukernel4x4(const double* __restrict ma,
     c += N;
 
     load_inc_store_double(&c[0], r[3]);
+}
+
+template<int Kc>
+static void packed_ukernel4x2(const double* __restrict ma,
+                              const double* __restrict b,
+                              double* __restrict mc,
+                              int N)
+{
+    constexpr int Nr = 4;
+    constexpr int Mr = 2;
+
+    double* c              = mc;
+    simd_d  r[Nr / 4 * Mr] = {};
+
+    const double* a = ma;
+    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
+    {
+        simd_d b0(&b[0], stdx::element_aligned);
+
+        simd_d a0(a[0]);
+        r[0] += a0 * b0;
+
+        a0 = simd_d(a[1]);
+        r[1] += a0 * b0;
+    }
+
+    load_inc_store_double(&c[0], r[0]);
+
+    c += N;
+
+    load_inc_store_double(&c[0], r[1]);
+}
+
+template<int Kc>
+static void packed_ukernel4x1(const double* __restrict ma,
+                              const double* __restrict b,
+                              double* __restrict c,
+                              int N)
+{
+    constexpr int Nr = 4;
+    constexpr int Mr = 1;
+
+    simd_d r[Nr / 4 * Mr] = {};
+
+    const double* a = ma;
+    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
+    {
+        simd_d b0(&b[0], stdx::element_aligned);
+        simd_d a0(a[0]);
+        r[0] += a0 * b0;
+    }
+
+    load_inc_store_double(&c[0], r[0]);
 }
 
 template<int Kc>
@@ -479,33 +489,6 @@ static void packed_ukernel1x4(const double* __restrict ma,
 }
 
 //////////      GENERIC PACKED   ///////////////////////////////////
-
-// template<typename T, std::size_t... J>
-// static inline void packed_compute_row(const fix_simd<T, 2>& a,
-//                                       fix_simd<T, 2>*       b,
-//                                       fix_simd<T, 2>*       r,
-//                                       std::index_sequence<J...>)
-//{
-//     (..., (r[J] += a * b[J]));
-// }
-
-// template<typename T, size_t... I, size_t... J>
-// static inline void packed_compute_kernel(const T*        a,
-//                                          const T*        b,
-//                                          fix_simd<T, 2>* r,
-//                                          std::index_sequence<I...>,
-//                                          std::index_sequence<J...>)
-//{
-//     constexpr int Nrs = sizeof...(J);
-//     // constexpr int Mrs = sizeof...(I);
-//     //  Nrs*Mrs - size of r array
-
-//    fix_simd<T, 2> bs[Nrs] = {
-//      fix_simd<T, 2>(&b[J * fix_simd<T, 2>::size()], stdx::element_aligned)...};
-//    (...,
-//     (packed_compute_row(fix_simd<T, 2>(a[I]), bs, &r[I * Nrs],
-//     std::make_index_sequence<Nrs>{})));
-//}
 
 template<typename T, int WIDTH, std::size_t... J>
 static inline void packed_compute_row(const fix_simd<T, WIDTH>& a,

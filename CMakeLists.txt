@@ -204,5 +204,10 @@ if(ENABLE_UNIT_TESTS)
     target_link_libraries(UT_Repacking ${PROJECT_NAME} GTest::gtest GTest::gtest_main )
     target_include_directories(UT_Repacking PUBLIC ${CMAKE_SOURCE_DIR})
 
+    add_executable(UT_Zorder src/unitTests/UTZorder.cpp)
+    target_link_libraries(UT_Zorder ${PROJECT_NAME} GTest::gtest GTest::gtest_main )
+    target_include_directories(UT_Zorder PUBLIC ${CMAKE_SOURCE_DIR})
+
+
 endif()
 

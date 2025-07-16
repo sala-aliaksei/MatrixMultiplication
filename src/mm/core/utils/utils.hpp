@@ -26,3 +26,4 @@ class Profiler
 std::ostream& operator<<(std::ostream& os, std::vector<std::vector<int>> array);
 std::ostream& operator<<(std::ostream& os, std::vector<std::string> array);
 std::ostream& operator<<(std::ostream& os, std::vector<int> array);
+std::ostream& operator<<(std::ostream& os, std::vector<double> array);
