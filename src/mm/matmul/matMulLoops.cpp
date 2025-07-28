@@ -1,18 +1,19 @@
-#include "mm/matmul/matMulLoops.hpp"
-#include "mm/core/reorderMatrix.hpp"
 #include "mm/core/ikernels.hpp"
+#include "mm/core/reorderMatrix.hpp"
+#include "mm/matmul/matMulLoops.hpp"
 
 #include "omp.h"
 
+#include <thread>
 #include <immintrin.h>
 
 //////////////////////     KERNELS
 
 template<int Nr, int Mr, int Kc>
-static void upkernel_v2(const double* __restrict ma,
-                        const double* __restrict b,
-                        double* __restrict mc,
-                        int N)
+static void upkernel_loops_v2(const double* __restrict ma,
+                              const double* __restrict b,
+                              double* __restrict mc,
+                              int N)
 {
     double* c = mc;
 
@@ -274,10 +275,10 @@ static void upkernel_v2(const double* __restrict ma,
 }
 
 template<int Nr, int Mr, int Kc>
-static void upkernel(const double* __restrict ma,
-                     const double* __restrict b,
-                     double* __restrict mc,
-                     int N)
+static void upkernel_loops(const double* __restrict ma,
+                           const double* __restrict b,
+                           double* __restrict mc,
+                           int N)
 {
     double* c = mc;
 
@@ -309,9 +310,9 @@ static void upkernel(const double* __restrict ma,
 
     const double* a = ma;
 
-    //                _mm_prefetch(b + 8, _MM_HINT_NTA);
-    //                _mm_prefetch(b + 16, _MM_HINT_NTA);
-    //                _mm_prefetch(b + 24, _MM_HINT_NTA);
+    // _mm_prefetch(b + 8, _MM_HINT_NTA);
+    // _mm_prefetch(b + 16, _MM_HINT_NTA);
+    // _mm_prefetch(b + 24, _MM_HINT_NTA);
     // _mm_prefetch(a + 8, _MM_HINT_NTA);
 
     //    _mm_prefetch(a + 8, _MM_HINT_T0);
@@ -647,9 +648,6 @@ void matMulLoops(const Matrix<double>& A, const Matrix<double>& B, Matrix<double
     constexpr int Mc = 180;
     constexpr int Kc = 240;
     constexpr int Nc = 720;
-    //    constexpr int Mc = 120 / 2;
-    //    constexpr int Kc = 120;
-    //    constexpr int Nc = 120;
 
     constexpr int Nr = 12;
     constexpr int Mr = 4;
@@ -700,22 +698,6 @@ void matMulLoopsBPacked(const Matrix<double>& A, const Matrix<double>& B, Matrix
     constexpr int Kc = 48;
     constexpr int Nc = 96;
 
-    //    constexpr int Mc = 480;
-    //    constexpr int Kc = 256;
-    //    constexpr int Nc = 132;
-
-    //    constexpr int Mc = 180;
-    //    constexpr int Kc = 240;
-    //    constexpr int Nc = 720;
-
-    //    constexpr int Mc = 180;
-    //    constexpr int Kc = 240;
-    //    constexpr int Nc = 96;
-
-    //    constexpr int Mc = 120;
-    //    constexpr int Kc = 120;
-    //    constexpr int Nc = 120;
-
     constexpr int Nr = 12;
     constexpr int Mr = 4;
 
@@ -763,20 +745,9 @@ void matMulLoopsIKJ(const Matrix<double>& A, const Matrix<double>& B, Matrix<dou
     constexpr int Nc = 96;
     */
 
-    //    constexpr int Mc = 480;
-    //    constexpr int Kc = 256;
-    //    constexpr int Nc = 132;
-
-    //    constexpr int Mc = 180;
-    //    constexpr int Kc = 240;
-    //    constexpr int Nc = 720;
     constexpr int Mc = 180;
-    constexpr int Kc = 240;
+    constexpr int Kc = 48;
     constexpr int Nc = 96;
-
-    //    constexpr int Mc = 120;
-    //    constexpr int Kc = 120;
-    //    constexpr int Nc = 120;
 
     constexpr int Nr = 12;
     constexpr int Mr = 4;
@@ -831,26 +802,6 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
     constexpr int Kc = 96;
     constexpr int Nc = 720;
 
-    // constexpr int Mc = 180;
-    // constexpr int Kc = 240;
-    // constexpr int Nc = 720;
-
-    //    constexpr int Mc = 96;
-    //    constexpr int Kc = 360;
-    //    constexpr int Nc = 720;
-
-    //    constexpr int Mc = 180;
-    //    constexpr int Kc = 240;
-    //    constexpr int Nc = 720;
-
-    //    constexpr int Mc = 256;
-    //    constexpr int Kc = 2;
-    //    constexpr int Nc = 120;
-
-    //    constexpr int Mc = 120;
-    //    constexpr int Kc = 120;
-    //    constexpr int Nc = 120;
-
     constexpr int Nr = 12;
     constexpr int Mr = 4;
     constexpr int Kr = 1; // consider to increase to improve repack perf
@@ -902,8 +853,8 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                         double*       Cc0 = Cc1 + N * ib;
                         const double* Ac0 = Ac2 + Kc * ib;
 
-                        // upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
-                        upkernel_v2<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        // upkernel_loops<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        upkernel_loops_v2<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                         // pack_ukernel_arr<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                     }
                 }
@@ -916,31 +867,9 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
 void matMulLoopsRepackIKJ(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
-    // BEST
-    //    constexpr int Mc = 180;
-    //    constexpr int Kc = 240;
-    //    constexpr int Nc = 720;
-
-    //    constexpr int Mc = 720;
-    //    constexpr int Kc = 90;
-    //    constexpr int Nc = 24;
-
-    //        constexpr int Mc = 96;
-    //        constexpr int Kc = 360;
-    //        constexpr int Nc = 720;
-
-    // BEST
-    constexpr int Mc = 720 / 4;
-    constexpr int Kc = 90;
+    constexpr int Mc = 180; // 720 / 4;
+    constexpr int Kc = 96;
     constexpr int Nc = 24;
-
-    //    constexpr int Mc = 256;
-    //    constexpr int Kc = 2;
-    //    constexpr int Nc = 120;
-
-    //    constexpr int Mc = 120;
-    //    constexpr int Kc = 120;
-    //    constexpr int Nc = 120;
 
     constexpr int Nr = 12;
     constexpr int Mr = 4;
@@ -954,10 +883,13 @@ void matMulLoopsRepackIKJ(const Matrix<double>& A, const Matrix<double>& B, Matr
     const auto K = A.col();
     const auto M = A.row();
 
-    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(4 * Kc
+    auto num_threads = std::thread::hardware_concurrency(); // std::thread::hardware_concurrency();
+    num_threads      = num_threads > 4 ? 16 : num_threads;
+
+    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(num_threads * Kc
                                                                                   * (Mc + Nc));
 
-#pragma omp parallel for
+#pragma omp parallel for num_threads(num_threads)
     for (int i = 0; i < M; i += Mc)
     {
         auto       tid = omp_get_thread_num();
@@ -976,7 +908,6 @@ void matMulLoopsRepackIKJ(const Matrix<double>& A, const Matrix<double>& B, Matr
 
             for (int j = 0; j < N; j += Nc)
             {
-
                 double*       Cc3 = Cc4 + j;
                 const double* Bc4 = &B(k, j);
 
@@ -993,9 +924,9 @@ void matMulLoopsRepackIKJ(const Matrix<double>& A, const Matrix<double>& B, Matr
                         double*       Cc0 = Cc1 + N * ib;
                         const double* Ac0 = Ac2 + Kc * ib;
 
-                        //                        upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
-                        //  upkernel_v2<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
-                        pack_ukernel_arr<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        upkernel_loops<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        //  upkernel_loops_v2<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        // pack_ukernel_arr<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                     }
                 }
             }

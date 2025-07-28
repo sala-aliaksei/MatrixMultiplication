@@ -3,16 +3,16 @@
 #include "mm/genai/matMulClaude.hpp"
 #include "mm/genai/matMulGpt.hpp"
 
-#include "mm/tpi/matMulOpenBlas.hpp"
 #include "mm/tpi/matMulBlis.hpp"
 #include "mm/tpi/matMulEigen.hpp"
+#include "mm/tpi/matMulOpenBlas.hpp"
 
 #include "mm/matmul/matMul.hpp"
-#include "mm/matmul/matMulRegOpt.hpp"
+#include "mm/matmul/matMulAutotune.hpp"
 #include "mm/matmul/matMulColOpt.hpp"
 #include "mm/matmul/matMulLoops.hpp"
 #include "mm/matmul/matMulPadding.hpp"
-#include "mm/matmul/matMulAutotune.hpp"
+#include "mm/matmul/matMulRegOpt.hpp"
 #include "mm/matmul/matMulSimd.hpp"
 
 // #include "mm/matmul/cmatrix.h"
@@ -21,7 +21,8 @@
 
 #include <benchmark/benchmark.h>
 
-// Most of the implementations don't handle matrix tailes, so we need to hardcode the size
+// Most of the implementations don't handle matrix tailes, so we need to
+// hardcode the size
 
 constexpr std::size_t NN        = 4 * 720;
 constexpr std::size_t ITER_NUM  = 1;
@@ -163,7 +164,7 @@ static void BM_MatMulLoopBPacked(benchmark::State& state)
     }
 }
 
-//   CPPNow implementation
+//   mm implementation
 
 static void BM_CN_MatMulNaive(benchmark::State& state)
 {
@@ -172,7 +173,7 @@ static void BM_CN_MatMulNaive(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Naive(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Naive(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -183,7 +184,7 @@ static void BM_CN_MatMulNaive_Block(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Naive_Tile(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Naive_Tile(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -194,7 +195,7 @@ static void BM_CN_MatMulNaive_Order_KIJ(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Naive_Order_KIJ(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Naive_Order_KIJ(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -205,7 +206,7 @@ static void BM_CN_MatMulNaive_Order(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Naive_Order(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Naive_Order(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -216,7 +217,7 @@ static void BM_CN_MatMul_Simd(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Simd(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Simd(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -227,7 +228,7 @@ static void BM_CN_MatMul_Avx(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Avx(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Avx(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -238,7 +239,7 @@ static void BM_CN_MatMul_Avx_AddRegs(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Avx_AddRegs(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Avx_AddRegs(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -249,7 +250,7 @@ static void BM_CN_MatMul_Avx_AddRegs_Unroll(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Avx_AddRegs_Unroll(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Avx_AddRegs_Unroll(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -260,7 +261,7 @@ static void BM_CN_MatMul_Avx_Cache(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Avx_Cache(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Avx_Cache(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -271,7 +272,7 @@ static void BM_CN_MatMul_Avx_Cache_Regs(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Avx_Cache_Regs(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Avx_Cache_Regs(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -282,7 +283,7 @@ static void BM_CN_MatMul_Avx_Cache_Regs_Unroll(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Avx_Cache_Regs_Unroll(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Avx_Cache_Regs_Unroll(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -293,7 +294,7 @@ static void BM_CN_MatMul_Avx_Cache_Regs_UnrollRW(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Avx_Cache_Regs_UnrollRW(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Avx_Cache_Regs_UnrollRW(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -304,7 +305,7 @@ static void BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Avx_Cache_Regs_Unroll_BPack(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Avx_Cache_Regs_Unroll_BPack(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -315,7 +316,7 @@ static void BM_CN_MatMul_Avx_Cache_Regs_Unroll_MT(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Avx_Cache_Regs_Unroll_MT(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Avx_Cache_Regs_Unroll_MT(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -326,7 +327,7 @@ static void BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Avx_Cache_Regs_Unroll_BPack_MT(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Avx_Cache_Regs_Unroll_BPack_MT(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -370,46 +371,10 @@ static void BM_MatMulTailed(benchmark::State& state)
 
     for (auto _ : state)
     {
-        cppnow::matMul_Tails(matrices.a, matrices.b, matrices.c);
+        mm::matMul_Tails(matrices.a, matrices.b, matrices.c);
     }
 }
 //////////////////////////////////////////////////////////////////////////////
-
-// BM_CN_MatMulNaive/2880                               152089 ms       151374 ms            1
-// BM_CN_MatMulNaive_Order/2880                          11938 ms        11889 ms            1
-// BM_CN_MatMulNaive_Block/2880                           3908 ms         3892 ms            1
-// BM_CN_MatMul_Simd/2880                                 7372 ms         7349 ms            1
-// BM_CN_MatMul_Avx/2880                                  3158 ms         3147 ms            1
-// BM_CN_MatMul_Avx_AddRegs/2880                          2663 ms         2653 ms            1
-// BM_CN_MatMul_Avx_AddRegsV2/2880                        2454 ms         2444 ms            1
-// BM_CN_MatMul_Avx_AddRegs_Unroll/2880                   6701 ms         6637 ms            1
-// BM_CN_MatMul_Avx_Cache/2880                            3769 ms         3756 ms            1
-// BM_CN_MatMul_Avx_Cache_Regs/2880                       2751 ms         2740 ms            1
-// BM_CN_MatMul_Avx_Cache_Regs_Unroll/2880                1375 ms         1369 ms            1
-// BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack/2880          1503 ms         1496 ms            1
-// BM_CN_MatMul_Avx_Cache_Regs_Unroll_MT/2880              440 ms          436 ms            2
-// BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT/2880        496 ms          455 ms            2
-// BM_MatMulLoopRepackMT/2880                              374 ms          372 ms            2
-// BM_MatMulLoopRepack/2880                                1370 ms         1370 ms            1
-
-// BM_CN_MatMul_Avx/2880                                  3200 ms         3185 ms            1
-// BM_CN_MatMul_Avx_AddRegs/2880                          2552 ms         2542 ms            1
-// BM_CN_MatMul_Avx_AddRegsV2/2880                        2552 ms         2542 ms            1
-// BM_CN_MatMul_Avx_AddRegs_Unroll/2880                   6933 ms         6868 ms            1
-// BM_CN_MatMul_Avx_Cache/2880                            2709 ms         2698 ms            1
-// BM_CN_MatMul_Avx_Cache_Regs/2880                       2705 ms         2695 ms            1
-// BM_CN_MatMul_Avx_Cache_Regs_UnrollRW/2880              1407 ms         1400 ms            1
-// BM_CN_MatMul_Avx_Cache_Regs_Unroll/2880                1429 ms         1423 ms            1
-// BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack/2880          1540 ms         1533 ms            1
-// BM_CN_MatMul_Avx_Cache_Regs_Unroll_MT/2880              466 ms          460 ms            2
-// BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT/2880        477 ms          473 ms            2
-// BM_MatMulRegOpt/2880                                    398 ms          390 ms            2
-// BM_MatMulLoopRepack/2880                                369 ms          365 ms            2
-// BM_MatMulLoopRepackIKJ/2880                             415 ms          412 ms            2
-// BM_MatMulLoopBPacked/2880                               472 ms          467 ms            2
-// BM_MatrixMulOpenBLAS/2880                               330 ms          327 ms            2
-
-// BENCHMARK_MAIN();
 
 #define REGISTER(NAME, DIM) benchmark::RegisterBenchmark(#NAME, NAME)->Arg(DIM);
 
@@ -463,99 +428,3 @@ int main(int argc, char** argv)
 
     return 0;
 }
-
-// static void BM_MatrixMulParam_MT_VT_BL(benchmark::State& state)
-//{
-//     std::size_t      N        = state.range(0);
-//     auto             matrices = initMatrix(N, N, N);
-//     DynamicMatrixMul mul(MatrixMulConfig{true, true, false, true});
-
-//    for (auto _ : state)
-//    {
-//        mul(matrices.a, matrices.b, matrices.c);
-//    }
-//}
-
-// static void BM_MatrixMulParam_MT_VT_BL_TP(benchmark::State& state)
-//{
-//     std::size_t      N        = state.range(0);
-//     auto             matrices = initMatrix(N, N, N);
-//     DynamicMatrixMul mul(MatrixMulConfig{true, true, true, true});
-
-//    for (auto _ : state)
-//    {
-//        mul(matrices.a, matrices.b, matrices.c);
-//    }
-//}
-
-// static void BM_MatrixMulParam_Naive(benchmark::State& state)
-//{
-//     std::size_t      N        = state.range(0);
-//     auto             matrices = initMatrix(N, N, N);
-//     DynamicMatrixMul mul(MatrixMulConfig{false, false, false, false});
-
-//    for (auto _ : state)
-//    {
-//        mul(matrices.a, matrices.b, matrices.c);
-//    }
-//}
-
-// static void BM_MatrixMulParam_Naive_MT(benchmark::State& state)
-//{
-//     std::size_t      N        = state.range(0);
-//     auto             matrices = initMatrix(N, N, N);
-//     DynamicMatrixMul mul(MatrixMulConfig{true, false, false, false});
-
-//    for (auto _ : state)
-//    {
-//        mul(matrices.a, matrices.b, matrices.c);
-//    }
-//}
-
-// static void BM_MatrixMulParam_Naive_TP(benchmark::State& state)
-//{
-//     std::size_t      N        = state.range(0);
-//     auto             matrices = initMatrix(N, N, N);
-//     DynamicMatrixMul mul(MatrixMulConfig{false, false, true, false});
-
-//    for (auto _ : state)
-//    {
-//        mul(matrices.a, matrices.b, matrices.c);
-//    }
-//}
-
-// Address	Source Line	Assembly	Clockticks	Instructions Retired	CPI Rate	Retiring
-// Front-End Bound	Bad Speculation	Back-End Bound
-
-// prefetcht0z  (%r10,%r15,1)
-// vmovsdq  (%r8,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x58(%r11)
-// vmovsdq  (%rdx,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x50(%r11)
-// vmovsdq  (%r9,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x48(%r11)
-// vmovsdq  (%rdi,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x40(%r11)
-// vmovsdq  (%rbx,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x38(%r11)
-// vmovsdq  (%rsi,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x30(%r11)
-// movq  0x38(%rsp), %r14
-// prefetcht0z  (%r14,%r15,1)
-// vmovsdq  (%r10,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x28(%r11)
-// vmovsdq  0x8(%rdx,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x20(%r11)
-// vmovsdq  0x8(%r9,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x18(%r11)
-// vmovsdq  0x8(%rdi,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x10(%r11)
-// vmovsdq  0x8(%rbx,%r15,1), %xmm0
-// vmovsdq  %xmm0, -0x8(%r11)
-// vmovsdq  0x8(%rsi,%r15,1), %xmm0
-// vmovsdq  %xmm0, (%r11)	0
-// add $0x60, %r11
-// add $0x10, %r15
-// cmp $0x300, %r15
-// jnz 0x11180
-// Block 24:

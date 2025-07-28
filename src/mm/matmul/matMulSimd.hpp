@@ -6,35 +6,8 @@ void matMulSimdTails(const Matrix<double>& A, const Matrix<double>& B, Matrix<do
 
 #include "mm/core/kernels.hpp"
 #include "mm/core/reorderMatrix.hpp"
-#include <iostream>
 
 constexpr int N_LOG_DIM = 25;
-
-// TODO: What is analogy from std lib?
-static void printArr(const double* arr, int row, int col)
-{
-    for (int i = 0; i < row; i++)
-    {
-        for (int j = 0; j < col; j++)
-        {
-            std::cout << arr[i * col + j] << ", ";
-        }
-        std::cout << std::endl;
-    }
-}
-
-// TODO: Move to Utils??? We have same in Unit tests
-static void printArr(const double* arr, int row, int col, int col_ofs)
-{
-    for (int i = 0; i < row; i++)
-    {
-        for (int j = 0; j < col; j++)
-        {
-            std::cout << arr[i * col_ofs + j] << ", ";
-        }
-        std::cout << std::endl;
-    }
-}
 
 template<int Nr, int Kr, int Kc, int... TailSize>
 static inline void handleItail(double*       a_buf,

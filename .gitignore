@@ -3,6 +3,7 @@ rust/target/*
 build/*
 output/*
 perf-result
+.cache/*
 
 *~
 

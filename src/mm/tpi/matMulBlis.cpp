@@ -1,6 +1,6 @@
 #include "mm/tpi/matMulBlis.hpp"
 
-#define BLIS_FAMILY_HASWELL
+#define BLIS_FAMILY_ZEN3
 
 #include <blis/blis.h>
 

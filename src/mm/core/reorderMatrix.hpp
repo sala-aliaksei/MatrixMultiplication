@@ -482,6 +482,9 @@ void reorderRowMajorMatrix(const double* b, int cols, double* dest)
      *
      */
 
+    static_assert(M % ib == 0, "M % ib == 0");
+    static_assert(N % jb == 0, "N % jb == 0");
+
     int            idx           = 0;
     constexpr auto prefetch_type = _MM_HINT_T0;
 

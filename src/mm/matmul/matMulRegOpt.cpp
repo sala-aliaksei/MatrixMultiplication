@@ -1,16 +1,12 @@
 #include "mm/matmul/matMulRegOpt.hpp"
-#include "mm/core/utils/utils.hpp"
+
 #include "mm/core/reorderMatrix.hpp"
 #include "mm/core/ikernels.hpp"
 
 #include <immintrin.h>
 #include <array>
-#include <future>
 #include <cstring>
-#include <execution>
 
-#include <iostream>
-#include <syncstream>
 #include <thread>
 
 // #include <boost/asio.hpp>
@@ -129,138 +125,6 @@ void reorderMatrix(const double* b, int cols, double* dest)
             }
         }
     }
-}
-
-template<int M, int N, int ib, int jb>
-std::array<double, M * N> reorderRowMajorMatrix(const double* b, int cols)
-{
-    /*
-     */
-    // PROFILE("reorderMatrix");
-    std::array<double, M * N> result;
-    // if constexpr (is_col_order)
-    {
-        int idx = 0;
-
-        // DON'T REORDER LOOPS
-        // Process columns in groups of 4
-        for (size_t j = 0; j < N; j += jb)
-        {
-            for (size_t i = 0; i < M; i += ib)
-            {
-                for (size_t ic = 0; ic < ib; ++ic)
-                {
-                    const auto col = (i + ic) * cols;
-                    _mm_prefetch(&b[(i + ic + 1) * cols], _MM_HINT_NTA);
-                    for (size_t jc = 0; jc < jb; ++jc)
-                    {
-                        result[idx++] = b[col + j + jc];
-                    }
-                }
-            }
-        }
-    }
-    return result;
-}
-
-// template<int M, int N, int ib, int jb>
-// void reorderRowMajorMatrix(const double* b, int cols, double* dest)
-//{
-//     /*
-//      */
-
-//    // if constexpr (is_col_order)
-//    {
-//        int idx = 0;
-
-//        // DON'T REORDER LOOPS
-//        // Process columns in groups of 4
-//        for (size_t j = 0; j < N; j += jb)
-//        {
-//            for (size_t i = 0; i < M; i += ib)
-//            {
-//                for (size_t ic = 0; ic < ib; ++ic)
-//                {
-//                    const auto col = (i + ic) * cols;
-//                    _mm_prefetch(&b[(i + ic + 1) * cols], _MM_HINT_NTA);
-//                    for (size_t jc = 0; jc < jb; ++jc)
-//                    {
-//                        dest[idx++] = b[col + j + jc];
-//                    }
-//                }
-//            }
-//        }
-//    }
-//}
-
-// template<int M, int N>
-// void printPointer(const double* m)
-//{
-//     std::unique_lock _glock(_mtx);
-//     std::osyncstream(std::cout) << "threadID: " << std::this_thread::get_id() << std::endl;
-//     for (auto i = 0; i < M * N; ++i)
-//     {
-//         std::cout << m[i] << ", ";
-
-//        if ((i + 1) % N == 0)
-//            std::cout << "\n";
-//    }
-//}
-
-// template<int M, int N>
-// void printArr(const std::array<double, M * N>& m)
-//{
-//     std::unique_lock _glock(_mtx);
-//     std::osyncstream(std::cout) << "threadID: " << std::this_thread::get_id() << std::endl;
-//     for (auto i = 0; i < M * N; ++i)
-//     {
-//         std::cout << m[i] << ", ";
-
-//        if ((i + 1) % N == 0)
-//            std::cout << "\n";
-//    }
-//}
-
-void testReorderMatrix()
-{
-    // FIXED. DON'T CHANGE
-    constexpr size_t I_BLOCK = 4;
-    constexpr size_t J_BLOCK = 12;
-    // AUTOTUNE;
-    constexpr size_t K_BLOCK = 8; // 48; // 32
-
-    constexpr int M = 48;
-    constexpr int N = 48;
-
-    constexpr int KernM = 4;
-    constexpr int KernN = 8;
-
-    constexpr bool is_col_order = true;
-    auto           set          = initPredictedMatrix(M, N, M);
-    auto&          a            = set.a;
-
-    auto na = reorderMatrix<GEMM_I, GEMM_K, I_BLOCK, K_BLOCK, true>(a.data() + 36 * 48, N);
-
-    int idx = 0;
-
-    std::cout << a << std::endl;
-    std::cout << "--------- na ---------\n" << std::endl;
-    // printArr<GEMM_I, GEMM_K>(na);
-
-    // Process columns in groups of 4
-    //    for (size_t i = 0; i < M; i += KernM)
-    //    {
-    //        for (size_t j = 0; j < N; j += KernN)
-    //        {
-    //            for (size_t jc = 0; jc < KernN; ++jc)
-    //            {
-    //                for (size_t ic = 0; ic < KernM; ++ic)
-    //                {
-    //                    bool r = na[idx++] == a[(i + ic) * a.col() + j + jc];
-    //                }
-    //            }
-    //        }
-    //    }
 }
 
 inline void transpose4x4_pd(const double* in0,
@@ -1161,7 +1025,8 @@ void mulMatrix_zz(double*           pc,
 
 void matMulRegOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
-    const std::size_t num_threads = std::thread::hardware_concurrency();
+    auto num_threads = std::thread::hardware_concurrency();
+    num_threads      = num_threads > 4 ? 16 : num_threads;
 
     const auto i_size = A.row();
     const auto j_size = B.col();
@@ -1202,10 +1067,11 @@ void matMulRegOpt(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
 
     std::vector<std::thread> thread_pool;
     thread_pool.reserve(num_threads);
-    thread_pool.emplace_back(task, 0);
-    thread_pool.emplace_back(task, 1);
-    thread_pool.emplace_back(task, 2);
-    task(3);
+    for (size_t tid = 0; tid < num_threads - 1; ++tid)
+    {
+        thread_pool.emplace_back(task, tid);
+    }
+    task(num_threads - 1);
 
     for (auto& t : thread_pool)
     {

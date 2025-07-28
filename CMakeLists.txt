@@ -6,9 +6,8 @@ option(ENABLE_GPU_BUILD "Enable GPU build" OFF)
 option(ENABLE_UNIT_TESTS "Enable Unit Tests" ON)
 option(ENABLE_BENCHMARKS "Enable Benchmarks" ON)
 
-
-set("CMAKE_C_COMPILER" "/usr/bin/clang" CACHE "STRING" "" FORCE)
-set("CMAKE_CXX_COMPILER" "/usr/bin/clang++" CACHE "STRING" "" FORCE)
+#set("CMAKE_C_COMPILER" "/usr/bin/clang" CACHE "STRING" "" FORCE)
+#set("CMAKE_CXX_COMPILER" "/usr/bin/clang++" CACHE "STRING" "" FORCE)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
@@ -23,10 +22,10 @@ set(CMAKE_C_STANDARD 11)
 #-fsanitize=undefined
 # -g
 # -fsave-optimization-record
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -O3 -g -ffast-math -march=haswell -masm=intel -fopenmp") #-O3
-set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -O3   -march=haswell -masm=intel")
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -O3 -g -ffast-math -march=native -masm=intel -fopenmp") #-O3
+set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -O3   -march=native -masm=intel")
 #set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} --no-relax")
-
 
 #find_package(tensorflow-lite REQUIRED)
 #find_package(tensorflowlite REQUIRED)
@@ -34,7 +33,7 @@ set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -O3   -march=haswell -masm=intel")
 #find_package(LinAlg  REQUIRED) # LinAlg
 find_package(OpenBLAS REQUIRED)
 find_package(Boost REQUIRED) # for aligment allocator # COMPONENTS system
-find_package(Eigen3)
+find_package(Eigen3 REQUIRED)
 #find_package(Kokkos REQUIRED)
 
 # Use blis from system path (no conan receipt)

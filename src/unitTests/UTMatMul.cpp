@@ -95,26 +95,26 @@ class MatrixMulTest : public testing::Test
 
 TEST_F(MatrixMulTest, CN_matMul_Naive_Order)
 {
-    cppnow::matMul_Naive_Order(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Naive_Order(matrices.a, matrices.b, matrices.c);
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Naive)
 {
-    cppnow::matMul_Naive(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Naive(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Naive_Order_KIJ)
 {
-    cppnow::matMul_Naive_Order_KIJ(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Naive_Order_KIJ(matrices.a, matrices.b, matrices.c);
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Naive_Block)
 {
-    cppnow::matMul_Naive_Block(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Naive_Block(matrices.a, matrices.b, matrices.c);
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 #endif
@@ -208,84 +208,84 @@ TEST_F(MatrixMulTest, Eigen)
 
 TEST_F(MatrixMulTest, CN_matMul_Simd)
 {
-    cppnow::matMul_Simd(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Simd(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Avx)
 {
-    cppnow::matMul_Avx(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Avx(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Avx_AddRegs)
 {
-    cppnow::matMul_Avx_AddRegs(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Avx_AddRegs(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Avx_AddRegs_Unroll)
 {
-    cppnow::matMul_Avx_AddRegs_Unroll(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Avx_AddRegs_Unroll(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Avx_Cache)
 {
-    cppnow::matMul_Avx_Cache(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Avx_Cache(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs)
 {
-    cppnow::matMul_Avx_Cache_Regs(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Avx_Cache_Regs(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs_UnrollRW)
 {
-    cppnow::matMul_Avx_Cache_Regs_UnrollRW(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Avx_Cache_Regs_UnrollRW(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs_Unroll)
 {
-    cppnow::matMul_Avx_Cache_Regs_Unroll(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Avx_Cache_Regs_Unroll(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs_Unroll_BPack)
 {
-    cppnow::matMul_Avx_Cache_Regs_Unroll_BPack(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Avx_Cache_Regs_Unroll_BPack(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs_Unroll_MT)
 {
-    cppnow::matMul_Avx_Cache_Regs_Unroll_MT(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Avx_Cache_Regs_Unroll_MT(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Avx_Cache_Regs_Unroll_BPack_MT)
 {
-    cppnow::matMul_Avx_Cache_Regs_Unroll_BPack_MT(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Avx_Cache_Regs_Unroll_BPack_MT(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
 TEST_F(MatrixMulTest, CN_matMul_Tails)
 {
-    cppnow::matMul_Tails(matrices.a, matrices.b, matrices.c);
+    mm::matMul_Tails(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }
@@ -325,7 +325,7 @@ TEST_F(MatrixMulTest, CN_matMul_Tails_Range)
             valid_res  = std::move(matrices.c);
             matrices.c = Matrix<double>(i, j);
 
-            cppnow::matMul_Tails(matrices.a, matrices.b, matrices.c);
+            mm::matMul_Tails(matrices.a, matrices.b, matrices.c);
 
             ASSERT_EQ((valid_res == matrices.c), true);
         }
@@ -463,8 +463,8 @@ TEST_F(MatrixMulTest, HandleJTail)
                     analyzeResults(matrices.c, valid_res);
                 }
                 ASSERT_EQ(matrices.c(i, j), valid_res(i, j))
-                  << "Elem[" << i << "][" << j << "]" << ". Expected: " << valid_res(i, j)
-                  << "\nActual: " << matrices.c(i, j) << "\n";
+                  << "Elem[" << i << "][" << j << "]"
+                  << ". Expected: " << valid_res(i, j) << "\nActual: " << matrices.c(i, j) << "\n";
             }
         }
     }
@@ -528,9 +528,9 @@ TEST_F(MatrixMulTest, HandleITail)
             if (DIM < DIM_PRINT)
             {
                 std::cout << "b\n";
-                printArr(&B(k_block, j_block), Kc, Nc, N);
+                // printArr(&B(k_block, j_block), Kc, Nc, N);
                 std::cout << "b_buf\n";
-                printArr(b_buf, Kc, Nc);
+                // printArr(b_buf, Kc, Nc);
             }
 
             const double* Ac1 = &A(ilast, k_block);

@@ -150,7 +150,7 @@ TEST(ReorderMatrixTest, TailPadding)
     constexpr int total   = blocksM * ib * blocksN * jb;
 
     std::vector<double> output(total, -1.0); // fill with junk to detect uninit
-    reorderRowMajorMatrix<M, N, ib, jb>(input, N, output.data());
+    reorderRowMajorMatrixWithPadding<M, N, ib, jb>(input, N, output.data());
 
     // clang-format off
     std::vector<double> expected = {// Block (0,0)
@@ -241,95 +241,6 @@ using GetSequence_t = getSeq_t<genSeq(N)>;
 
 static_assert(std::is_same_v<GetSequence_t<11>, std::index_sequence<2, 1, 1>>,
               "GetSequence_t(N=12) failed");
-
-// TEST(DelMe, GenLocalVars)
-//{
-//     // it is not clear how to inject local vars based on index seq
-//     // Idea, index_seq tells us how many simd with different width we need to create
-//     // Example: 2,1,0 : simd_width<4> a4[2]; simd_width<2> a2[1]; simd_width<1> a1[0];
-// }
-
-TEST(ReorderMatrixTest, TailPaddingReprod)
-{
-    constexpr int JTail = 1;
-    constexpr int DIM   = 16;
-
-    constexpr int M = DIM;
-    constexpr int N = DIM + JTail;
-    constexpr int K = DIM;
-
-    constexpr int Nc = 8;
-    constexpr int Mc = 8;
-    constexpr int Kc = 8;
-
-    constexpr int Mr = 4;
-    constexpr int Nr = 1;
-    constexpr int Kr = 1;
-
-    //    constexpr int M     = 2880;
-    //    constexpr int N     = 2880 + JTail;
-    //    constexpr int K     = 2880;
-
-    //    constexpr int Nc = 180;
-    //    constexpr int Mc = 20;
-    //    constexpr int Kc = 80;
-
-    //    constexpr int Mr = 4;
-    //    constexpr int Nr = 12;
-
-    // clang-format off
-    double input[M * N] = {
-        1, 2, 3,
-        4, 5, 6,
-        7, 8, 9,
-        10, 11, 12,
-        13, 14, 15
-    };
-    // clang-format on
-
-    auto matrices = initPredictedMatrix(M, N, K); //
-    //    auto matrices = initPredictedMatrix(M, N + JTail, K);
-
-    // std::cout << "Test - I : " << i << " J: " << j << " K: " << K << "\n";
-
-    // matrixMulOpenBlas(matrices);
-    //    Matrix<double> valid_res = std::move(matrices.c);
-    //    matrices.c               = Matrix<double>(M, N + JTail);
-
-    auto& A = matrices.a;
-    auto& B = matrices.b;
-    auto& C = matrices.c;
-
-    std::vector<double> output(Mc * Nc);
-    reorderRowMajorMatrix<Kc, Nr, Kr, Nr>(B.data() + DIM, N, output.data());
-
-    std::cout << "b\n" << B << std::endl;
-    std::cout << "output\n" << vecToStr(output, Mc) << std::endl;
-
-    // clang-format off
-    std::vector<double> expected = {// Block (0,0)
-                                    1,2,
-                                    4,5,
-                                    // Block (2,0)
-                                    7,8,
-                                    10,11,
-                                    // Block (4,0) (tail row with padding)
-                                    13,14,
-                                    0,0,
-                                    // Block (0,2)
-                                    3,0,
-                                    6,0,
-                                    // Block (2,2)
-                                    9,0,
-                                    12,0,
-                                    // Block (4,2)
-                                    15,0,
-                                    0,0
-    };
-    // clang-format on
-
-    ASSERT_EQ(output, expected);
-}
 
 // **Main Function**
 int main(int argc, char** argv)

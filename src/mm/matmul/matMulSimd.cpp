@@ -1,27 +1,24 @@
-#include "mm/matmul/matMulSimd.hpp"
 #include "mm/core/reorderMatrix.hpp"
+#include "mm/matmul/matMulSimd.hpp"
 
 #include "mm/core/kernels.hpp"
 
 #include <experimental/simd>
-// TODO: Check with mdspan
-
-#include <mdspan/mdspan.hpp>
+#include <thread>
 
 #include "omp.h"
+
+constexpr unsigned long PAGE_SIZE = 4096;
+
+#define massert(x, msg) \
+    (bool((x)) == true ? void(0) : throw std::runtime_error("Assertion failed: " #x " " msg))
 
 namespace stdx = std::experimental;
 
 using simd_d = stdx::native_simd<double>;
 
 template<typename T>
-using simd = stdx::native_simd<T>;
-
-template<typename T, int Mc, int Kc>
-using tile = Kokkos::mdspan<double, Kokkos::extents<int, Mc, Kc>>;
-
-template<typename T, int Mc, int Kc>
-using ctile = Kokkos::mdspan<double, Kokkos::extents<int, Mc, Kc>>;
+using simd = stdx::fixed_size_simd<double, 4>; // stdx::native_simd<T>;
 
 static_assert(simd<double>::size() == 4, "Expect 4 doubles per simd register");
 
@@ -103,63 +100,6 @@ inline void pack_ukernel_arr_simd(const double* __restrict a,
             load_inc_store_double(&c[j], c_reg[idx]);
         }
     }
-}
-
-template<int Nr, int Mr, int Kc>
-static void cpp_upkernelSpan(tile<double, Kc, Mr> a,
-                             tile<double, Kc, Nr> b,
-                             double* __restrict mc,
-                             int N)
-{
-
-    double* c     = mc;
-    simd_d  r[Nr] = {};
-
-    for (int k = 0; k < Kc; ++k)
-    {
-        simd_d b0(&b[k, 0], stdx::element_aligned);
-        simd_d b1(&b[k, 4], stdx::element_aligned);
-        simd_d b2(&b[k, 8], stdx::element_aligned);
-
-        simd_d a0(a[k, 0]);
-        r[0] += a0 * b0;
-        r[1] += a0 * b1;
-        r[2] += a0 * b2;
-
-        a0 = simd_d(a[k, 1]);
-        r[3] += a0 * b0;
-        r[4] += a0 * b1;
-        r[5] += a0 * b2;
-
-        a0 = simd_d(a[k, 2]);
-        r[6] += a0 * b0;
-        r[7] += a0 * b1;
-        r[8] += a0 * b2;
-
-        a0 = simd_d(a[k, 3]);
-        r[9] += a0 * b0;
-        r[10] += a0 * b1;
-        r[11] += a0 * b2;
-    }
-
-    load_inc_store_double(&c[0], r[0]);
-    load_inc_store_double(&c[4], r[1]);
-    load_inc_store_double(&c[8], r[2]);
-    c += N;
-
-    load_inc_store_double(&c[0], r[3]);
-    load_inc_store_double(&c[4], r[4]);
-    load_inc_store_double(&c[8], r[5]);
-    c += N;
-
-    load_inc_store_double(&c[0], r[6]);
-    load_inc_store_double(&c[4], r[7]);
-    load_inc_store_double(&c[8], r[8]);
-    c += N;
-
-    load_inc_store_double(&c[0], r[9]);
-    load_inc_store_double(&c[4], r[10]);
-    load_inc_store_double(&c[8], r[11]);
 }
 
 template<int Nr, int Mr, int Kc>
@@ -531,21 +471,32 @@ static void cpp_ukernelLambda(const T* __restrict ma,
 void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
     // TODO: assert MNK % TileSize != 0
-    constexpr int Nc = 720 / 2;
-    constexpr int Mc = 24;
-    constexpr int Kc = 96 + 12 * 8; // Kc = 96+12*8 =best, Nc=720/2
+    // constexpr int Nc = 720 / 2;
+    // constexpr int Mc = 30;
+    // constexpr int Kc = 96; // 6 + 12 * 8; // Kc = 96+12*8 =best, Nc=720/2
+
+    // constexpr int Mc = 24;
+    // constexpr int Kc = 96;
+    // constexpr int Nc = 720;
+
+    // These values casue error in reorderRowMajorMatrix for zen5!
+    // Reason: buffer hardcoded num of thread was 4
+    constexpr int Nc = 180; // 180(best for hawswell)
+    constexpr int Mc = 20;
+    constexpr int Kc = 80;
 
     //    constexpr int Nc = 768;
     //    constexpr int Mc = 96; // 128;(452ms) // 96;(453ms)
     //    constexpr int Kc = 256;
 
-    constexpr int Nr = 8;
-    constexpr int Mr = 6;
+    constexpr int Nr = 12;
+    constexpr int Mr = 4;
 
     // consider to increase to improve repack perf
     // Kr = 1, no need for padding over k dim
     constexpr int Kr = 1;
 
+    auto num_threads = 16; // std::thread::hardware_concurrency();
     static_assert(Mc % Mr == 0, "invalid cache/reg size of the block");
     static_assert(Nc % Nr == 0, "invalid cache/reg size of the block");
     static_assert(Kc % Kr == 0, "invalid cache/reg size of the block");
@@ -554,10 +505,16 @@ void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>
     const auto K = A.col();
     const auto M = A.row();
 
-    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(4 * Kc
-                                                                                  * (Mc + Nc));
+    massert(N % Nc == 0, "N % Nc == 0");
+    massert(K % Kc == 0, "K % Kc == 0");
+    massert(M % Mc == 0, "M % Mc == 0");
+    massert(N % num_threads == 0, "N % num_threads == 0");
+    massert((N / num_threads) % Nc == 0, "(N/num_threads) % Nc == 0");
 
-#pragma omp parallel for
+    std::vector<double, boost::alignment::aligned_allocator<double, PAGE_SIZE>> buffer(
+      num_threads * Kc * (Mc + Nc));
+
+#pragma omp parallel for num_threads(num_threads)
     for (int j_block = 0; j_block < N; j_block += Nc)
     {
         auto       tid = omp_get_thread_num();
@@ -566,7 +523,9 @@ void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>
 
         for (int k_block = 0; k_block < K; k_block += Kc)
         {
-            reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
+            // reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
+            //   B.data() + N * k_block + j_block, N, buf + Mc * Kc);
+            reorderRowMajorMatrix<Kc, Nc, Kr, Nr>(
               B.data() + N * k_block + j_block, N, buf + Mc * Kc);
 
             for (int i_block = 0; i_block < M; i_block += Mc)
@@ -582,8 +541,10 @@ void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>
                         double*       Cc0 = C.data() + N * i_block + j + N * i + j_block;
                         const double* Ac0 = buf + Kc * i;
 
-                        cpp_ukernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
-                        // pack_ukernel_arr_simd<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N); // sligtly worse
+                        kernels::cpp_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        // cpp_ukernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        //  pack_ukernel_arr_simd<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N); // sligtly
+                        //  worse
 
                         // upkernelArIntrinsics<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                         // upkernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
@@ -623,14 +584,16 @@ void matMulSimdTails(const Matrix<double>& A, const Matrix<double>& B, Matrix<do
     const auto K = A.col();
     const auto M = A.row();
 
-    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(4 * Kc
-                                                                                  * (Mc + Nc));
+    auto num_threads = std::thread::hardware_concurrency();
+
+    std::vector<double, boost::alignment::aligned_allocator<double, PAGE_SIZE>> buffer(
+      num_threads * Kc * (Mc + Nc));
 
     // tail is only in last block
     int dNc = N % Nc;
     int jl  = N - dNc;
 
-#pragma omp parallel for
+#pragma omp parallel for num_threads(num_threads)
     for (int j_block = 0; j_block < jl; j_block += Nc)
     {
         auto       tid   = omp_get_thread_num();

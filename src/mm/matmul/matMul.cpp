@@ -7,7 +7,7 @@
 #include <cmath>
 #include <array>
 
-namespace cppnow
+namespace mm
 {
 
 ///////////////////     MATMUL IMPLEMENTATION   ///////////////////////
@@ -1146,4 +1146,4 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
     }
 }
 
-} // namespace cppnow
+} // namespace mm

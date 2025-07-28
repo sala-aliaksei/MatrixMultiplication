@@ -4,10 +4,10 @@
 
 #include <iostream>
 
-// This application will be used to analyze perfomance of the fastest implementation
-// Example: using perf.
+// This application will be used to analyze perfomance of the fastest
+// implementation Example: using perf.
 
-#include <mdspan/mdspan.hpp>
+// #include <mdspan/mdspan.hpp>
 
 template<typename T, int Mc, int Nc, int N>
 struct MDArray
@@ -17,6 +17,7 @@ struct MDArray
     {
     }
 
+    // TODO: Compile time out of bound check
     T& operator()(int i, int j)
     {
         // i < Mc
@@ -56,12 +57,13 @@ constexpr int Nr = 3; // Submatrix column size
 //        std::array<std::size_t, 2> strides = {N, 1}; // Row-major layout
 
 //        // Create a mapping object for layout_stride
-//        Kokkos::layout_stride::mapping<Kokkos::extents<std::size_t, Mr, Nr>> stride_map{
+//        Kokkos::layout_stride::mapping<Kokkos::extents<std::size_t, Mr, Nr>>
+//        stride_map{
 //          Kokkos::extents<std::size_t, Mr, Nr>{}, strides};
 
 //        // Create a submatrix mdspan view using layout_stride
-//        Kokkos::mdspan<int, Kokkos::extents<std::size_t, Mr, Nr>, Kokkos::layout_stride>
-//        submatrix{
+//        Kokkos::mdspan<int, Kokkos::extents<std::size_t, Mr, Nr>,
+//        Kokkos::layout_stride> submatrix{
 //          elems.data() + 1 + 2 * N, stride_map};
 
 //        std::cout << "Matrix subspan is created" << std::endl;
@@ -92,7 +94,6 @@ int main()
         auto matrices = initMatrix(I, J, K);
 
         // matMulSimd(matrices.a, matrices.b, matrices.c);
-        matMulAutotune(matrices.a, matrices.b, matrices.c);
 
         // testMDSpan();
 
