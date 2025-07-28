@@ -470,24 +470,9 @@ static void cpp_ukernelLambda(const T* __restrict ma,
 
 void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
-    // TODO: assert MNK % TileSize != 0
-    // constexpr int Nc = 720 / 2;
-    // constexpr int Mc = 30;
-    // constexpr int Kc = 96; // 6 + 12 * 8; // Kc = 96+12*8 =best, Nc=720/2
-
-    // constexpr int Mc = 24;
-    // constexpr int Kc = 96;
-    // constexpr int Nc = 720;
-
-    // These values casue error in reorderRowMajorMatrix for zen5!
-    // Reason: buffer hardcoded num of thread was 4
     constexpr int Nc = 180; // 180(best for hawswell)
     constexpr int Mc = 20;
     constexpr int Kc = 80;
-
-    //    constexpr int Nc = 768;
-    //    constexpr int Mc = 96; // 128;(452ms) // 96;(453ms)
-    //    constexpr int Kc = 256;
 
     constexpr int Nr = 12;
     constexpr int Mr = 4;
