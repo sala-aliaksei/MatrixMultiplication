@@ -47,6 +47,12 @@ static inline void store_kernel(T*                  c,
     (..., (store_row<RowIndices>(c, r, std::make_index_sequence<Nrs>{}), c += N));
 }
 
+template<int Nrs, int Mr, typename T, int WIDTH>
+static inline void store_kernel(T* c, fix_simd<T, WIDTH>* r, int N)
+{
+    store_kernel<Nrs>(c, r, N, std::make_index_sequence<Mr>{});
+}
+
 //////////////////////////////    PACKED , MANUL (NOT GENERIC)
 ///
 template<int Kc>
@@ -473,6 +479,12 @@ static inline void packed_compute_kernel(const T*            a,
        fix_simd<T, WIDTH>(a[I]), bs, &r[I * Nrs], std::make_index_sequence<Nrs>{})));
 }
 
+template<int Mr, int Nrs, typename T, int WIDTH>
+static inline void packed_compute_kernel(const T* a, const T* b, fix_simd<T, WIDTH>* r)
+{
+    packed_compute_kernel(a, b, r, std::make_index_sequence<Mr>{}, std::make_index_sequence<Nrs>{});
+}
+
 // Same perf as manual impl for Nr = 12, 8, 4;
 template<int Nr, int Mr, int Kc, typename T>
 static inline void cpp_packed_kernel(const T* __restrict a,
@@ -651,6 +663,29 @@ static void ukernelAr(const double* __restrict ma,
     load_inc_store_double(&c[0], r[9]);
     load_inc_store_double(&c[4], r[10]);
     load_inc_store_double(&c[8], r[11]);
+}
+
+template<int Nr, int Mr, int Kc, typename T>
+static inline void zen5_packed_kernel(const T* __restrict a,
+                                      const T* __restrict b,
+                                      T* __restrict c,
+                                      int N)
+{
+    constexpr auto num_of_regs    = 32;
+    constexpr int  avx_width_bits = 512;
+
+    constexpr int num_of_elems_in_reg = avx_width_bits / 8 / sizeof(T);
+
+    static_assert(Nr % num_of_elems_in_reg == 0, "Nr must be divisible by num_of_elems_in_reg");
+
+    constexpr int Nrs{Nr / num_of_elems_in_reg};
+
+    fix_simd<T, num_of_elems_in_reg> r[Nrs * Mr] = {};
+    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
+    {
+        packed_compute_kernel<Mr, Nrs>(a, b, r);
+    }
+    store_kernel<Nrs, Mr>(c, r, N);
 }
 
 } // namespace kernels

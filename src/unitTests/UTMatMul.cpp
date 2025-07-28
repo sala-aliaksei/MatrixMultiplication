@@ -11,11 +11,9 @@
 #include "mm/matmul/matMulPadding.hpp"
 #include "mm/matmul/matMulAutotune.hpp"
 #include "mm/matmul/matMulSimd.hpp"
+#include "mm/matmul/matMulZen5.hpp"
 
 #include <gtest/gtest.h> //--gtest_filter=MatrixMulTest.MatMulLoopsRepack
-
-// For test only
-// #include "mm/core/reorderMatrix.hpp"
 
 // #define ENABLE_NAIVE_TESTS
 
@@ -26,6 +24,12 @@ constexpr std::size_t N = 4 * 720;
 constexpr std::size_t I = N;
 constexpr std::size_t J = N;
 constexpr std::size_t K = N;
+
+int GetMatrixDimFromEnv()
+{
+    const char* env = std::getenv("MATRIX_DIM");
+    return env ? std::atoi(env) : N;
+}
 
 template<typename T>
 void print_diff(const Matrix<T>& a, const Matrix<T>& b)
@@ -62,13 +66,13 @@ class MatrixMulTest : public testing::Test
   protected:
     MatrixMulTest()
       //: matrices(initMatrix(I, J, K))
-      : matrices(initMatrix(I, J, K))
+      : matrices(initMatrix(GetMatrixDimFromEnv(), GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
     {
         // std::cout << "I : " << I << " J: " << J << " K: " << K << "\n";
 
         matrixMulOpenBlas(matrices);
         valid_res  = std::move(matrices.c);
-        matrices.c = Matrix<double>(I, J);
+        matrices.c = Matrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv());
     }
 
     ~MatrixMulTest() override
@@ -307,6 +311,12 @@ TEST_F(MatrixMulTest, matMulAutotune)
 TEST_F(MatrixMulTest, matMulSimd)
 {
     matMulSimd(matrices.a, matrices.b, matrices.c);
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
+
+TEST_F(MatrixMulTest, matMulZen5)
+{
+    mm::zen5::matMulZen5(matrices.a, matrices.b, matrices.c);
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 

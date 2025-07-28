@@ -14,6 +14,7 @@
 #include "mm/matmul/matMulPadding.hpp"
 #include "mm/matmul/matMulRegOpt.hpp"
 #include "mm/matmul/matMulSimd.hpp"
+#include "mm/matmul/matMulZen5.hpp"
 
 // #include "mm/matmul/cmatrix.h"
 
@@ -374,6 +375,17 @@ static void BM_MatMulTailed(benchmark::State& state)
         mm::matMul_Tails(matrices.a, matrices.b, matrices.c);
     }
 }
+
+static void BM_MatMulZen5(benchmark::State& state)
+{
+    std::size_t N        = state.range(0);
+    auto        matrices = initMatrix(N, N, N);
+
+    for (auto _ : state)
+    {
+        mm::zen5::matMulZen5(matrices.a, matrices.b, matrices.c);
+    }
+}
 //////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER(NAME, DIM) benchmark::RegisterBenchmark(#NAME, NAME)->Arg(DIM);
@@ -422,6 +434,9 @@ int main(int argc, char** argv)
     REGISTER(BM_MatMulSimd, matrix_dim);
 
     REGISTER(BM_MatMulTailed, matrix_dim);
+
+    // Zen5
+    REGISTER(BM_MatMulZen5, matrix_dim);
 
     benchmark::Initialize(&argc, argv);
     benchmark::RunSpecifiedBenchmarks();

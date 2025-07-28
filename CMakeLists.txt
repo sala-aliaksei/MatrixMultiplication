@@ -82,6 +82,8 @@ add_library(${PROJECT_NAME} SHARED
     src/mm/matmul/matMulColOpt.cpp
     src/mm/matmul/matMulRegOpt.hpp
     src/mm/matmul/matMulRegOpt.cpp
+    src/mm/matmul/matMulZen5.cpp
+    src/mm/matmul/matMulZen5.hpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC Core)
