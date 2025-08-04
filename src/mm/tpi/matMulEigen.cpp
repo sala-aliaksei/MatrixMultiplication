@@ -58,6 +58,11 @@ MatrixEigenSet initEigenMatrix(const Matrix<double>& a, const Matrix<double>& b)
     return ms;
 }
 
+void matrixMulEigen(const Eigen::MatrixXd& a, const Eigen::MatrixXd& b, Eigen::MatrixXd& c)
+{
+    c = a * b;
+}
+
 void matrixMulEigen(MatrixEigenSet& ms)
 {
     ms.c = ms.a * ms.b;

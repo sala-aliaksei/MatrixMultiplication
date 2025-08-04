@@ -43,6 +43,9 @@ static void BM_MatrixMulOpenBLAS(benchmark::State& state)
     {
         matrixMulOpenBlas(matrices);
     }
+    double flops_per_iter = 2.0 * N * N * N;
+    state.counters["FLOPS"] =
+      benchmark::Counter(flops_per_iter * state.iterations(), benchmark::Counter::kIsRate);
 }
 
 static void BM_MatrixMulBLIS(benchmark::State& state)
@@ -84,7 +87,7 @@ static void BM_MatMulClaude(benchmark::State& state)
 
     for (auto _ : state)
     {
-        multiply_matrices_optimized(matrices.a, matrices.b, matrices.c);
+        matMulClaude(matrices.a, matrices.b, matrices.c);
     }
 }
 
@@ -385,10 +388,32 @@ static void BM_MatMulZen5(benchmark::State& state)
     {
         mm::zen5::matMulZen5(matrices.a, matrices.b, matrices.c);
     }
+    double flops_per_iter = 2.0 * N * N * N;
+    state.counters["FLOPS"] =
+      benchmark::Counter(flops_per_iter * state.iterations(), benchmark::Counter::kIsRate);
+}
+
+template<typename Float_t,
+         void (*matMul)(const Matrix<Float_t>&, const Matrix<Float_t>&, Matrix<Float_t>&)>
+static void BM_MatMul(benchmark::State& state)
+{
+    std::size_t N        = state.range(0);
+    auto        matrices = initMatrix(N, N, N);
+
+    for (auto _ : state)
+    {
+        matMul(matrices.a, matrices.b, matrices.c);
+    }
+    double flops_per_iter = 2.0 * N * N * N;
+    state.counters["FLOPS"] =
+      benchmark::Counter(flops_per_iter * state.iterations(), benchmark::Counter::kIsRate);
 }
 //////////////////////////////////////////////////////////////////////////////
 
-#define REGISTER(NAME, DIM) benchmark::RegisterBenchmark(#NAME, NAME)->Arg(DIM);
+#define REGISTER(NAME, DIM) benchmark::RegisterBenchmark(#NAME, (NAME))->Arg(DIM);
+
+#define REGISTER_DOUBLE(NAME, DIM) \
+    benchmark::RegisterBenchmark(#NAME, (BM_MatMul<double, &NAME>))->Arg(DIM);
 
 int main(int argc, char** argv)
 {
@@ -396,47 +421,47 @@ int main(int argc, char** argv)
 
     // TPI
     REGISTER(BM_MatrixMulParam_Eigen, matrix_dim);
-    REGISTER(BM_MatrixMulOpenBLAS, matrix_dim);
-    REGISTER(BM_MatrixMulBLIS, matrix_dim);
+    REGISTER_DOUBLE(matrixMulOpenBlas, matrix_dim);
+    REGISTER_DOUBLE(matmulBlis, matrix_dim);
 
     // GenAI
-    REGISTER(BM_MatMulClaude, matrix_dim);
-    REGISTER(BM_MatrixMulParam_GPT, matrix_dim);
+    REGISTER_DOUBLE(matMulClaude, matrix_dim);
+    REGISTER_DOUBLE(gpt_matrix_multiply, matrix_dim);
 
 // Matmul
 #ifdef ENABLE_NAIVE_BENCHMARKS
-    REGISTER(BM_CN_MatMulNaive, matrix_dim);
-    REGISTER(BM_CN_MatMulNaive_Order, matrix_dim);
-    REGISTER(BM_CN_MatMulNaive_Order_KIJ, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Naive, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Naive_Order, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Naive_Order_KIJ, matrix_dim);
 #endif
-    REGISTER(BM_CN_MatMulNaive_Block, matrix_dim);
-    REGISTER(BM_CN_MatMul_Simd, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx_AddRegs, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx_AddRegs_Unroll, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx_Cache, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx_Cache_Regs, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_UnrollRW, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_MT, matrix_dim);
-    REGISTER(BM_CN_MatMul_Avx_Cache_Regs_Unroll_BPack_MT, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Naive_Tile, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Simd, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Avx, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Avx_AddRegs, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Avx_AddRegs_Unroll, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Avx_Cache, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Avx_Cache_Regs, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Avx_Cache_Regs_UnrollRW, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Avx_Cache_Regs_Unroll, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Avx_Cache_Regs_Unroll_BPack, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Avx_Cache_Regs_Unroll_MT, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Avx_Cache_Regs_Unroll_BPack_MT, matrix_dim);
 
-    REGISTER(BM_MatMulRegOpt, matrix_dim);
+    REGISTER_DOUBLE(matMulRegOpt, matrix_dim);
 
-    REGISTER(BM_MatMulLoopRepack, matrix_dim);
-    // REGISTER(BM_MatMulLoopRepackIKJ, matrix_dim); // slower
-    REGISTER(BM_MatMulLoopBPacked, matrix_dim);
+    REGISTER_DOUBLE(matMulLoopsRepack, matrix_dim);
+    // REGISTER_DOUBLE(BM_MatMulLoopRepackIKJ, matrix_dim); // slower
+    REGISTER_DOUBLE(matMulLoopsBPacked, matrix_dim);
 
     //
-    REGISTER(BM_MatMulPadding, matrix_dim);
-    REGISTER(BM_MatMulAutotune, matrix_dim);
-    REGISTER(BM_MatMulSimd, matrix_dim);
+    REGISTER_DOUBLE(matMulPadding, matrix_dim);
+    REGISTER_DOUBLE(matMulAutotune, matrix_dim);
+    REGISTER_DOUBLE(matMulSimd, matrix_dim);
 
-    REGISTER(BM_MatMulTailed, matrix_dim);
+    REGISTER_DOUBLE(mm::matMul_Tails, matrix_dim);
 
     // Zen5
-    REGISTER(BM_MatMulZen5, matrix_dim);
+    REGISTER_DOUBLE(mm::zen5::matMulZen5, matrix_dim);
 
     benchmark::Initialize(&argc, argv);
     benchmark::RunSpecifiedBenchmarks();

@@ -7,6 +7,9 @@
 #include <thread>
 #include <immintrin.h>
 
+namespace
+{
+
 //////////////////////     KERNELS
 
 template<int Nr, int Mr, int Kc>
@@ -639,7 +642,7 @@ static void ukernelBpacked(const double* const __restrict ma,
     ikernels::load_inc_store_double(&c[4], r31);
     ikernels::load_inc_store_double(&c[8], r32);
 }
-
+} // namespace
 //////////////////////////      MATMUL     ///////////////////////////////////
 
 void matMulLoops(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)

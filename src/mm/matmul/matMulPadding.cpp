@@ -4,6 +4,9 @@
 
 #include "omp.h"
 
+namespace
+{
+
 // NOTE: If Kc will be runtime arg? (Perf will drop)
 // u - micro
 // p - packed
@@ -134,6 +137,7 @@ static void upkernel(const double* __restrict ma,
     ikernels::load_inc_store_double(&c[4], r31);
     ikernels::load_inc_store_double(&c[8], r32);
 }
+} // namespace
 
 void matMulPadding(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {

@@ -173,7 +173,7 @@ TEST_F(MatrixMulTest, GPT)
 
 TEST_F(MatrixMulTest, Claude)
 {
-    multiply_matrices_optimized(matrices.a, matrices.b, matrices.c);
+    matMulClaude(matrices.a, matrices.b, matrices.c);
 
     EXPECT_EQ((valid_res == matrices.c), true);
 }

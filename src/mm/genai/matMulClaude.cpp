@@ -59,9 +59,7 @@ inline void kernel_8x4(const double* A,
     }
 }
 
-void multiply_matrices_optimized(const Matrix<double>& A,
-                                 const Matrix<double>& B,
-                                 Matrix<double>&       C)
+void matMulClaude(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
     const size_t M = A.row();
     const size_t N = B.col();

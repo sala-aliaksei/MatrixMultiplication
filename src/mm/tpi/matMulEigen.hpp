@@ -9,6 +9,8 @@ struct MatrixEigenSet
     Eigen::MatrixXd c;
 };
 
+void matrixMulEigen(const Eigen::MatrixXd& a, const Eigen::MatrixXd& b, Eigen::MatrixXd& c);
+
 void           matrixMulEigen(MatrixEigenSet& ms);
 MatrixEigenSet initEigenMatrix(const Matrix<double>& a, const Matrix<double>& b);
 MatrixEigenSet initEigenMatrix(int M, int N, int K);

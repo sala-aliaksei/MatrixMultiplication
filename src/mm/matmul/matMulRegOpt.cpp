@@ -12,6 +12,9 @@
 // #include <boost/asio.hpp>
 // #include <boost/thread/thread.hpp>
 
+namespace
+{
+
 constexpr int L1_SIZE_PER_CORE = 32 * 1024;
 constexpr int L2_SIZE_PER_CORE = 256 * 1024;
 
@@ -279,6 +282,7 @@ static void massert(bool flag, std::string msg)
         throw std::runtime_error("Invalid expression: "s + msg);
     }
 }
+} // namespace
 
 void mulMatrix_y(double*           pc,
                  const double*     na,
