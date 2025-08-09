@@ -1,6 +1,7 @@
 #include "mm/tpi/matMulOpenBlas.hpp"
 
-#include "openblas/cblas.h"
+// #include "openblas/cblas.h"
+#include <cblas.h>
 
 /*****************     OPEN BLAS     *******************/
 
