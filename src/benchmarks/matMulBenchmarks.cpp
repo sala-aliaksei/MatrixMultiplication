@@ -462,6 +462,7 @@ int main(int argc, char** argv)
 
     // Zen5
     REGISTER_DOUBLE(mm::zen5::matMulZen5, matrix_dim);
+    REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlocking, matrix_dim);
 
     benchmark::Initialize(&argc, argv);
     benchmark::RunSpecifiedBenchmarks();

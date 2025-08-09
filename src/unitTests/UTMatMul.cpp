@@ -320,6 +320,12 @@ TEST_F(MatrixMulTest, matMulZen5)
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
+TEST_F(MatrixMulTest, matMulZen5MTBlocking)
+{
+    mm::zen5::matMulZen5MTBlocking(matrices.a, matrices.b, matrices.c);
+    EXPECT_EQ((valid_res == matrices.c), true);
+}
+
 TEST_F(MatrixMulTest, CN_matMul_Tails_Range)
 {
     // TODO: Range???

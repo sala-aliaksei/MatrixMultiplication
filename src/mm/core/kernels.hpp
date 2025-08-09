@@ -13,7 +13,8 @@ namespace kernels
 
 ////////////////////////////     SIMD KERNELS
 
-using simd_d     = stdx::fixed_size_simd<double, 4>;
+using simd_d = stdx::fixed_size_simd<double, 4>;
+
 using halfsimd_d = stdx::fixed_size_simd<double, 2>;
 
 using simd_to_double = stdx::fixed_size_simd<double, 1>;
@@ -50,6 +51,7 @@ static inline void store_kernel(T*                  c,
 template<int Nrs, int Mr, typename T, int WIDTH>
 static inline void store_kernel(T* c, fix_simd<T, WIDTH>* r, int N)
 {
+    _mm_prefetch(c + N, _MM_HINT_NTA);
     store_kernel<Nrs>(c, r, N, std::make_index_sequence<Mr>{});
 }
 
@@ -671,14 +673,9 @@ static inline void zen5_packed_kernel(const T* __restrict a,
                                       T* __restrict c,
                                       int N)
 {
-    constexpr auto num_of_regs    = 32;
-    constexpr int  avx_width_bits = 512;
-
-    constexpr int num_of_elems_in_reg = avx_width_bits / 8 / sizeof(T);
-
+    constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
+    constexpr int  Nrs{Nr / num_of_elems_in_reg};
     static_assert(Nr % num_of_elems_in_reg == 0, "Nr must be divisible by num_of_elems_in_reg");
-
-    constexpr int Nrs{Nr / num_of_elems_in_reg};
 
     fix_simd<T, num_of_elems_in_reg> r[Nrs * Mr] = {};
     for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
