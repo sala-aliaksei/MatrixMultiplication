@@ -275,6 +275,9 @@ if(ENABLE_BENCHMARKS)
     add_executable(BM_Matmul_Float src/benchmarks/matMulFloatBenchmarks.cpp)
     target_link_libraries(BM_Matmul_Float benchmark_utils)
 
+    add_executable(BM_Matmul_BFP16 src/benchmarks/matMulBf16Benchmarks.cpp)
+    target_link_libraries(BM_Matmul_BFP16 benchmark_utils)
+
     add_executable(BM_Prefetch src/benchmarks/stride/benchEffectiveColStride.cpp)
     target_link_libraries(BM_Prefetch benchmark::benchmark)
 
@@ -292,6 +295,9 @@ if(ENABLE_UNIT_TESTS)
 
     add_executable(UT_Matmul src/unitTests/UTMatMul.cpp)
     target_link_libraries(UT_Matmul ${PROJECT_NAME} MatMulAutotune GenAI TPI GTest::gtest GTest::gtest_main )
+
+    add_executable(UT_Matmul_BFP16 src/unitTests/UTMatMulBFP16.cpp)
+    target_link_libraries(UT_Matmul_BFP16 ${PROJECT_NAME}  GTest::gtest GTest::gtest_main )
 
     add_executable(UT_Kernels src/unitTests/UTKernels.cpp)
     target_link_libraries(UT_Kernels Core GTest::gtest GTest::gtest_main )
