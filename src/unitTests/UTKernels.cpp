@@ -62,7 +62,7 @@ class KernelTest : public testing::Test
 {
   protected:
     KernelTest()
-      : matrices(initMatrix(M, N, K))
+      : matrices(initDoubleMatrix(M, N, K))
 
     {
         // std::cout << "M : " << M << " N: " << N << " K: " << K << "\n";

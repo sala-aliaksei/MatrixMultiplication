@@ -265,8 +265,15 @@ target_compile_definitions(MulMatrixApp PUBLIC MDSPAN_USE_BRACKET_OPERATOR)
 if(ENABLE_BENCHMARKS)
     find_package(benchmark REQUIRED)
 
+    add_library(benchmark_utils STATIC src/benchmarks/benchmark_utils.cpp)
+    target_include_directories(benchmark_utils PUBLIC ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(benchmark_utils PUBLIC benchmark::benchmark ${PROJECT_NAME} MatMulAutotune GenAI TPI)
+
     add_executable(BM_Matmul src/benchmarks/matMulBenchmarks.cpp)
-    target_link_libraries(BM_Matmul benchmark::benchmark ${PROJECT_NAME} MatMulAutotune GenAI TPI)
+    target_link_libraries(BM_Matmul benchmark_utils)
+
+    add_executable(BM_Matmul_Float src/benchmarks/matMulFloatBenchmarks.cpp)
+    target_link_libraries(BM_Matmul_Float benchmark_utils)
 
     add_executable(BM_Prefetch src/benchmarks/stride/benchEffectiveColStride.cpp)
     target_link_libraries(BM_Prefetch benchmark::benchmark)

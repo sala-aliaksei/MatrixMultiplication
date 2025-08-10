@@ -4,7 +4,6 @@
 
 #include <vector>
 #include <boost/align/aligned_allocator.hpp>
-#include <new>
 
 #ifdef __cpp_lib_hardware_interference_size
 using std::hardware_constructive_interference_size;
@@ -36,22 +35,22 @@ class Matrix
     {
     }
 
-    [[__nodiscard__]] double operator[](std::size_t idx) const noexcept
+    [[__nodiscard__]] T operator[](std::size_t idx) const noexcept
     {
         return _matrix[idx];
     }
 
-    [[__nodiscard__]] double& operator[](std::size_t idx) noexcept
+    [[__nodiscard__]] T& operator[](std::size_t idx) noexcept
     {
         return _matrix[idx];
     }
 
-    [[__nodiscard__]] constexpr double* data() noexcept
+    [[__nodiscard__]] constexpr T* data() noexcept
     {
         return _matrix.data();
     }
 
-    [[__nodiscard__]] constexpr const double* data() const noexcept
+    [[__nodiscard__]] constexpr const T* data() const noexcept
     {
         return _matrix.data();
     }
@@ -71,12 +70,12 @@ class Matrix
         return rows;
     }
 
-    const double& operator()(std::size_t i, std::size_t j) const noexcept
+    const T& operator()(std::size_t i, std::size_t j) const noexcept
     {
         return _matrix[i * cols + j];
     }
 
-    double& operator()(std::size_t i, std::size_t j)
+    T& operator()(std::size_t i, std::size_t j)
     {
         return _matrix[i * cols + j];
     }
@@ -85,7 +84,7 @@ class Matrix
     std::size_t cols;
 
   private:
-    aligned_vector<double> _matrix;
+    aligned_vector<T> _matrix;
 };
 
 template<typename T>
@@ -175,7 +174,7 @@ struct MatrixSet
     Matrix<value_type> c;
 };
 
-MatrixSet initMatrix(int i, int j, int k);
+MatrixSet initDoubleMatrix(int i, int j, int k);
 MatrixSet initPredictedMatrix(int i, int j, int k);
 
 template<typename Stream>
@@ -186,3 +185,6 @@ Stream& operator<<(Stream& os, MatrixSet& s1)
 }
 
 bool operator==(const MatrixSet&, const MatrixSet&);
+
+template<typename T>
+Matrix<T> generateRandomMatrix(int M, int N);

@@ -25,7 +25,7 @@ static void BM_MatMulAutotune(benchmark::State& state)
     std::size_t N   = DIM;
     std::size_t K   = DIM;
 
-    auto matrices = initMatrix(M, N, K);
+    auto matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {

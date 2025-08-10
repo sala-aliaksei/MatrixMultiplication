@@ -61,16 +61,56 @@ void analyzeResults(const Matrix<double>& actual, const Matrix<double>& expected
     print_diff(actual, expected);
 }
 
+class MatrixMulFloat32Test : public testing::Test
+{
+  protected:
+    MatrixMulFloat32Test()
+      //: matrices(initDoubleMatrix(I, J, K))
+      : a(generateRandomMatrix<float>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , b(generateRandomMatrix<float>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , c(generateRandomMatrix<float>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+    {
+        // std::cout << "I : " << I << " J: " << J << " K: " << K << "\n";
+
+        mm::tpi::matrixMulOpenBlas(a, b, c);
+        expected = std::move(c);
+        c        = Matrix<float>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv());
+    }
+
+    ~MatrixMulFloat32Test() override
+    {
+        // You can do clean-up work that doesn't throw exceptions here.
+    }
+
+    void SetUp() override
+    {
+        // Code here will be called immediately after the constructor (right
+        // before each test).
+    }
+
+    void TearDown() override
+    {
+        // Code here will be called immediately after each test (right
+        // before the destructor).
+    }
+
+    Matrix<float> a;
+    Matrix<float> b;
+    Matrix<float> c;
+    Matrix<float> expected;
+};
+
 class MatrixMulTest : public testing::Test
 {
   protected:
     MatrixMulTest()
-      //: matrices(initMatrix(I, J, K))
-      : matrices(initMatrix(GetMatrixDimFromEnv(), GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      //: matrices(initDoubleMatrix(I, J, K))
+      : matrices(
+        initDoubleMatrix(GetMatrixDimFromEnv(), GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
     {
         // std::cout << "I : " << I << " J: " << J << " K: " << K << "\n";
 
-        matrixMulOpenBlas(matrices);
+        mm::tpi::matrixMulOpenBlas(matrices.a, matrices.b, matrices.c);
         valid_res  = std::move(matrices.c);
         matrices.c = Matrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv());
     }
@@ -333,7 +373,7 @@ TEST_F(MatrixMulTest, CN_matMul_Tails_Range)
     {
         for (int j = J; j < J + 1; ++j)
         {
-            auto matrices = initMatrix(i, j, K);
+            auto matrices = initDoubleMatrix(i, j, K);
 
             std::cout << "Test - I : " << i << " J: " << j << " K: " << K << "\n";
 
@@ -375,7 +415,7 @@ TEST_F(MatrixMulTest, matMulSimd_Tails_Range)
             // int k = K;
             for (int k = K; k < K + Kc; ++k)
             {
-                auto matrices = initMatrix(i, j, k);
+                auto matrices = initDoubleMatrix(i, j, k);
 
                 std::cout << "Test - I : " << i << " J: " << j << " K: " << k << "\n";
 
@@ -438,7 +478,7 @@ TEST_F(MatrixMulTest, HandleJTail)
         static_assert(Nc % Nr == 0, "Invalid N constants");
 
         //        auto matrices = initPredictedMatrix(M, N, K);
-        auto matrices = initMatrix(M, N, K);
+        auto matrices = initDoubleMatrix(M, N, K);
 
         std::cout << "Test - I : " << M << " J: " << N << " K: " << K << "\n";
 
@@ -501,7 +541,7 @@ TEST_F(MatrixMulTest, HandleITail)
     constexpr int K = DIM;
 
     auto matrices = initPredictedMatrix(M, N, K); //
-    //    auto matrices = initMatrix(DIM + i_tail_size, DIM, DIM); // initMatrix
+    //    auto matrices = initDoubleMatrix(DIM + i_tail_size, DIM, DIM); // initDoubleMatrix
 
     // std::cout << "Test - I : " << i << " J: " << j << " K: " << K << "\n";
 
@@ -572,6 +612,20 @@ TEST_F(MatrixMulTest, HandleITail)
     }
 }
 #endif
+
+/***********   FLOAT 32   ***********/
+TEST_F(MatrixMulFloat32Test, MatMulZen5)
+{
+    mm::zen5::matMulZen5(a, b, c);
+
+    EXPECT_EQ((expected == c), true);
+}
+
+TEST_F(MatrixMulFloat32Test, MatMulZen5MTBlocking)
+{
+    mm::zen5::matMulZen5MTBlocking(a, b, c);
+    EXPECT_EQ((expected == c), true);
+}
 
 /********************       MAIN        ********************/
 

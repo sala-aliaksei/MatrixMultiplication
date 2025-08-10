@@ -4,24 +4,58 @@
 #include <cblas.h>
 
 /*****************     OPEN BLAS     *******************/
-
-void matrixMulOpenBlas(const Matrix<double>& a, const Matrix<double>& b, Matrix<double>& c)
+namespace mm::tpi
 {
-    cblas_dgemm(CblasRowMajor,
-                CblasNoTrans,
-                CblasNoTrans,
-                a.row(),
-                b.col(),
-                a.col(),
-                1.0,
-                a.data(),
-                a.col(),
-                b.data(),
-                b.col(),
-                1.0,
-                c.data(),
-                c.col());
+template<typename T>
+void matrixMulOpenBlas(const Matrix<T>& a, const Matrix<T>& b, Matrix<T>& c)
+{
+    if constexpr (std::is_same_v<T, float>)
+    {
+        cblas_sgemm(CblasRowMajor,
+                    CblasNoTrans,
+                    CblasNoTrans,
+                    a.row(),
+                    b.col(),
+                    a.col(),
+                    1.0f,
+                    a.data(),
+                    a.col(),
+                    b.data(),
+                    b.col(),
+                    1.0f,
+                    c.data(),
+                    c.col());
+    }
+    else if constexpr (std::is_same_v<T, double>)
+    {
+        cblas_dgemm(CblasRowMajor,
+                    CblasNoTrans,
+                    CblasNoTrans,
+                    a.row(),
+                    b.col(),
+                    a.col(),
+                    1.0,
+                    a.data(),
+                    a.col(),
+                    b.data(),
+                    b.col(),
+                    1.0,
+                    c.data(),
+                    c.col());
+    }
+    else
+    {
+        static_assert(false, "Unsupported type");
+    }
 }
+
+template void matrixMulOpenBlas<float>(const Matrix<float>& a,
+                                       const Matrix<float>& b,
+                                       Matrix<float>&       c);
+template void matrixMulOpenBlas<double>(const Matrix<double>& a,
+                                        const Matrix<double>& b,
+                                        Matrix<double>&       c);
+} // namespace mm::tpi
 
 void matrixMulOpenBlas_TP(MatrixSet& ms)
 {

@@ -21,7 +21,7 @@ constexpr int Mr = 4;
 static void BM_CppGenericKern(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -34,7 +34,7 @@ static void BM_CppGenericKern(benchmark::State& state)
 static void BM_PackedKernelGeneric12x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -47,7 +47,7 @@ static void BM_PackedKernelGeneric12x4(benchmark::State& state)
 static void BM_GenericKernel8x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -60,7 +60,7 @@ static void BM_GenericKernel8x4(benchmark::State& state)
 static void BM_PackedKernel8x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -72,7 +72,7 @@ static void BM_PackedKernel8x4(benchmark::State& state)
 static void BM_PackedKernel8x4Aregs(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -85,7 +85,7 @@ static void BM_PackedKernel8x4Aregs(benchmark::State& state)
 static void BM_PackedKernelGeneric8x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -98,7 +98,7 @@ static void BM_PackedKernelGeneric8x4(benchmark::State& state)
 static void BM_PackedKernelGeneric4x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -111,7 +111,7 @@ static void BM_PackedKernelGeneric4x4(benchmark::State& state)
 static void BM_PackedKernel4x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -128,7 +128,7 @@ static void BM_GenericKernel2x4(benchmark::State& state)
     constexpr int Mr = 4;
 
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -140,7 +140,7 @@ static void BM_GenericKernel2x4(benchmark::State& state)
 static void BM_PackedKernel2x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -151,7 +151,7 @@ static void BM_PackedKernel2x4(benchmark::State& state)
 static void BM_PackedKernelGeneric2x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -163,7 +163,7 @@ static void BM_PackedKernelGeneric2x4(benchmark::State& state)
 static void BM_PackedKernel6x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -174,7 +174,7 @@ static void BM_PackedKernel6x4(benchmark::State& state)
 static void BM_PackedKernel1x4(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {
@@ -185,7 +185,7 @@ static void BM_PackedKernel1x4(benchmark::State& state)
 static void BM_PackedKernel1x4_Simd(benchmark::State& state)
 {
     std::size_t N        = state.range(0);
-    auto        matrices = initMatrix(M, N, K);
+    auto        matrices = initDoubleMatrix(M, N, K);
 
     for (auto _ : state)
     {

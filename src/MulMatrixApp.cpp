@@ -91,7 +91,7 @@ int main()
         constexpr std::size_t J  = NN;
         constexpr std::size_t K  = NN;
 
-        auto matrices = initMatrix(I, J, K);
+        auto matrices = initDoubleMatrix(I, J, K);
 
         // matMulSimd(matrices.a, matrices.b, matrices.c);
 

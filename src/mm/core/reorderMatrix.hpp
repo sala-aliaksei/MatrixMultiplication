@@ -237,8 +237,8 @@ void reorderColOrderMatrixTail(const double* matrix, int N, double* dest, int Mc
     //    }
 }
 
-template<int Mc, int Nc, int Mr, int Nr>
-void reorderColOrderMatrix(const double* matrix, int cols, double* dest)
+template<int Mc, int Nc, int Mr, int Nr, typename T>
+void reorderColOrderMatrix(const T* matrix, int cols, T* dest)
 {
     /*
     |   ^|
@@ -438,8 +438,8 @@ tail:
 
     return ret;
 }
-template<int M, int N, int ib, int jb>
-void reorderRowMajorMatrixAVX(const double* b, int cols, double* dest)
+template<int M, int N, int ib, int jb, typename T>
+void reorderRowMajorMatrixAVX(const T* b, int cols, T* dest)
 {
     static_assert(ib == 1, "ib != 1, but we optimize for ib =1");
     // reorder B; J I I J order
@@ -461,8 +461,9 @@ void reorderRowMajorMatrixAVX(const double* b, int cols, double* dest)
         //_mm_prefetch(b + jb + j, prefetch_type);
         for (int i = 0; i < M; i += ib)
         {
+            // what is dependency of the offset from type?
             _mm_prefetch(b + (i + 1) * cols + j, prefetch_type);
-            inline_memcpy(dest + idx, &b[i * cols + j], sizeof(double) * jb);
+            inline_memcpy(dest + idx, &b[i * cols + j], sizeof(T) * jb);
             idx += jb;
         }
     }

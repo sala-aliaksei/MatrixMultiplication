@@ -40,7 +40,7 @@ MatrixSet initPredictedMatrix(int isize, int jsize, int ksize)
     return set;
 }
 
-MatrixSet initMatrix(int M, int N, int K)
+MatrixSet initDoubleMatrix(int M, int N, int K)
 {
     std::random_device rd;
     std::mt19937       gen(rd());
@@ -169,3 +169,21 @@ void transpose_avx2_prefetch(const double* __restrict A,
 }
 
 } // namespace _details
+
+template<typename T>
+Matrix<T> generateRandomMatrix(int M, int N)
+{
+    std::random_device rd;
+    std::mt19937       gen(rd());
+    T                  lower_bound = std::numeric_limits<T>::min();
+    T                  upper_bound = std::numeric_limits<T>::max();
+
+    std::uniform_real_distribution<T> dis(lower_bound, upper_bound);
+
+    Matrix<T> matrix(M, N);
+    std::generate(matrix.data(), matrix.data() + matrix.size(), [&] { return dis(gen); });
+    return matrix;
+}
+
+template Matrix<float>  generateRandomMatrix<float>(int M, int N);
+template Matrix<double> generateRandomMatrix<double>(int M, int N);
