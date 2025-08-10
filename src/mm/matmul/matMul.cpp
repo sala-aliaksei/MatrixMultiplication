@@ -46,6 +46,29 @@ void matMul_Naive(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
         }
     }
 }
+#if __STDCPP_FLOAT64_T__ == 1
+
+void matMul_Naive_Order(const Matrix<std::bfloat16_t>& A,
+                        const Matrix<std::bfloat16_t>& B,
+                        Matrix<std::bfloat16_t>&       C)
+{
+    auto M = A.row();
+    auto K = A.col();
+    auto N = B.col();
+
+    for (int i = 0; i < M; ++i)
+    {
+        for (int k = 0; k < K; ++k)
+        {
+            for (int j = 0; j < N; ++j)
+            {
+                C(i, j) += A(i, k) * B(k, j);
+            }
+        }
+    }
+}
+
+#endif
 
 void matMul_Naive_Order(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {

@@ -21,5 +21,5 @@ fi
 # --benchmark_out=./build/results/$BM_Name/$Matrix_Size.json
 WORKSPACE=$(realpath $(dirname $0)/..)
 
-MATRIX_DIM=$Matrix_Size perf stat -d -d ${WORKSPACE}/build/BM_Matmul_Float --benchmark_filter=$BM_Name/$Matrix_Size$ --benchmark_time_unit=ms  --benchmark_repetitions=10 --benchmark_report_aggregates_only=false
+MATRIX_DIM=$Matrix_Size perf stat -d -d ${WORKSPACE}/build/BM_Matmul_BFP16 --benchmark_filter=$BM_Name/$Matrix_Size$ --benchmark_time_unit=ms  --benchmark_repetitions=10 --benchmark_report_aggregates_only=false
 

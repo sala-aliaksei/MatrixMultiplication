@@ -3,6 +3,7 @@
 #include <mm/core/Matrix.hpp>
 #include <mm/core/kernels.hpp>
 #include <mm/core/reorderMatrix.hpp>
+#include <mm/core/bf16kernel.hpp>
 
 #include <thread>
 #include <omp.h>
@@ -94,7 +95,14 @@ void matMulZen5(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                         T*       Cc0 = C.data() + N * i_block + j + N * i + j_block;
                         const T* Ac0 = buf + Kc * i;
 
-                        kernels::zen5_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        if constexpr (std::is_same_v<T, std::bfloat16_t>)
+                        {
+                            kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        }
+                        else
+                        {
+                            kernels::zen5_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        }
                     }
                 }
             }
@@ -105,7 +113,8 @@ void matMulZen5(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 template<typename T>
 void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 {
-    constexpr int Nc = 96; // 3072/32=96
+
+    constexpr int Nc = std::is_same_v<T, std::bfloat16_t> ? 96 * 2 : 96; // 3072/32=96
     constexpr int Mc = 96;
     constexpr int Kc = 96;
 
@@ -194,7 +203,16 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                       {
                                           T* Cc0 = C.data() + N * i_block + j + N * i + j_block;
                                           const T* Ac0 = buf + Kc * i;
-                                          kernels::zen5_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                                          if constexpr (std::is_same_v<T, std::bfloat16_t>)
+                                          {
+                                              kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(
+                                                Ac0, Bc1, Cc0, N);
+                                          }
+                                          else
+                                          {
+                                              kernels::zen5_packed_kernel<Nr, Mr, Kc>(
+                                                Ac0, Bc1, Cc0, N);
+                                          }
                                       }
                                   }
                               }

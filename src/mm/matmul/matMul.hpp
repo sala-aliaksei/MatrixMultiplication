@@ -1,8 +1,19 @@
 #pragma once
 #include <mm/core/Matrix.hpp>
 
+#if __STDCPP_FLOAT64_T__ == 1
+#include <stdfloat>
 namespace mm
 {
+void matMul_Naive_Order(const Matrix<std::bfloat16_t>& A,
+                        const Matrix<std::bfloat16_t>& B,
+                        Matrix<std::bfloat16_t>&       C);
+}
+#endif
+
+namespace mm
+{
+
 void matMul_Naive(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 void matMul_Naive_Order(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 void matMul_Naive_Order_KIJ(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
