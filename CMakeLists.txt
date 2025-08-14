@@ -145,9 +145,11 @@ endif()
 
 
 #######    CORE     ##########
+# TODO: Make public and private headers
 add_library(Core SHARED
     src/mm/core/kernels.cpp
     src/mm/core/kernels.hpp
+    src/mm/core/ikernels.hpp
     src/mm/core/Matrix.cpp
     src/mm/core/Matrix.hpp
     src/mm/core/reorderMatrix.hpp
@@ -287,25 +289,143 @@ if(ENABLE_BENCHMARKS)
 
     add_executable(BM_Kernels src/benchmarks/kernelsBenchmarks.cpp)
     target_link_libraries(BM_Kernels benchmark::benchmark Core)
+
+    add_executable(BM_MatmulAutotune src/benchmarks/matMulAutotuneBenchmarks.cpp)
+    target_link_libraries(BM_MatmulAutotune benchmark::benchmark  MatMulAutotune )
 endif()
 
 
 if(ENABLE_UNIT_TESTS)
     find_package(GTest REQUIRED)
+    set(SANITIZER_FLAGS "-fsanitize=address,undefined") # ,undefined -fno-omit-frame-pointer
+    add_library(UnitTestUtils INTERFACE)
+    target_compile_options(UnitTestUtils PUBLIC ${SANITIZER_FLAGS})
+    target_link_options(UnitTestUtils PUBLIC ${SANITIZER_FLAGS})
+    target_link_libraries(UnitTestUtils PUBLIC GTest::gtest GTest::gtest_main)
 
     add_executable(UT_Matmul src/unitTests/UTMatMul.cpp)
-    target_link_libraries(UT_Matmul ${PROJECT_NAME} MatMulAutotune GenAI TPI GTest::gtest GTest::gtest_main )
+    target_link_libraries(UT_Matmul ${PROJECT_NAME} MatMulAutotune GenAI TPI UnitTestUtils)
 
     add_executable(UT_Matmul_BFP16 src/unitTests/UTMatMulBFP16.cpp)
-    target_link_libraries(UT_Matmul_BFP16 ${PROJECT_NAME}  GTest::gtest GTest::gtest_main )
+    target_link_libraries(UT_Matmul_BFP16 ${PROJECT_NAME} UnitTestUtils)
 
     add_executable(UT_Kernels src/unitTests/UTKernels.cpp)
-    target_link_libraries(UT_Kernels Core GTest::gtest GTest::gtest_main )
+    target_link_libraries(UT_Kernels Core UnitTestUtils)
 
     add_executable(UT_Repacking src/unitTests/UTRepacking.cpp)
-    target_link_libraries(UT_Repacking ${PROJECT_NAME} GTest::gtest GTest::gtest_main )
+    target_link_libraries(UT_Repacking ${PROJECT_NAME} UnitTestUtils)
 
     add_executable(UT_Zorder src/unitTests/UTZorder.cpp)
-    target_link_libraries(UT_Zorder ${PROJECT_NAME} GTest::gtest GTest::gtest_main )
+    target_link_libraries(UT_Zorder ${PROJECT_NAME} UnitTestUtils)
+
+    add_executable(UT_Kernels src/unitTests/UTKernels.cpp)
+    target_link_libraries(UT_Kernels Core UnitTestUtils)
+
+    add_executable(UT_Repacking src/unitTests/UTRepacking.cpp)
+    target_link_libraries(UT_Repacking ${PROJECT_NAME} UnitTestUtils)
+endif()
+
+
+
+
+
+# 1. Locate llvm-mca
+find_program(LLVM_MCA_EXECUTABLE
+  NAMES llvm-mca
+  HINTS $ENV{LLVM_HOME}/bin
+)
+if(NOT LLVM_MCA_EXECUTABLE)
+  message(FATAL_ERROR "llvm-mca not found; install LLVM tools or set LLVM_HOME")
+endif()
+
+
+# 3. Optionally let users enable/disable MCA analysis
+option(ENABLE_LLVM_MCA "Run llvm-mca performance analysis" OFF)
+
+if(ENABLE_LLVM_MCA)
+    # 2) Create the output directory for .s/.mca
+    set(MCA_DIR "${CMAKE_BINARY_DIR}/llvm_mca")
+    file(MAKE_DIRECTORY "${MCA_DIR}")
+
+    get_target_property(_SRCS  MatMulAutotune SOURCES)
+    get_target_property(_INC_DIRS Core INCLUDE_DIRECTORIES)
+    get_target_property(_DEFS      MatMulAutotune COMPILE_DEFINITIONS)
+    get_target_property(_OPTS      MatMulAutotune COMPILE_OPTIONS)
+
+    set(MYAPP_SRC "")
+    foreach(f IN LISTS _SRCS)
+      # Make f absolute, assuming it’s relative to the tree root:
+      get_filename_component(abs_f "${CMAKE_SOURCE_DIR}/${f}" ABSOLUTE)
+      list(APPEND MYAPP_SRC "${abs_f}")
+    endforeach()
+
+    # 1. Grab the include dirs:
+
+
+    # 2. Build a list of -I flags:
+    set(MYAPP_INCLUDE_FLAGS)
+    foreach(dir IN LISTS _INC_DIRS)
+      list(APPEND MYAPP_INCLUDE_FLAGS -I${dir})
+    endforeach()
+
+
+
+    set(MYAPP_DEFINE_FLAGS "")
+    foreach(d IN LISTS _DEFS)
+      list(APPEND MYAPP_DEFINE_FLAGS "-D${d}")
+    endforeach()
+
+    # 5. Put it all together
+#    set(MYAPP_COMPILER_FLAGS
+#        ${CMAKE_CXX_FLAGS}
+#        ${MYAPP_DEFINE_FLAGS}
+#    )
+    string(REPLACE " " ";" MYAPP_COMPILER_FLAGS
+        "${CMAKE_CXX_FLAGS} ${MYAPP_DEFINE_FLAGS} -std=c++20"
+    )
+
+    # 3) Custom target using generator expressions
+    add_custom_target(llvm_mca ALL
+      COMMENT "→ Generating assembly and running llvm-mca"
+
+      COMMAND ${CMAKE_CXX_COMPILER}
+        # Emit assembly
+        -S
+        -o "${MCA_DIR}/MatMulAutotune.s"
+
+        ${MYAPP_COMPILER_FLAGS}
+        ${MYAPP_INCLUDE_FLAGS}
+        # Pull in any compile_options you passed via target_compile_options()
+        $<JOIN:$<TARGET_PROPERTY:MulMatrixApp,COMPILE_OPTIONS>," ">
+
+        # Inject all -I paths: private/public + interface includes
+        #-I$<JOIN:$<TARGET_PROPERTY:MulMatrixApp,INCLUDE_DIRECTORIES>," -I">
+
+        # Test with it
+        #"-I$<JOIN:$<TARGET_PROPERTY:MulMatrixApp,INCLUDE_DIRECTORIES>, -I>"
+        #-I$<JOIN:$<TARGET_PROPERTY:MulMatrixApp,INCLUDE_DIRECTORIES>," -I">
+
+        #-I$<JOIN:$<TARGET_PROPERTY:MulMatrixApp,INCLUDE_DIRECTORIES>," -I">
+        #-I$<JOIN:$<TARGET_PROPERTY:MulMatrixApp,INTERFACE_INCLUDE_DIRECTORIES>," -I">
+
+        # And all -D definitions
+        #-D
+        #$<JOIN:$<TARGET_PROPERTY:MulMatrixApp,COMPILE_DEFINITIONS>," -D">
+
+        # Finally, list out the source files (absolute paths under the hood)
+        #$<JOIN:$<TARGET_PROPERTY:MulMatrixApp,SOURCES>," ">
+        ${CMAKE_SOURCE_DIR}/src/mm/matmul/matMulAutotune.cpp
+
+      # Then run llvm-mca over that asm
+      COMMAND ${LLVM_MCA_EXECUTABLE}
+        -mcpu=haswell  #TODO: Can we deduce current cpu architectire?
+        "${MCA_DIR}/MatMulAutotune.s"
+        > "${MCA_DIR}/MatMulAutotune.mca"
+
+      DEPENDS MulMatrixApp
+      VERBATIM
+    )
+
+    message(STATUS "llvm-mca analysis enabled; results in ${MCA_DIR}/MulMatrixApp.mca")
 endif()
 
