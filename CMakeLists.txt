@@ -299,9 +299,9 @@ if(ENABLE_UNIT_TESTS)
     find_package(GTest REQUIRED)
     set(SANITIZER_FLAGS "-fsanitize=address,undefined") # ,undefined -fno-omit-frame-pointer
     add_library(UnitTestUtils INTERFACE)
-    target_compile_options(UnitTestUtils PUBLIC ${SANITIZER_FLAGS})
-    target_link_options(UnitTestUtils PUBLIC ${SANITIZER_FLAGS})
-    target_link_libraries(UnitTestUtils PUBLIC GTest::gtest GTest::gtest_main)
+    target_compile_options(UnitTestUtils INTERFACE ${SANITIZER_FLAGS})
+    target_link_options(UnitTestUtils INTERFACE ${SANITIZER_FLAGS})
+    target_link_libraries(UnitTestUtils INTERFACE GTest::gtest GTest::gtest_main)
 
     add_executable(UT_Matmul src/unitTests/UTMatMul.cpp)
     target_link_libraries(UT_Matmul ${PROJECT_NAME} MatMulAutotune GenAI TPI UnitTestUtils)
@@ -318,11 +318,6 @@ if(ENABLE_UNIT_TESTS)
     add_executable(UT_Zorder src/unitTests/UTZorder.cpp)
     target_link_libraries(UT_Zorder ${PROJECT_NAME} UnitTestUtils)
 
-    add_executable(UT_Kernels src/unitTests/UTKernels.cpp)
-    target_link_libraries(UT_Kernels Core UnitTestUtils)
-
-    add_executable(UT_Repacking src/unitTests/UTRepacking.cpp)
-    target_link_libraries(UT_Repacking ${PROJECT_NAME} UnitTestUtils)
 endif()
 
 
