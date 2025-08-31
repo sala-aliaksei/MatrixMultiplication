@@ -1,14 +1,10 @@
 
 #include "mm/matmul/matMulAutotune.hpp"
 
-// #include "mm/matmul/cmatrix.h"
-
-// #define ENABLE_NAIVE_BENCHMARKS
-
 #include <benchmark/benchmark.h>
 
 // Most of the implementations don't handle matrix tailes, so we need to hardcode the size
-constexpr std::size_t NN        = 4 * 720;
+constexpr std::size_t NN        = 3072;
 constexpr std::size_t ITER_NUM  = 1;
 benchmark::TimeUnit   TIME_UNIT = benchmark::kMillisecond;
 
@@ -34,8 +30,6 @@ static void BM_MatMulAutotune(benchmark::State& state)
 }
 
 #define REGISTER(NAME, DIM) benchmark::RegisterBenchmark(#NAME, NAME)->Arg(DIM);
-//#define REGISTER(NAME, DIM) \
-//    benchmark::RegisterBenchmark(#NAME, NAME)->DenseRange(2880, 2880 * 3, 576);
 
 int main(int argc, char** argv)
 {

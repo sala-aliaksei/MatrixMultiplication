@@ -14,7 +14,6 @@
 #include "mm/matmul/matMulPadding.hpp"
 #include "mm/matmul/matMulRegOpt.hpp"
 #include "mm/matmul/matMulSimd.hpp"
-#include "mm/matmul/matMulZen5.hpp"
 
 #include "benchmark_utils.hpp"
 #include <benchmark/benchmark.h>
@@ -43,7 +42,7 @@ int main(int argc, char** argv)
     REGISTER(BM_MatrixMulParam_Eigen, matrix_dim);
     REGISTER_DOUBLE(matmulBlis, matrix_dim);
 
-    REGISTER_DOUBLE(mm::tpi::matrixMulOpenBlas, matrix_dim);
+    REGISTER_DOUBLE_RANGE(mm::tpi::matrixMulOpenBlas, matrix_dim);
 
     // GenAI
     REGISTER_DOUBLE(matMulClaude, matrix_dim);
@@ -80,10 +79,6 @@ int main(int argc, char** argv)
     REGISTER_DOUBLE(matMulSimd, matrix_dim);
 
     REGISTER_DOUBLE(mm::matMul_Tails, matrix_dim);
-
-    // Zen5
-    REGISTER_DOUBLE(mm::zen5::matMulZen5, matrix_dim);
-    REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlocking, matrix_dim);
 
     benchmark::Initialize(&argc, argv);
     benchmark::RunSpecifiedBenchmarks();

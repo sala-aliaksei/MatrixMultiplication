@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 
+#define massert(x, msg) \
+    (bool((x)) == true ? void(0) : throw std::runtime_error("Assertion failed: " #x " " msg))
+
 class Profiler
 {
   public:

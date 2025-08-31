@@ -280,6 +280,9 @@ if(ENABLE_BENCHMARKS)
     add_executable(BM_Matmul_BFP16 src/benchmarks/matMulBf16Benchmarks.cpp)
     target_link_libraries(BM_Matmul_BFP16 benchmark_utils)
 
+    add_executable(BM_Matmul_Zen5 src/benchmarks/matMulZen5Benchmark.cpp)
+    target_link_libraries(BM_Matmul_Zen5 benchmark_utils)
+
     add_executable(BM_Prefetch src/benchmarks/stride/benchEffectiveColStride.cpp)
     target_link_libraries(BM_Prefetch benchmark::benchmark)
 
@@ -292,12 +295,16 @@ if(ENABLE_BENCHMARKS)
 
     add_executable(BM_MatmulAutotune src/benchmarks/matMulAutotuneBenchmarks.cpp)
     target_link_libraries(BM_MatmulAutotune benchmark::benchmark  MatMulAutotune )
+
+    add_executable(BM_Cache src/benchmarks/cache/cache.cpp)
+    target_link_libraries(BM_Cache benchmark_utils)
 endif()
 
 
 if(ENABLE_UNIT_TESTS)
     find_package(GTest REQUIRED)
     set(SANITIZER_FLAGS "-fsanitize=address,undefined") # ,undefined -fno-omit-frame-pointer
+
     add_library(UnitTestUtils INTERFACE)
     target_compile_options(UnitTestUtils INTERFACE ${SANITIZER_FLAGS})
     target_link_options(UnitTestUtils INTERFACE ${SANITIZER_FLAGS})
@@ -305,6 +312,9 @@ if(ENABLE_UNIT_TESTS)
 
     add_executable(UT_Matmul src/unitTests/UTMatMul.cpp)
     target_link_libraries(UT_Matmul ${PROJECT_NAME} MatMulAutotune GenAI TPI UnitTestUtils)
+
+    add_executable(UT_Matmul_Zen5 src/unitTests/UTMatmulZen5.cpp)
+    target_link_libraries(UT_Matmul_Zen5 ${PROJECT_NAME} MatMulAutotune TPI UnitTestUtils)
 
     add_executable(UT_Matmul_BFP16 src/unitTests/UTMatMulBFP16.cpp)
     target_link_libraries(UT_Matmul_BFP16 ${PROJECT_NAME} UnitTestUtils)
@@ -324,20 +334,23 @@ endif()
 
 
 
-# 1. Locate llvm-mca
-find_program(LLVM_MCA_EXECUTABLE
-  NAMES llvm-mca
-  HINTS $ENV{LLVM_HOME}/bin
-)
-if(NOT LLVM_MCA_EXECUTABLE)
-  message(FATAL_ERROR "llvm-mca not found; install LLVM tools or set LLVM_HOME")
-endif()
 
 
 # 3. Optionally let users enable/disable MCA analysis
 option(ENABLE_LLVM_MCA "Run llvm-mca performance analysis" OFF)
 
-if(ENABLE_LLVM_MCA)
+# CMAKE_CXX_COMPILER_ID doesn't work
+if(ENABLE_LLVM_MCA AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+
+    # 1. Locate llvm-mca
+    find_program(LLVM_MCA_EXECUTABLE
+    NAMES llvm-mca
+    HINTS $ENV{LLVM_HOME}/bin
+    )
+    if(NOT LLVM_MCA_EXECUTABLE)
+    message(FATAL_ERROR "llvm-mca not found; install LLVM tools or set LLVM_HOME")
+    endif()
+
     # 2) Create the output directory for .s/.mca
     set(MCA_DIR "${CMAKE_BINARY_DIR}/llvm_mca")
     file(MAKE_DIRECTORY "${MCA_DIR}")

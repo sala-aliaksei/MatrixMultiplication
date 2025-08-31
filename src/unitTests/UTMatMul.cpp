@@ -11,7 +11,6 @@
 #include "mm/matmul/matMulPadding.hpp"
 #include "mm/matmul/matMulAutotune.hpp"
 #include "mm/matmul/matMulSimd.hpp"
-#include "mm/matmul/matMulZen5.hpp"
 
 #include <gtest/gtest.h> //--gtest_filter=MatrixMulTest.MatMulLoopsRepack
 
@@ -354,18 +353,6 @@ TEST_F(MatrixMulTest, matMulSimd)
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 
-TEST_F(MatrixMulTest, matMulZen5)
-{
-    mm::zen5::matMulZen5(matrices.a, matrices.b, matrices.c);
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
-
-TEST_F(MatrixMulTest, matMulZen5MTBlocking)
-{
-    mm::zen5::matMulZen5MTBlocking(matrices.a, matrices.b, matrices.c);
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
-
 TEST_F(MatrixMulTest, CN_matMul_Tails_Range)
 {
     // TODO: Range???
@@ -612,20 +599,6 @@ TEST_F(MatrixMulTest, HandleITail)
     }
 }
 #endif
-
-/***********   FLOAT 32   ***********/
-TEST_F(MatrixMulFloat32Test, MatMulZen5)
-{
-    mm::zen5::matMulZen5(a, b, c);
-
-    EXPECT_EQ((expected == c), true);
-}
-
-TEST_F(MatrixMulFloat32Test, MatMulZen5MTBlocking)
-{
-    mm::zen5::matMulZen5MTBlocking(a, b, c);
-    EXPECT_EQ((expected == c), true);
-}
 
 /********************       MAIN        ********************/
 

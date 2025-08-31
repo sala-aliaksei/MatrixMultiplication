@@ -14,15 +14,6 @@ constexpr auto GEMM_I = 120; // Q
 constexpr auto GEMM_J = 120; // P
 constexpr auto GEMM_K = 120;
 
-static void massert(bool flag, std::string msg)
-{
-    using namespace std::literals;
-    if (!flag)
-    {
-        throw std::runtime_error("Invalid expression: "s + msg);
-    }
-}
-
 void matMulColOptNaive(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
 
