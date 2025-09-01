@@ -3,7 +3,6 @@
 #include <cstddef> // for size_t
 
 #include <experimental/simd>
-
 #include <immintrin.h>
 
 namespace stdx = std::experimental;
@@ -668,21 +667,26 @@ static void ukernelAr(const double* __restrict ma,
 }
 
 template<int Nr, int Mr, int Kc, typename T>
-static inline void zen5_packed_kernel(const T* __restrict a,
-                                      const T* __restrict b,
-                                      T* __restrict c,
-                                      int N)
+static inline void ukern(const T* __restrict a,
+                         const T* __restrict b,
+                         T* __restrict c,
+                         int N,
+                         int K)
+
 {
     constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
     constexpr int  Nrs{Nr / num_of_elems_in_reg};
     static_assert(Nr % num_of_elems_in_reg == 0, "Nr must be divisible by num_of_elems_in_reg");
 
     fix_simd<T, num_of_elems_in_reg> r[Nrs * Mr] = {};
-    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
+
+    for (int k = 0; k < Kc; ++k, b += N)
     {
-        packed_compute_kernel<Mr, Nrs>(a, b, r);
+        compute_kernel(
+          a, b, r, K, k, std::make_index_sequence<Mr>{}, std::make_index_sequence<Nrs>{});
     }
-    store_kernel<Nrs, Mr>(c, r, N);
+
+    store_kernel<Nrs>(c, r, N, std::make_index_sequence<Mr>{});
 }
 
 } // namespace kernels

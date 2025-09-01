@@ -171,6 +171,21 @@ void transpose_avx2_prefetch(const double* __restrict A,
 } // namespace _details
 
 template<typename T>
+Matrix<T> generateIotaMatrix(int M, int N)
+{
+    std::random_device rd;
+    std::mt19937       gen(rd());
+    T                  iota = 1;
+
+    Matrix<T> matrix(M, N);
+    std::generate(matrix.data(), matrix.data() + matrix.size(), [&] { return iota++; });
+    return matrix;
+}
+
+template Matrix<float>  generateIotaMatrix<float>(int M, int N);
+template Matrix<double> generateIotaMatrix<double>(int M, int N);
+
+template<typename T>
 Matrix<T> generateRandomMatrix(int M, int N)
 {
     std::random_device rd;

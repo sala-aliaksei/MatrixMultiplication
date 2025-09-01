@@ -1,7 +1,9 @@
 #include "mm/matmul/matMulZen5.hpp"
 #include "mm/tpi/matMulOpenBlas.hpp"
+#include "mm/core/layout.hpp"
 
 #include <gtest/gtest.h> //--gtest_filter=MatrixMulTest.MatMulLoopsRepack
+#include <vector>
 
 int GetMatrixDimFromEnv()
 {
@@ -47,15 +49,43 @@ class MatrixMulZen5Test : public testing::Test
     Matrix<double> valid_res;
 };
 
-TEST_F(MatrixMulZen5Test, matMulZen5)
+TEST_F(MatrixMulZen5Test, mm)
 {
     mm::zen5::matMulZen5(a, b, c);
     EXPECT_EQ((valid_res == c), true);
 }
 
-TEST_F(MatrixMulZen5Test, matMulZen5MTBlocking)
+TEST_F(MatrixMulZen5Test, mmblocking)
 {
     mm::zen5::matMulZen5MTBlocking(a, b, c);
+    EXPECT_EQ((valid_res == c), true);
+}
+
+TEST_F(MatrixMulZen5Test, submatrix)
+{
+    // gtest --gtest_filter=MatrixMulZen5Test.matMulZen5Submatrix
+    constexpr std::size_t N  = 512;
+    constexpr std::size_t Mc = 128;
+    constexpr std::size_t Kc = 128;
+    Matrix<double>        at = generateRandomMatrix<double>(N, N);
+
+    constexpr std::size_t i0 = 40;
+    constexpr std::size_t j0 = 41;
+
+    auto tile = mm::core::submatrix<Mc, Kc>(at, i0, j0);
+    for (std::size_t i = 0; i < Mc; i++)
+    {
+        for (std::size_t j = 0; j < Kc; j++)
+        {
+            EXPECT_EQ((tile[i, j] == at(i0 + i, j0 + j)), true);
+        }
+    }
+}
+
+TEST_F(MatrixMulZen5Test, mdspan)
+{
+    // MatrixMulZen5Test.MatMulZen5MTBlockingSpan
+    mm::zen5::matMulZen5MTBlockingSpan(a, b, c);
     EXPECT_EQ((valid_res == c), true);
 }
 
@@ -117,4 +147,243 @@ TEST_F(MatrixMulZen5Float32Test, MatMulZen5MTBlockingTails)
 {
     mm::zen5::matMulZen5MTBlockingTails(a, b, c);
     EXPECT_EQ((expected == c), true);
+}
+
+TEST_F(MatrixMulZen5Test, B_IndexMappingAndContiguity)
+{
+    using mm::core::layout_blocked_colmajor;
+
+    constexpr std::size_t M  = 8; // deliberately not multiples of tile
+    constexpr std::size_t N  = 8;
+    constexpr std::size_t Mc = 6;
+    constexpr std::size_t Nc = 4;
+    constexpr std::size_t Mr = 2;
+    constexpr std::size_t Nr = 2;
+
+    static_assert(Mc % Mr == 0, "Mc%  Mr == 0");
+    static_assert(Nc % Nr == 0, "Nc%  Nr == 0");
+
+    Matrix<double> at = generateIotaMatrix<double>(M, N);
+
+    constexpr std::size_t iofs = 1;
+    constexpr std::size_t jofs = 1;
+
+    using tile_ext_t = std::extents<std::size_t, Nc / Nr, Nr * Mc>;
+    layout_blocked_colmajor<Nr>::mapping<tile_ext_t> mapping(tile_ext_t{}, M, N, iofs, jofs);
+
+    constexpr std::size_t required = Mc * Nc;
+    ASSERT_EQ(mapping.required_span_size(), required);
+
+    // TODO: Use submatrix for ms
+    // std::mdspan<double, std::extents<std::size_t, Mc, Nc>> submatrix(&at(iofs, jofs),
+    // tile_ext_t{});
+
+    // std::mdspan<double, tile_ext_t, layout_blocked_colmajor<Nr>> ms(at.data(), mapping);
+    std::mdspan ms(at.data(), mapping);
+
+    auto map2 = ms.mapping();
+
+    std::cout << "-------- ms matrix----------" << std::endl;
+    for (std::size_t i = 0; i < ms.extent(0); ++i)
+    {
+        for (std::size_t j = 0; j < ms.extent(1); ++j)
+        {
+            std::cout << ms[i, j] << " ";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << "-------- at matrix----------" << std::endl;
+    for (std::size_t i = 0; i < Mc; ++i)
+    {
+        for (std::size_t j = 0; j < Nc; ++j)
+        {
+            std::cout << at(i + iofs, j + jofs) << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    int idx = 0;
+    for (std::size_t j = 0; j < Nc; j += Nr)
+    {
+        for (std::size_t i = 0; i < Mc; i += Mr)
+        {
+            for (std::size_t i2 = 0; i2 < Mr; i2 += 1)
+            {
+                for (std::size_t j2 = 0; j2 < Nr; ++j2)
+                {
+                    auto val  = ms[idx / ms.extent(1), idx % ms.extent(1)];
+                    auto val2 = at(i + i2, j + j2);
+
+                    std::cout << "idx: " << idx << ",  val[ " << i + i2 << ",  " << j + j2
+                              << "] = " << val2 << ", val1 = " << val << std::endl;
+
+                    ASSERT_EQ(val, val2);
+                    idx++;
+                }
+            }
+        }
+    }
+}
+
+TEST_F(MatrixMulZen5Test, A_IndexMappingAndContiguity)
+{
+
+    using namespace mm::core;
+
+    constexpr std::size_t M  = 8; // deliberately not multiples of tile
+    constexpr std::size_t N  = 8;
+    constexpr std::size_t Mc = 6;
+    constexpr std::size_t Nc = 4;
+    constexpr std::size_t Mr = 2;
+    constexpr std::size_t Nr = 2;
+
+    static_assert(Mc % Mr == 0, "Mc%  Mr == 0");
+    static_assert(Nc % Nr == 0, "Nc%  Nr == 0");
+
+    Matrix<double> at = generateIotaMatrix<double>(M, N);
+
+    constexpr std::size_t iofs = 0;
+    constexpr std::size_t jofs = 0;
+
+    using tile_ext_t = std::extents<std::size_t, Mc / Mr, Mr * Nc>;
+    layout_microtile_colorder<Mr, Nr>::mapping mapping(tile_ext_t{}, M, N, iofs, jofs);
+
+    constexpr std::size_t required = Mc * Nc;
+    ASSERT_EQ(mapping.required_span_size(), required);
+
+    // TODO: Use submatrix for ms
+    // std::mdspan<double, std::extents<std::size_t, Mc, Nc>> submatrix(&at(iofs, jofs),
+    // tile_ext_t{});
+
+    // std::mdspan<double, tile_ext_t, layout_blocked_colmajor<Nr>> ms(at.data(), mapping);
+    std::mdspan ms(at.data(), mapping);
+
+    auto map2 = ms.mapping();
+
+    std::cout << "-------- ms matrix----------" << std::endl;
+    for (std::size_t i = 0; i < ms.extent(0); ++i)
+    {
+        for (std::size_t j = 0; j < ms.extent(1); ++j)
+        {
+            std::cout << ms[i, j] << " ";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << "-------- at matrix----------" << std::endl;
+    for (std::size_t i = 0; i < Mc; ++i)
+    {
+        for (std::size_t j = 0; j < Nc; ++j)
+        {
+            std::cout << at(i + iofs, j + jofs) << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    int idx = 0;
+    for (std::size_t i = 0; i < Mc; i += Mr)
+    {
+        for (std::size_t j = 0; j < Nc; j += Nr)
+        {
+            for (std::size_t j2 = 0; j2 < Nr; ++j2)
+            {
+                for (std::size_t i2 = 0; i2 < Mr; i2 += 1)
+                {
+
+                    auto val  = ms[idx / ms.extent(1), idx % ms.extent(1)];
+                    auto val2 = at(i + i2, j + j2);
+
+                    std::cout << "idx: " << idx << ",  val[ " << i + i2 << ",  " << j + j2
+                              << "] = " << val2 << ", val1 = " << val << std::endl;
+
+                    ASSERT_EQ(val, val2);
+                    idx++;
+                }
+            }
+        }
+    }
+}
+
+TEST_F(MatrixMulZen5Test, C_IndexMappingAndContiguity)
+{
+
+    using namespace mm::core;
+
+    constexpr std::size_t M  = 8; // deliberately not multiples of tile
+    constexpr std::size_t N  = 8;
+    constexpr std::size_t Mc = 6;
+    constexpr std::size_t Nc = 4;
+    constexpr std::size_t Mr = 2;
+    constexpr std::size_t Nr = 2;
+
+    static_assert(Mc % Mr == 0, "Mc%  Mr == 0");
+    static_assert(Nc % Nr == 0, "Nc%  Nr == 0");
+
+    Matrix<double> at = generateIotaMatrix<double>(M, N);
+
+    constexpr std::size_t iofs = 0;
+    constexpr std::size_t jofs = 0;
+
+    using tile_ext_t = std::extents<std::size_t, Mc / Mr, Mr * Nc>;
+    layout_microtile_colorder<Mr, Nr>::mapping mapping(tile_ext_t{}, M, N, iofs, jofs);
+
+    constexpr std::size_t required = Mc * Nc;
+    ASSERT_EQ(mapping.required_span_size(), required);
+
+    // TODO: Use submatrix for ms
+    // std::mdspan<double, std::extents<std::size_t, Mc, Nc>> submatrix(&at(iofs, jofs),
+    // tile_ext_t{});
+
+    // std::mdspan<double, tile_ext_t, layout_blocked_colmajor<Nr>> ms(at.data(), mapping);
+    std::mdspan ms(at.data(), mapping);
+
+    auto map2 = ms.mapping();
+
+    std::cout << "-------- ms matrix----------" << std::endl;
+    for (std::size_t i = 0; i < ms.extent(0); ++i)
+    {
+        for (std::size_t j = 0; j < ms.extent(1); ++j)
+        {
+            std::cout << ms[i, j] << " ";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << "-------- at matrix----------" << std::endl;
+    for (std::size_t i = 0; i < Mc; ++i)
+    {
+        for (std::size_t j = 0; j < Nc; ++j)
+        {
+            std::cout << at(i + iofs, j + jofs) << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    int idx = 0;
+    for (std::size_t i = 0; i < Mc; i += Mr)
+    {
+        for (std::size_t j = 0; j < Nc; j += Nr)
+        {
+            for (std::size_t j2 = 0; j2 < Nr; ++j2)
+            {
+                for (std::size_t i2 = 0; i2 < Mr; i2 += 1)
+                {
+
+                    auto val  = ms[idx / ms.extent(1), idx % ms.extent(1)];
+                    auto val2 = at(i + i2, j + j2);
+
+                    std::cout << "idx: " << idx << ",  val[ " << i + i2 << ",  " << j + j2
+                              << "] = " << val2 << ", val1 = " << val << std::endl;
+
+                    ASSERT_EQ(val, val2);
+                    idx++;
+                }
+            }
+        }
+    }
+
+    // error for md span with rank 2
+    // TODO: Can error be improved?
+    // for (std::size_t i = 0; i < ms.size(); i++)
+    // {
+    //     std::cout << ms[i] << " ";
+    // }
 }

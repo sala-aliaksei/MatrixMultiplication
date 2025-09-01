@@ -1,14 +1,18 @@
 #pragma once
 
 #include <mm/core/Matrix.hpp>
-#include <mm/core/kernels.hpp>
+#include <mm/core/zen5kernels.hpp>
 #include <mm/core/reorderMatrix.hpp>
 #include <mm/core/bf16kernel.hpp>
 #include <mm/core/utils/utils.hpp>
+#include <mm/core/layout.hpp>
+#include <mm/core/utils/algorithms.hpp>
 
+#include <mdspan>
 #include <thread>
 #include <algorithm>
 #include <omp.h>
+#include <array>
 
 #ifdef __linux__
 #include <pthread.h>
@@ -138,7 +142,7 @@ void matMulZen5(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
     }
 }
 
-static inline int map_integer(int n)
+constexpr int map_thread_id_to_core_id(int n)
 {
     // // Check if the input is within the specified range [0, 31].
     // if (n < 0 || n > 31) {
@@ -209,13 +213,13 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
         workers.emplace_back(
           [&, t]()
           {
-              auto      core_id = map_integer(t);
+              auto      core_id = map_thread_id_to_core_id(t);
               cpu_set_t cpuset;
               CPU_ZERO(&cpuset);
               CPU_SET(core_id, &cpuset);
               (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
-              const std::size_t ofs = static_cast<std::size_t>(t) * Kc * (Mc + Nc);
+              const std::size_t ofs = t * Kc * (Mc + Nc);
               T* const          buf = buffer.data() + ofs;
 
               // Thread's grid coords
@@ -280,7 +284,7 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 template<typename T>
 void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 {
-    constexpr int Nc = 96; // 3072/32=96
+    constexpr int Nc = 96;
     constexpr int Mc = 96;
     constexpr int Kc = 96 * 2;
 
@@ -293,15 +297,6 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
     constexpr int Kr = 1;
     constexpr int Nr = bregs_cnt * num_of_elems_in_reg; // 24
     constexpr int Mr{8}; //{(num_of_regs - aregs_cnt - bregs_cnt) / bregs_cnt};
-
-    //  creg_cnt = (bregs_cnt + aregs_cnt) * Mr
-    //          -------------------------
-    //          | breg1 | breg2 | breg3 |
-    //          -------------------------
-    // cregs    | breg1 | breg2 | breg3 |   areg
-    //          .........................
-    //          | breg1 | breg2 | breg3 |
-    //          -------------------------
 
     static_assert(Nr % num_of_elems_in_reg == 0, "Nr must be divisible by num_of_elems_in_reg");
 
@@ -431,6 +426,167 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
         workers.emplace_back([&, t]() { worker_fn(t); });
     }
     worker_fn(grid_threads - 1);
+}
+
+template<typename T>
+void matMulZen5MTBlockingSpan(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C) noexcept
+{
+    using namespace mm::core;
+    constexpr int Nc = MatMulZen5Config<T>::Nc;
+    constexpr int Mc = MatMulZen5Config<T>::Mc;
+    constexpr int Kc = MatMulZen5Config<T>::Kc;
+
+    constexpr auto num_of_regs = 32;
+    constexpr auto bregs_cnt   = 3;
+    constexpr auto aregs_cnt   = 1;
+
+    constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
+
+    constexpr int Nr{bregs_cnt * num_of_elems_in_reg};
+    constexpr int Mr{8};
+    constexpr int Kr{1};
+
+    static_assert(Mc % Mr == 0, "invalid Mc cache/reg size of the block");
+    static_assert(Nc % Nr == 0, "invalid Nc cache/reg size of the block");
+    static_assert(Kc % Kr == 0, "invalid Kc cache/reg size of the block");
+
+    const int N = static_cast<int>(B.col());
+    const int K = static_cast<int>(A.col());
+    const int M = static_cast<int>(A.row());
+
+    massert(N % Nc == 0, "N % Nc == 0");
+    massert(K % Kc == 0, "K % Kc == 0");
+    massert(M % Mc == 0, "M % Mc == 0");
+
+    // Fixed thread grid 4x8 → 32 threads
+    constexpr int      GRID_I      = 4;
+    constexpr int      GRID_J      = 8;
+    constexpr unsigned num_threads = GRID_I * GRID_J;
+
+    constexpr auto tiles_size = Kc * (Mr + Nr);
+
+    using b_tile_ext_t = std::extents<std::size_t, Nc / Nr, Nr * Kc>;
+    using a_tile_ext_t = std::extents<std::size_t, Mc / Mr, Mr * Kc>;
+
+    // static_assert(
+    //     b_tile.static_extent(1)
+    //       == b_utile.static_extent(1) * b_utile.static_extent(0),
+    //     "b_tile.static_extent(1) != b_utile.static_extent(1) * "
+    //     "b_utile.static_extent(0)");
+
+    //   static_assert(
+    //     a_tile.static_extent(1)
+    //       == a_utile.static_extent(1) * a_utile.static_extent(0),
+    //     "a_tile.static_extent(1) != a_utile.static_extent(1) * "
+    //     "b_utile.static_extent(0)");
+
+    // static_assert(b_utile.static_extent(0) == Kc, "b_utile.static_extent(0) != Kc");
+    // static_assert(b_utile.static_extent(1) == Nr, "b_utile.static_extent(1) != Nr");
+    // static_assert(a_utile.static_extent(0) == Kc, "a_utile.static_extent(0) != Kc");
+    // static_assert(a_utile.static_extent(1) == Mr, "a_utile.static_extent(1) != Mr");
+
+    std::vector<T, boost::alignment::aligned_allocator<T, PAGE_SIZE>> buffer(num_threads
+                                                                             * tiles_size);
+
+    // Square-chunking in block units
+    constexpr int ChunkBlocks = 2; // tiles per side in a chunk (Mc/Nc multiples)
+    const int     blocksI     = M / Mc;
+    const int     blocksJ     = N / Nc;
+    const int     chunkRows   = (blocksI + ChunkBlocks - 1) / ChunkBlocks;
+    const int     chunkCols   = (blocksJ + ChunkBlocks - 1) / ChunkBlocks;
+
+    std::vector<std::jthread> workers;
+    workers.reserve(num_threads);
+
+    // static_for<0, num_threads>(
+    //   [&]<int t>()
+    for (int t = 0; t < num_threads; ++t)
+    {
+        workers.emplace_back(
+          [&, t]()
+          {
+              // core id will be the same for threads which share resources
+              auto core_id = map_thread_id_to_core_id(t);
+
+              cpu_set_t cpuset;
+              CPU_ZERO(&cpuset);
+              CPU_SET(core_id, &cpuset);
+              (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+
+              T* const buf = buffer.data() + t * tiles_size;
+
+              std::mdspan<T, std::extents<std::size_t, Kc, Mr>> a_utile(buf, Kc, Mr);
+              std::mdspan<T, std::extents<std::size_t, Kc, Nr>> b_utile(
+                buf + a_utile.size(), Kc, Nr);
+
+              // Thread's grid coords
+              int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
+              int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
+
+              for (int chi = ti; chi < chunkRows; chi += GRID_I)
+              {
+                  for (int chj = tj; chj < chunkCols; chj += GRID_J)
+                  {
+                      const int ibegin = chi * ChunkBlocks;
+                      const int iend   = std::min(ibegin + ChunkBlocks, blocksI);
+                      const int jbegin = chj * ChunkBlocks;
+                      const int jend   = std::min(jbegin + ChunkBlocks, blocksJ);
+
+                      for (int k_block = 0; k_block < K; k_block += Kc)
+                      {
+                          for (int jb = jbegin; jb < jend; ++jb)
+                          {
+                              const int j_block = jb * Nc;
+
+                              typename layout_blocked_colmajor<Nr>::mapping b_mapping(
+                                b_tile_ext_t{}, M, N, k_block, j_block);
+                              std::mdspan b_tile(B.data(), b_mapping);
+
+                              for (int ib = ibegin; ib < iend; ++ib)
+                              {
+                                  const int i_block = ib * Mc;
+
+                                  typename layout_microtile_colorder<Mr, Nr>::mapping a_mapping(
+                                    a_tile_ext_t{}, M, N, i_block, k_block);
+                                  std::mdspan a_tile(A.data(), a_mapping);
+
+                                  for (int j = 0; j < Nc; j += Nr)
+                                  {
+                                      int tile_idx{0};
+                                      for (int kdx = 0; kdx < b_utile.static_extent(0); kdx++)
+                                      {
+                                          for (int jdx = 0; jdx < b_utile.static_extent(1); jdx++)
+                                          {
+                                              b_utile[kdx, jdx] = b_tile[j / Nr, tile_idx++];
+                                          }
+                                      }
+
+                                      for (int i = 0; i < Mc; i += Mr)
+                                      {
+                                          // Retrive next a_utile
+                                          int tile_idx{0};
+                                          // int tile_col;
+                                          for (int kdx = 0; kdx < a_utile.static_extent(0); kdx++)
+                                          {
+                                              for (int idx = 0; idx < a_utile.static_extent(1);
+                                                   idx++)
+                                              {
+                                                  a_utile[kdx, idx] = a_tile[i / Mr, tile_idx++];
+                                              }
+                                          }
+
+                                          T* Cc0 = &C(i_block + i, j_block + j);
+                                          kernels::zen5_mdspan_kernel(a_utile, b_utile, Cc0, N);
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          });
+    }
+    //});
 }
 
 } // namespace mm::zen5

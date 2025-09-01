@@ -145,72 +145,6 @@ void reorderRowMajorPaddingMatrix(const double* b, int cols, double* dest)
     }
 }
 
-enum class TileLayout
-{
-    ColMajor,
-    RowMajor,
-};
-
-template<TileLayout layout, Shape2D micro_tile, typename T>
-inline void toTileLayoutWithPadding(const T* __restrict matrix,
-                                    int cols,
-                                    T* __restrict dest,
-                                    const Shape2D& shape,
-                                    const Shape2D& tail)
-{
-    const int     Ic = shape[0];
-    const int     Jc = shape[1];
-    constexpr int Ir = micro_tile[0];
-    constexpr int Jr = micro_tile[1];
-
-    const int tailIc = tail[0];
-    const int tailJc = tail[1];
-
-    if constexpr (layout == TileLayout::ColMajor)
-    {
-        int idx = 0;
-        // this part jump to another tile
-        for (int i = 0; i < Ic; i += Ir)
-        {
-            for (int j = 0; j < Jc; j += Jr)
-            {
-                // this part do the tile layout
-                for (int jc = 0; jc < Jr; ++jc)
-                {
-                    for (int ic = 0; ic < Ir; ++ic)
-                    {
-                        const int row = i + ic;
-                        const int col = j + jc;
-                        dest[idx++] =
-                          (row < tailIc && col < tailJc) ? matrix[row * cols + col] : T(0);
-                    }
-                }
-            }
-        }
-    }
-    else
-    {
-
-        int idx = 0;
-        for (int j = 0; j < Jc; j += Jr)
-        {
-            for (int i = 0; i < Ic; i += Ir)
-            {
-                for (int ic = 0; ic < Ir; ++ic)
-                {
-                    const int row  = i + ic;
-                    const int base = row * cols;
-                    for (int jc = 0; jc < Jr; ++jc)
-                    {
-                        const int col = j + jc;
-                        dest[idx++]   = (row < tailIc && col < tailJc) ? matrix[base + col] : T(0);
-                    }
-                }
-            }
-        }
-    }
-}
-
 template<int Mr, int Nr>
 void reorderColOrderMatrixTail(const double* matrix, int N, double* dest, int Mc, int Nc)
 {
@@ -354,10 +288,10 @@ void reorderColOrderMatrix(const T* matrix, int cols, T* dest)
 // reading only rowsToCopy x colsToCopy elements from source and zero-filling the rest
 template<int Mc, int Kc, int Mr, int Kr, typename T>
 inline void reorderColOrderMatrixPadded(const T* __restrict matrix,
-                                        int                 cols,
-                                        T* __restrict       dest,
-                                        int                 rowsToCopy,
-                                        int                 colsToCopy)
+                                        int cols,
+                                        T* __restrict dest,
+                                        int rowsToCopy,
+                                        int colsToCopy)
 {
     static_assert(Mc % Mr == 0, "Invalid m pattern");
     static_assert(Kc % Kr == 0, "Invalid k pattern");
@@ -371,10 +305,10 @@ inline void reorderColOrderMatrixPadded(const T* __restrict matrix,
             {
                 for (int ic = 0; ic < Mr; ++ic)
                 {
-                    const int row = i + ic;
-                    const int col = j + jc;
+                    const int  row    = i + ic;
+                    const int  col    = j + jc;
                     const bool inside = (row < rowsToCopy) && (col < colsToCopy);
-                    dest[idx++] = inside ? matrix[row * cols + col] : T(0);
+                    dest[idx++]       = inside ? matrix[row * cols + col] : T(0);
                 }
             }
         }
@@ -385,10 +319,10 @@ inline void reorderColOrderMatrixPadded(const T* __restrict matrix,
 // reading only rowsToCopy x colsToCopy elements from source and zero-filling the rest
 template<int Kc, int Nc, int Kr, int Nr, typename T>
 inline void reorderRowMajorMatrixPadded(const T* __restrict matrix,
-                                        int                 cols,
-                                        T* __restrict       dest,
-                                        int                 rowsToCopy,
-                                        int                 colsToCopy)
+                                        int cols,
+                                        T* __restrict dest,
+                                        int rowsToCopy,
+                                        int colsToCopy)
 {
     static_assert(Nc % Nr == 0, "Invalid n pattern");
     static_assert(Kc % Kr == 0, "Invalid k pattern");
@@ -404,9 +338,9 @@ inline void reorderRowMajorMatrixPadded(const T* __restrict matrix,
                 const int base   = srcRow * cols;
                 for (int jc = 0; jc < Nr; ++jc)
                 {
-                    const int srcCol = j + jc;
+                    const int  srcCol = j + jc;
                     const bool inside = (srcRow < rowsToCopy) && (srcCol < colsToCopy);
-                    dest[idx++] = inside ? matrix[base + srcCol] : T(0);
+                    dest[idx++]       = inside ? matrix[base + srcCol] : T(0);
                 }
             }
         }

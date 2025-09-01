@@ -188,3 +188,6 @@ bool operator==(const MatrixSet&, const MatrixSet&);
 
 template<typename T>
 Matrix<T> generateRandomMatrix(int M, int N);
+
+template<typename T>
+Matrix<T> generateIotaMatrix(int M, int N);
