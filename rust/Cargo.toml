@@ -1,5 +1,5 @@
 [package]
-name = "matrixMul"
+name = "matrix_mul"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,3 +11,11 @@ rpath = false
 
 [dependencies]
 rayon = "1.5"
+libc = "0.2"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "mm_benchmark"
+harness = false

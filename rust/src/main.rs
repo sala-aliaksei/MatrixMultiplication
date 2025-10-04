@@ -1,9 +1,14 @@
 use rayon::prelude::*;
 use std::arch::x86_64::*;
+use matrix_mul::matmul::mat_mul_zen5_mt_blocking_f64;
+use matrix_mul::matmul::Matrix;
+use matrix_mul::matmul::golden_matmul;
+
+
 
 /// Multiplies matrices A and B, storing the result in C.
 /// A is an m x k matrix, B is a k x n matrix, and C is an m x n matrix.
-pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, k: usize, n: usize) {
+pub fn matmul_impl(a: &[f64], b: &[f64], c: &mut [f64], m: usize, k: usize, n: usize) {
     assert!(a.len() == m * k, "Matrix A dimensions do not match.");
     assert!(b.len() == k * n, "Matrix B dimensions do not match.");
     assert!(c.len() == m * n, "Matrix C dimensions do not match.");
@@ -52,17 +57,28 @@ pub fn matmul(a: &[f64], b: &[f64], c: &mut [f64], m: usize, k: usize, n: usize)
 }
 
 fn main() {
-    let N = 256* 8 * 4 * 2;
-    let m = N; // Rows in A and C
-    let k = N; // Columns in A and rows in B
-    let n = N; // Columns in B and C
+    let n = 3072;// Columns in B and C
+    let m = n; // Rows in A and C
+    let k = n; // Columns in A and rows in B
 
-    let a = vec![1.0_f64; m * k]; // Initialize matrix A with double-precision floats
-    let b = vec![1.0_f64; k * n]; // Initialize matrix B
-    let mut c = vec![0.0_f64; m * n]; // Initialize matrix C
 
-    matmul(&a, &b, &mut c, m, k, n);
+    let a = Matrix::new(m, k);
+    let b = Matrix::new(k, n);
+    let mut c = Matrix::new(m, n);
+    let mut c_golden = Matrix::new(m, n);
 
-    // c now contains the result of A * B
-    // Optionally, print or verify the result
+    // print execution time
+    let start = std::time::Instant::now();
+    golden_matmul(&a, &b, &mut c_golden);
+    let end = std::time::Instant::now();
+    println!("Execution time: {:?}", end - start);
+
+    let start = std::time::Instant::now();
+    mat_mul_zen5_mt_blocking_f64(&a, &b, &mut c);
+    let end = std::time::Instant::now();
+    println!("Execution time: {:?}", end - start);
+
+
+    assert!(c.eq(&c_golden), "Matrices c and c_golden are not equal!");
+    println!("c and c_golden are equal");
 }
