@@ -58,7 +58,6 @@ struct layout_microtile_colorder
             return _extents;
         }
 
-        // Required span size reserves full tile capacity including tails (with padding)
         [[nodiscard]] constexpr index_type required_span_size() const noexcept
         {
             return _extents.static_extent(0) * _extents.static_extent(1);
@@ -67,12 +66,10 @@ struct layout_microtile_colorder
         template<class I0, class I1>
         [[nodiscard]] constexpr index_type operator()(I0 i0, I1 j0) const noexcept
         {
-            // i0 in [0, Mc/Mr), j0 in [0, Mr*Nc)
-            // Decompose j0 into (ic, q), where q selects source column within Nc range
-            const index_type ic = static_cast<index_type>(j0) % Mr; // 0..Mr-1
-            const index_type q  = static_cast<index_type>(j0) / Mr; // 0..Nc-1
-            const index_type jc = q % Nr;                           // 0..Nr-1
-            const index_type jb = q / Nr;                           // 0..(Nc/Nr)-1
+            const index_type ic = static_cast<index_type>(j0) % Mr;
+            const index_type q  = static_cast<index_type>(j0) / Mr;
+            const index_type jc = q % Nr;
+            const index_type jb = q / Nr;
 
             const index_type row = _iofs + static_cast<index_type>(i0) * Mr + ic;
             const index_type col = _jofs + jb * Nr + jc;
@@ -116,7 +113,6 @@ struct layout_microtile_colorder
             return false;
         }
 
-        // Optional: expose stride when it would be queried conditionally
         [[nodiscard]] constexpr index_type stride(std::size_t) const noexcept
         {
             return 0;
@@ -188,24 +184,6 @@ struct layout_blocked_colmajor
             const index_type j = i0 * Nr + j0 % Nr;
 
             return i * _N + j;
-
-            // opposite mapping
-            // const index_type i = static_cast<index_type>(i0);
-            // const index_type j = static_cast<index_type>(j0);
-            // (void)_extents; // bounds assumed valid by mdspan
-
-            // constexpr index_type Mc = _extents.static_extent(1) / Nr;
-            // constexpr index_type Nc = _extents.static_extent(0) / Mr;
-
-            // const index_type n_tile = j / (Nr);
-            // const index_type ofs    = j % Nr + i * Nr;
-
-            // // std::cout << "\ni: " << i << ", j: " << j << ", n_tile: " << n_tile << ", ofs: "
-            // <<
-            // // ofs
-            // //           << std::endl;
-
-            // return (n_tile)*_extents.static_extent(1) + (ofs);
         }
 
         // Traits
@@ -390,46 +368,68 @@ namespace
 } // namespace
 
 template<std::size_t Mc, std::size_t Kc, typename T>
-std::mdspan<T, shape_t<Mc, Kc>, std::layout_stride> submatrix(Matrix<T>&  m,
-                                                              std::size_t i0,
-                                                              std::size_t j0)
+std::mdspan<const T, shape_t<Mc, Kc>, std::layout_stride> submatrix(const Matrix<T>& m,
+                                                                    std::size_t      i0,
+                                                                    std::size_t      j0)
 {
     auto mapping = std::layout_stride::mapping<shape_t<Mc, Kc>>(
       shape_t<Mc, Kc>{},
       std::array<std::size_t, 2>{static_cast<std::size_t>(m.col()), std::size_t{1}});
-    return std::mdspan<T, shape_t<Mc, Kc>, std::layout_stride>(&m(i0, j0), mapping);
+    return std::mdspan<const T, shape_t<Mc, Kc>, std::layout_stride>(&m(i0, j0), mapping);
 }
 
-// template<typename SubMatrix, typename Tile>
-// void toTileLayout(SubMatrix submatrix, Tile tile)
-// {
-//     static_assert(tile.static_extent(0) == 1,
-//                   "tile.static_extent(0) != 1, but we optimize for tile.static_extent(0) =1");
-//     // reorder B; J I I J order
+template<typename T, std::size_t Kc, std::size_t Nc, std::size_t Nr>
+void initBTile(
+  std::mdspan<const T, std::extents<std::size_t, Kc, Nc>, std::layout_stride> submatrix,
+  std::mdspan<T, std::extents<std::size_t, Kc, Nr>>                           utile)
+{
+    /*
+     * ------->
+     *      -
+     *    -
+     *  -
+     * ------->
+     *
+     */
 
-//     /*
-//      * ------->
-//      *      -
-//      *    -
-//      *  -
-//      * ------->
-//      *
-//      */
+    int            idx           = 0;
+    constexpr auto prefetch_type = _MM_HINT_NTA;
 
-//     int            idx           = 0;
-//     constexpr auto prefetch_type = _MM_HINT_NTA;
+    //_mm_prefetch(b + jb + j, prefetch_type);
+    for (int i = 0; i < utile.static_extent(0); i++)
+    {
+        //_mm_prefetch(b + (i + 1) * cols + j, prefetch_type);
+        inline_memcpy(
+          utile.data_handle() + i, &submatrix[i, 0], utile.static_extent(1) * sizeof(T));
+    }
+}
 
-//     for (int j = 0; j < N; j += jb)
-//     {
-//         //_mm_prefetch(b + jb + j, prefetch_type);
-//         for (int i = 0; i < M; i += ib)
-//         {
-//             // what is dependency of the offset from type?
-//             //_mm_prefetch(b + (i + 1) * cols + j, prefetch_type);
-//             inline_memcpy(utile + idx, &tile(i, j), sizeof(T) * jb);
-//             idx += jb;
-//         }
-//     }
-// }
+template<std::size_t Mc, std::size_t Kc, std::size_t Mr, typename T>
+void initATile(
+  std::mdspan<const T, std::extents<std::size_t, Mc, Kc>, std::layout_stride> submatrix,
+  std::mdspan<T, std::extents<std::size_t, Kc, Mr>>                           utile)
+{
+    /*
+    |   ^|
+    |  | |
+    | |  |
+    ||   |
+    v    v
+    */
+
+    static_assert(Mc % Mr == 0, "Invalid m pattern");
+
+    int  idx = 0;
+    auto dst = utile.data_handle();
+    {
+        for (int j = 0; j < submatrix.static_extent(1); j++)
+        {
+            for (int ic = 0; ic < Mr; ++ic)
+            {
+                dst[idx++] = submatrix[(ic), j];
+            }
+        }
+    }
+}
 
 } // namespace mm::core

@@ -89,6 +89,13 @@ TEST_F(MatrixMulZen5Test, mdspan)
     EXPECT_EQ((valid_res == c), true);
 }
 
+TEST_F(MatrixMulZen5Test, mdspan_l1)
+{
+
+    mm::zen5::matMulZen5MTBlockingL1(a, b, c);
+    EXPECT_EQ((valid_res == c), true);
+}
+
 /***********   FLOAT 32   ***********/
 
 class MatrixMulZen5Float32Test : public testing::Test

@@ -589,4 +589,121 @@ void matMulZen5MTBlockingSpan(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>&
     //});
 }
 
+template<typename T>
+void matMulZen5MTBlockingL1(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C) noexcept
+{
+    using namespace mm::core;
+    constexpr std::size_t Nc = MatMulZen5Config<T>::Nc;
+    constexpr std::size_t Mc = MatMulZen5Config<T>::Mc;
+    constexpr std::size_t Kc = MatMulZen5Config<T>::Kc;
+
+    constexpr auto num_of_regs = 32;
+    constexpr auto bregs_cnt   = 3;
+    constexpr auto aregs_cnt   = 1;
+
+    constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
+
+    constexpr int Nr{bregs_cnt * num_of_elems_in_reg};
+    constexpr int Mr{8};
+    constexpr int Kr{1};
+
+    static_assert(Mc % Mr == 0, "invalid Mc cache/reg size of the block");
+    static_assert(Nc % Nr == 0, "invalid Nc cache/reg size of the block");
+    static_assert(Kc % Kr == 0, "invalid Kc cache/reg size of the block");
+
+    const int N = static_cast<int>(B.col());
+    const int K = static_cast<int>(A.col());
+    const int M = static_cast<int>(A.row());
+
+    massert(N % Nc == 0, "N % Nc == 0");
+    massert(K % Kc == 0, "K % Kc == 0");
+    massert(M % Mc == 0, "M % Mc == 0");
+
+    // Fixed thread grid 4x8 → 32 threads
+    constexpr int      GRID_I      = 4;
+    constexpr int      GRID_J      = 8;
+    constexpr unsigned num_threads = GRID_I * GRID_J;
+
+    constexpr auto tiles_size = Kc * (Mr + Nr);
+
+    std::vector<T, boost::alignment::aligned_allocator<T, PAGE_SIZE>> buffer(num_threads
+                                                                             * tiles_size);
+
+    // Square-chunking in block units
+    constexpr int ChunkBlocks = 2; // tiles per side in a chunk (Mc/Nc multiples)
+    const int     blocksI     = M / Mc;
+    const int     blocksJ     = N / Nc;
+    const int     chunkRows   = (blocksI + ChunkBlocks - 1) / ChunkBlocks;
+    const int     chunkCols   = (blocksJ + ChunkBlocks - 1) / ChunkBlocks;
+
+    std::vector<std::jthread> workers;
+    workers.reserve(num_threads);
+
+    // static_for<0, num_threads>(
+    //   [&]<int t>()
+    for (int t = 0; t < num_threads; ++t)
+    {
+        workers.emplace_back(
+          [&, t]()
+          {
+              // core id will be the same for threads which share resources
+              auto core_id = map_thread_id_to_core_id(t);
+
+              cpu_set_t cpuset;
+              CPU_ZERO(&cpuset);
+              CPU_SET(core_id, &cpuset);
+              (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+
+              T* const buf = buffer.data() + t * tiles_size;
+
+              std::mdspan<T, std::extents<std::size_t, Kc, Mr>> a_utile(buf, Kc, Mr);
+              std::mdspan<T, std::extents<std::size_t, Kc, Nr>> b_utile(
+                buf + a_utile.size(), Kc, Nr);
+
+              // Thread's grid coords
+              int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
+              int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
+
+              for (int chi = ti; chi < chunkRows; chi += GRID_I)
+              {
+                  for (int chj = tj; chj < chunkCols; chj += GRID_J)
+                  {
+                      const int ibegin = chi * ChunkBlocks;
+                      const int iend   = std::min(ibegin + ChunkBlocks, blocksI);
+                      const int jbegin = chj * ChunkBlocks;
+                      const int jend   = std::min(jbegin + ChunkBlocks, blocksJ);
+
+                      for (int k_block = 0; k_block < K; k_block += Kc)
+                      {
+                          for (int jb = jbegin; jb < jend; ++jb)
+                          {
+                              const int j_block = jb * Nc;
+                              auto      b_tile  = core::submatrix<Kc, Nc>(B, k_block, j_block);
+
+                              for (int ib = ibegin; ib < iend; ++ib)
+                              {
+                                  const int i_block = ib * Mc;
+                                  auto      a_tile  = core::submatrix<Mc, Kc>(A, i_block, k_block);
+
+                                  for (int j = 0; j < Nc; j += Nr)
+                                  {
+                                      initBTile(b_tile, b_utile);
+                                      for (int i = 0; i < Mc; i += Mr)
+                                      {
+                                          // Retrive next a_utile
+                                          initATile(a_tile, a_utile);
+                                          T* Cc0 = &C(i_block + i, j_block + j);
+                                          kernels::zen5_mdspan_kernel(a_utile, b_utile, Cc0, N);
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          });
+    }
+    //});
+}
+
 } // namespace mm::zen5
