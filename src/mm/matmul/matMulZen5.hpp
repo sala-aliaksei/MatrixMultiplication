@@ -12,7 +12,8 @@
 #include <thread>
 #include <algorithm>
 #include <omp.h>
-#include <array>
+// #include <array>
+// #include <barrier>
 
 #ifdef __linux__
 #include <pthread.h>
@@ -21,6 +22,7 @@
 
 namespace mm::zen5
 {
+
 constexpr int PAGE_SIZE = 4096;
 
 template<typename T>
@@ -29,10 +31,6 @@ struct MatMulZen5Config;
 template<>
 struct MatMulZen5Config<double>
 {
-    // static constexpr int Nc = 96;
-    // static constexpr int Mc = 96;
-    // static constexpr int Kc = 96 * 2 * 2;
-    //
     static constexpr int Nc = 96;
     static constexpr int Mc = 96;
     static constexpr int Kc = 96 * 2;
@@ -309,8 +307,6 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
     const int K = static_cast<int>(A.col());
     const int M = static_cast<int>(A.row());
 
-    //
-    // Minimal per-tail padding during repacking enables arbitrary M/N/K
     const std::size_t per_thread_buf_elems =
       static_cast<std::size_t>(Kc) * (Mc + Nc) + static_cast<std::size_t>(Mc) * Nc;
     std::vector<T, boost::alignment::aligned_allocator<T, PAGE_SIZE>> buffer(
@@ -322,11 +318,11 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
     constexpr unsigned grid_threads = GRID_I * GRID_J;
 
     // Square-chunking in block units; use ceil for tail tiles
-    constexpr int ChunkBlocks = 2;
-    const int     blocksI     = (M + Mc - 1) / Mc;
-    const int     blocksJ     = (N + Nc - 1) / Nc;
-    const int     chunkRows   = (blocksI + ChunkBlocks - 1) / ChunkBlocks;
-    const int     chunkCols   = (blocksJ + ChunkBlocks - 1) / ChunkBlocks;
+    constexpr int ChunkBlocks              = 2;
+    const int     total_iblocks_per_thread = (M + Mc - 1) / Mc;
+    const int     total_jblocks_per_thread = (N + Nc - 1) / Nc;
+    const int     chunkRows = (total_iblocks_per_thread + ChunkBlocks - 1) / ChunkBlocks;
+    const int     chunkCols = (total_jblocks_per_thread + ChunkBlocks - 1) / ChunkBlocks;
 
     auto worker_fn = [&](unsigned t)
     {
@@ -344,9 +340,9 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
             for (int chj = tj; chj < chunkCols; chj += GRID_J)
             {
                 const int ibegin = chi * ChunkBlocks;
-                const int iend   = std::min(ibegin + ChunkBlocks, blocksI);
+                const int iend   = std::min(ibegin + ChunkBlocks, total_iblocks_per_thread);
                 const int jbegin = chj * ChunkBlocks;
-                const int jend   = std::min(jbegin + ChunkBlocks, blocksJ);
+                const int jend   = std::min(jbegin + ChunkBlocks, total_jblocks_per_thread);
 
                 for (int jb = jbegin; jb < jend; ++jb)
                 {
@@ -468,32 +464,15 @@ void matMulZen5MTBlockingSpan(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>&
     using b_tile_ext_t = std::extents<std::size_t, Nc / Nr, Nr * Kc>;
     using a_tile_ext_t = std::extents<std::size_t, Mc / Mr, Mr * Kc>;
 
-    // static_assert(
-    //     b_tile.static_extent(1)
-    //       == b_utile.static_extent(1) * b_utile.static_extent(0),
-    //     "b_tile.static_extent(1) != b_utile.static_extent(1) * "
-    //     "b_utile.static_extent(0)");
-
-    //   static_assert(
-    //     a_tile.static_extent(1)
-    //       == a_utile.static_extent(1) * a_utile.static_extent(0),
-    //     "a_tile.static_extent(1) != a_utile.static_extent(1) * "
-    //     "b_utile.static_extent(0)");
-
-    // static_assert(b_utile.static_extent(0) == Kc, "b_utile.static_extent(0) != Kc");
-    // static_assert(b_utile.static_extent(1) == Nr, "b_utile.static_extent(1) != Nr");
-    // static_assert(a_utile.static_extent(0) == Kc, "a_utile.static_extent(0) != Kc");
-    // static_assert(a_utile.static_extent(1) == Mr, "a_utile.static_extent(1) != Mr");
-
     std::vector<T, boost::alignment::aligned_allocator<T, PAGE_SIZE>> buffer(num_threads
                                                                              * tiles_size);
 
     // Square-chunking in block units
-    constexpr int ChunkBlocks = 2; // tiles per side in a chunk (Mc/Nc multiples)
-    const int     blocksI     = M / Mc;
-    const int     blocksJ     = N / Nc;
-    const int     chunkRows   = (blocksI + ChunkBlocks - 1) / ChunkBlocks;
-    const int     chunkCols   = (blocksJ + ChunkBlocks - 1) / ChunkBlocks;
+    constexpr int ChunkBlocks              = 2; // tiles per side in a chunk (Mc/Nc multiples)
+    const int     total_iblocks_per_thread = M / Mc;
+    const int     total_jblocks_per_thread = N / Nc;
+    const int     chunkRows = (total_iblocks_per_thread + ChunkBlocks - 1) / ChunkBlocks;
+    const int     chunkCols = (total_jblocks_per_thread + ChunkBlocks - 1) / ChunkBlocks;
 
     std::vector<std::jthread> workers;
     workers.reserve(num_threads);
@@ -528,9 +507,9 @@ void matMulZen5MTBlockingSpan(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>&
                   for (int chj = tj; chj < chunkCols; chj += GRID_J)
                   {
                       const int ibegin = chi * ChunkBlocks;
-                      const int iend   = std::min(ibegin + ChunkBlocks, blocksI);
+                      const int iend   = std::min(ibegin + ChunkBlocks, total_iblocks_per_thread);
                       const int jbegin = chj * ChunkBlocks;
-                      const int jend   = std::min(jbegin + ChunkBlocks, blocksJ);
+                      const int jend   = std::min(jbegin + ChunkBlocks, total_jblocks_per_thread);
 
                       for (int k_block = 0; k_block < K; k_block += Kc)
                       {

@@ -1,11 +1,12 @@
 #pragma once
 
-template<int I, int N, class F>
-constexpr void static_for(F f)
+#include <utility>
+
+// force inlining
+
+template<long unsigned int N, class F>
+__attribute__((always_inline)) static constexpr void static_for(F&& f)
 {
-    if constexpr (I < N)
-    {
-        f.template operator()<I>();
-        static_for<I + 1, N>(f);
-    }
+    [&]<std::size_t... I>(std::index_sequence<I...>)
+    { (..., f.template operator()<I>()); }(std::make_index_sequence<N>{});
 }

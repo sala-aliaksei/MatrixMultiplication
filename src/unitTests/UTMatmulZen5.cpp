@@ -2,6 +2,9 @@
 #include "mm/tpi/matMulOpenBlas.hpp"
 #include "mm/core/layout.hpp"
 
+#include "mm/core/utils/utils.hpp"
+#include <omp.h>
+
 #include <gtest/gtest.h> //--gtest_filter=MatrixMulTest.MatMulLoopsRepack
 #include <vector>
 
@@ -17,13 +20,10 @@ class MatrixMulZen5Test : public testing::Test
     MatrixMulZen5Test()
       : a(generateRandomMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
       , b(generateRandomMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
-      , c(generateRandomMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , c(generateIotaMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , valid_res(generateIotaMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
     {
-        // std::cout << "I : " << I << " J: " << J << " K: " << K << "\n";
-
-        mm::tpi::matrixMulOpenBlas(a, b, c);
-        valid_res = std::move(c);
-        c         = Matrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv());
+        mm::tpi::matrixMulOpenBlas(a, b, valid_res);
     }
 
     ~MatrixMulZen5Test() override
@@ -67,15 +67,16 @@ TEST_F(MatrixMulZen5Test, submatrix)
     constexpr std::size_t N  = 512;
     constexpr std::size_t Mc = 128;
     constexpr std::size_t Kc = 128;
-    Matrix<double>        at = generateRandomMatrix<double>(N, N);
+
+    Matrix<double> at = generateRandomMatrix<double>(N, N);
 
     constexpr std::size_t i0 = 40;
     constexpr std::size_t j0 = 41;
 
     auto tile = mm::core::submatrix<Mc, Kc>(at, i0, j0);
-    for (std::size_t i = 0; i < Mc; i++)
+    for (std::size_t i = 0; i < tile.extent(0); i++)
     {
-        for (std::size_t j = 0; j < Kc; j++)
+        for (std::size_t j = 0; j < tile.extent(1); j++)
         {
             EXPECT_EQ((tile[i, j] == at(i0 + i, j0 + j)), true);
         }
@@ -84,7 +85,6 @@ TEST_F(MatrixMulZen5Test, submatrix)
 
 TEST_F(MatrixMulZen5Test, mdspan)
 {
-    // MatrixMulZen5Test.MatMulZen5MTBlockingSpan
     mm::zen5::matMulZen5MTBlockingSpan(a, b, c);
     EXPECT_EQ((valid_res == c), true);
 }
@@ -160,7 +160,7 @@ TEST_F(MatrixMulZen5Test, B_IndexMappingAndContiguity)
 {
     using mm::core::layout_blocked_colmajor;
 
-    constexpr std::size_t M  = 8; // deliberately not multiples of tile
+    constexpr std::size_t M  = 8;
     constexpr std::size_t N  = 8;
     constexpr std::size_t Mc = 6;
     constexpr std::size_t Nc = 4;
@@ -181,11 +181,6 @@ TEST_F(MatrixMulZen5Test, B_IndexMappingAndContiguity)
     constexpr std::size_t required = Mc * Nc;
     ASSERT_EQ(mapping.required_span_size(), required);
 
-    // TODO: Use submatrix for ms
-    // std::mdspan<double, std::extents<std::size_t, Mc, Nc>> submatrix(&at(iofs, jofs),
-    // tile_ext_t{});
-
-    // std::mdspan<double, tile_ext_t, layout_blocked_colmajor<Nr>> ms(at.data(), mapping);
     std::mdspan ms(at.data(), mapping);
 
     auto map2 = ms.mapping();
@@ -258,11 +253,6 @@ TEST_F(MatrixMulZen5Test, A_IndexMappingAndContiguity)
     constexpr std::size_t required = Mc * Nc;
     ASSERT_EQ(mapping.required_span_size(), required);
 
-    // TODO: Use submatrix for ms
-    // std::mdspan<double, std::extents<std::size_t, Mc, Nc>> submatrix(&at(iofs, jofs),
-    // tile_ext_t{});
-
-    // std::mdspan<double, tile_ext_t, layout_blocked_colmajor<Nr>> ms(at.data(), mapping);
     std::mdspan ms(at.data(), mapping);
 
     auto map2 = ms.mapping();
@@ -336,11 +326,6 @@ TEST_F(MatrixMulZen5Test, C_IndexMappingAndContiguity)
     constexpr std::size_t required = Mc * Nc;
     ASSERT_EQ(mapping.required_span_size(), required);
 
-    // TODO: Use submatrix for ms
-    // std::mdspan<double, std::extents<std::size_t, Mc, Nc>> submatrix(&at(iofs, jofs),
-    // tile_ext_t{});
-
-    // std::mdspan<double, tile_ext_t, layout_blocked_colmajor<Nr>> ms(at.data(), mapping);
     std::mdspan ms(at.data(), mapping);
 
     auto map2 = ms.mapping();
@@ -386,11 +371,4 @@ TEST_F(MatrixMulZen5Test, C_IndexMappingAndContiguity)
             }
         }
     }
-
-    // error for md span with rank 2
-    // TODO: Can error be improved?
-    // for (std::size_t i = 0; i < ms.size(); i++)
-    // {
-    //     std::cout << ms[i] << " ";
-    // }
 }

@@ -28,6 +28,11 @@ Use cpupower to disable autoscaling:
 cpupower frequency-info -o proc
 ```
 
+Get info about hw threads
+```bash
+lscpu -e
+```
+
 ### Debugging
 
 Dump core to the file for debuggind purpose

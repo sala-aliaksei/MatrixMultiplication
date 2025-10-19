@@ -378,10 +378,22 @@ std::mdspan<const T, shape_t<Mc, Kc>, std::layout_stride> submatrix(const Matrix
     return std::mdspan<const T, shape_t<Mc, Kc>, std::layout_stride>(&m(i0, j0), mapping);
 }
 
+template<typename T>
+std::mdspan<T, std::dextents<std::size_t, 2>, std::layout_stride> dsubmatrix(Matrix<T>&  m,
+                                                                             std::size_t i0,
+                                                                             std::size_t j0)
+{
+    auto mapping = std::layout_stride::mapping<std::dextents<std::size_t, 2>>(
+      std::dextents<std::size_t, 2>{m.row() - i0, m.col() - j0},
+      std::array<std::size_t, 2>{static_cast<std::size_t>(m.col()), std::size_t{1}});
+    return std::mdspan<T, std::dextents<std::size_t, 2>, std::layout_stride>(&m(i0, j0), mapping);
+}
+
 template<typename T, std::size_t Kc, std::size_t Nc, std::size_t Nr>
 void initBTile(
   std::mdspan<const T, std::extents<std::size_t, Kc, Nc>, std::layout_stride> submatrix,
-  std::mdspan<T, std::extents<std::size_t, Kc, Nr>>                           utile)
+  std::mdspan<T, std::extents<std::size_t, Kc, Nr>>                           utile,
+  int                                                                         j)
 {
     /*
      * ------->
@@ -399,15 +411,15 @@ void initBTile(
     for (int i = 0; i < utile.static_extent(0); i++)
     {
         //_mm_prefetch(b + (i + 1) * cols + j, prefetch_type);
-        inline_memcpy(
-          utile.data_handle() + i, &submatrix[i, 0], utile.static_extent(1) * sizeof(T));
+        inline_memcpy(&utile[i, 0], &submatrix[i, j], utile.static_extent(1) * sizeof(T));
     }
 }
 
 template<std::size_t Mc, std::size_t Kc, std::size_t Mr, typename T>
 void initATile(
   std::mdspan<const T, std::extents<std::size_t, Mc, Kc>, std::layout_stride> submatrix,
-  std::mdspan<T, std::extents<std::size_t, Kc, Mr>>                           utile)
+  std::mdspan<T, std::extents<std::size_t, Kc, Mr>>                           utile,
+  int                                                                         i)
 {
     /*
     |   ^|
@@ -421,13 +433,12 @@ void initATile(
 
     int  idx = 0;
     auto dst = utile.data_handle();
+
+    for (int j = 0; j < utile.static_extent(0); j++)
     {
-        for (int j = 0; j < submatrix.static_extent(1); j++)
+        for (int ic = 0; ic < utile.static_extent(1); ++ic)
         {
-            for (int ic = 0; ic < Mr; ++ic)
-            {
-                dst[idx++] = submatrix[(ic), j];
-            }
+            dst[idx++] = submatrix[(i + ic), j];
         }
     }
 }
