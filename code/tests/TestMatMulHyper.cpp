@@ -43,11 +43,5 @@ class MatrixMulHyperTest : public testing::Test
 TEST_F(MatrixMulHyperTest, matmul_hyper)
 {
     mm::hyper::matMulHyper(a, b, c);
-    // std::cout << "valid result\n";
-    // std::cout << valid_res;
-
-    // std::cout << "calculated result\n";
-    // std::cout << c;
-
     EXPECT_EQ((valid_res == c), true);
 }

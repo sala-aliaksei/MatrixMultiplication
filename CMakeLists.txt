@@ -241,8 +241,8 @@ endif()
 
 if(ENABLE_UNIT_TESTS)
     find_package(GTest REQUIRED)
-    #set(SANITIZER_FLAGS "-fsanitize=address,undefined") # ,undefined -fno-omit-frame-pointer
-    set(SANITIZER_FLAGS "")
+    set(SANITIZER_FLAGS -fsanitize=address,undefined) # address,undefined -fno-omit-frame-pointer
+    #set(SANITIZER_FLAGS "")
 
     add_library(UnitTestUtils INTERFACE)
     target_compile_options(UnitTestUtils INTERFACE ${SANITIZER_FLAGS})
