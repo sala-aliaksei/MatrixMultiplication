@@ -10,32 +10,6 @@ namespace stdx = std::experimental;
 namespace kernels
 {
 
-template<int Nr, int Mr, int Kc>
-inline void naive_block(const double* __restrict a,
-                        const double* __restrict b,
-                        double* __restrict c,
-                        int N)
-{
-    double carr[Nr * Mr] = {};
-    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
-    {
-        for (int i = 0; i < Mr; ++i)
-        {
-            for (int j = 0; j < Nr; ++j)
-            {
-                carr[i * Nr + j] += a[i] * b[j];
-            }
-        }
-    }
-    for (int i = 0; i < Mr; ++i)
-    {
-        for (int j = 0; j < Nr; ++j)
-        {
-            c[i * N + j] += carr[i * Nr + j];
-        }
-    }
-}
-
 ////////////////////////////     SIMD KERNELS
 
 using simd_d = stdx::fixed_size_simd<double, 4>;

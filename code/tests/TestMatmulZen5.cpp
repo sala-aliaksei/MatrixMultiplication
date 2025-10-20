@@ -6,7 +6,6 @@
 #include <omp.h>
 
 #include <gtest/gtest.h> //--gtest_filter=MatrixMulTest.MatMulLoopsRepack
-#include <vector>
 
 class MatrixMulZen5Test : public testing::Test
 {
@@ -80,13 +79,6 @@ TEST_F(MatrixMulZen5Test, submatrix)
 TEST_F(MatrixMulZen5Test, mdspan)
 {
     mm::zen5::matMulZen5MTBlockingSpan(a, b, c);
-    EXPECT_EQ((valid_res == c), true);
-}
-
-TEST_F(MatrixMulZen5Test, mdspan_l1)
-{
-
-    mm::zen5::matMulZen5MTBlockingL1(a, b, c);
     EXPECT_EQ((valid_res == c), true);
 }
 

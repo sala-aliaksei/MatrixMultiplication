@@ -190,8 +190,9 @@ Matrix<T> generateRandomMatrix(int M, int N)
 {
     std::random_device rd;
     std::mt19937       gen(rd());
-    T                  lower_bound = 1.0;
-    T                  upper_bound = 10.0;
+
+    T lower_bound = 1;
+    T upper_bound = 10;
 
     std::uniform_real_distribution<T> dis(lower_bound, upper_bound);
 

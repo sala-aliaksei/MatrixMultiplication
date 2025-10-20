@@ -53,6 +53,14 @@
             }
         },
         {
+            "name": "TestMMHyper",
+            "pattern": "build/Release/TestMMHyper",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}",
+            },
+        },
+        {
             "name": "BM_Cache",
             "pattern": "build/Release/BM_Cache",
             "cwd": "${workspaceFolder}",
@@ -103,6 +111,14 @@
         {
             "name": "BM_Repacking",
             "pattern": "build/Release/BM_Repacking",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "BM_MM_Hyper",
+            "pattern": "build/Release/BM_MM_Hyper",
             "cwd": "${workspaceFolder}",
             "env": {
                 "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"

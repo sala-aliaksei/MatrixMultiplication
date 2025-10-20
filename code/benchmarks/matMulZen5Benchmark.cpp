@@ -13,8 +13,8 @@ int main(int argc, char** argv)
     REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlocking, matrix_dim);
     REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlockingTails, matrix_dim);
     REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlockingSpan, matrix_dim);
-    REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlockingL1, matrix_dim);
-    // REGISTER_DOUBLE_RANGE(mm::zen5::matMulZen5MTBlockingTails, matrix_dim);
+    // REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlockingL1, matrix_dim);
+    //  REGISTER_DOUBLE_RANGE(mm::zen5::matMulZen5MTBlockingTails, matrix_dim);
 
     benchmark::Initialize(&argc, argv);
     benchmark::RunSpecifiedBenchmarks();

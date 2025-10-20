@@ -240,8 +240,9 @@ struct layout_blocked_colmajor
 
 namespace
 {
-    __attribute__((no_sanitize("coverage"))) static inline void*
-    inline_memcpy(void* __restrict dst_, const void* __restrict src_, size_t size)
+    static inline void* inline_memcpy(void* __restrict dst_,
+                                      const void* __restrict src_,
+                                      size_t size)
     {
         /// We will use pointer arithmetic, so char pointer will be used.
         /// Note that __restrict makes sense (otherwise compiler will reload data from memory
@@ -431,6 +432,7 @@ void initATile(
 
     static_assert(Mc % Mr == 0, "Invalid m pattern");
 
+    // ijji
     int  idx = 0;
     auto dst = utile.data_handle();
 
