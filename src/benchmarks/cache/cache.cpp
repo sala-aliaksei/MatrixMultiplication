@@ -4,7 +4,6 @@
 #include <mm/core/Matrix.hpp>
 
 #include <benchmark/benchmark.h>
-#include <boost/align/aligned_allocator.hpp>
 #include <mdspan>
 #include <vector>
 #include <thread>
@@ -35,7 +34,7 @@ struct Cache
     std::size_t ofs = 0;
     static_assert(SizeBytes % sizeof(T) == 0, "Size must be divisible by sizeof(T)");
 
-    using aligned_vector = std::vector<T>; // , boost::alignment::aligned_allocator<T, 4096>
+    using aligned_vector = std::vector<T>;
     aligned_vector buf;
 
     Cache()
@@ -301,10 +300,7 @@ void matmulMemCompute(Matrix<T>& A, Matrix<T>& B, Matrix<T>& C)
                 {
                     load_tile(B, b_tile, Shape2D{k, j});
                 }
-                else
-                {
-                    std::this_thread::yield();
-                }
+
                 sync_point.arrive_and_wait();
 
                 for (int i = i_ofst; i < i_ofst + M / GRID_I; i += Mc)
@@ -320,10 +316,6 @@ void matmulMemCompute(Matrix<T>& A, Matrix<T>& B, Matrix<T>& C)
                             if constexpr (t == 0)
                             {
                                 copy_to_utile(b_tile, b_utile, 0, jj);
-                            }
-                            else
-                            {
-                                std::this_thread::yield();
                             }
                             sync_point.arrive_and_wait();
 

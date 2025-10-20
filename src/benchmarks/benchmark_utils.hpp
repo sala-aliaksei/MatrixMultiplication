@@ -3,8 +3,6 @@
 #include <benchmark/benchmark.h>
 #include <mm/core/Matrix.hpp>
 
-int GetMatrixDimFromEnv();
-
 template<typename Float_t,
          void (*matMul)(const Matrix<Float_t>&, const Matrix<Float_t>&, Matrix<Float_t>&)>
 static void BM_MatMul(benchmark::State& state)

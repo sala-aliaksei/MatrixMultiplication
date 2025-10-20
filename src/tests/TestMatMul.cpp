@@ -12,23 +12,11 @@
 #include "mm/matmul/matMulAutotune.hpp"
 #include "mm/matmul/matMulSimd.hpp"
 
+#include "mm/core/utils/utils.hpp"
+
 #include <gtest/gtest.h> //--gtest_filter=MatrixMulTest.MatMulLoopsRepack
 
 // #define ENABLE_NAIVE_TESTS
-
-// TODO: add ability to init matrices from cmdline
-// constexpr std::size_t N = 12 * 4 * 2;
-constexpr std::size_t N = 4 * 720;
-
-constexpr std::size_t I = N;
-constexpr std::size_t J = N;
-constexpr std::size_t K = N;
-
-int GetMatrixDimFromEnv()
-{
-    const char* env = std::getenv("MATRIX_DIM");
-    return env ? std::atoi(env) : N;
-}
 
 template<typename T>
 void print_diff(const Matrix<T>& a, const Matrix<T>& b)
@@ -355,6 +343,9 @@ TEST_F(MatrixMulTest, matMulSimd)
 
 TEST_F(MatrixMulTest, CN_matMul_Tails_Range)
 {
+    constexpr int I = 3072;
+    constexpr int J = 3072;
+    constexpr int K = 3072;
     // TODO: Range???
     for (int i = I; i < I + 1; ++i)
     {
@@ -483,8 +474,7 @@ TEST_F(MatrixMulTest, HandleJTail)
         int i_tail_size = M % Mr;
         int il          = M - i_tail_size;
 
-        std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(Kc
-                                                                                      * (Mc + Nc));
+        std::vector<double> buffer(Kc * (Mc + Nc));
 
         double* a_buf = buffer.data();
         double* b_buf = a_buf + Mc * Kc;
@@ -548,7 +538,7 @@ TEST_F(MatrixMulTest, HandleITail)
     constexpr int Nr = 4;
     constexpr int Kr = 1;
 
-    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(Kc * (Mc + Nc));
+    std::vector<double> buffer(Kc * (Mc + Nc));
 
     double* a_buf = buffer.data();
     double* b_buf = a_buf + Mc * Kc;

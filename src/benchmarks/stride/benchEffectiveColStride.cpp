@@ -230,6 +230,36 @@ static void BM_ColOrderMatrixPrefetchRefactor(benchmark::State& state)
     }
 }
 
+static void BM_ARRAY_ITERATION(benchmark::State& state)
+{
+    std::size_t         N = state.range(0);
+    std::vector<double> a(N);
+
+    benchmark::DoNotOptimize(a);
+    for (auto _ : state)
+    {
+        for (int i = 0; i < N; i++)
+        {
+            a[i] = i;
+        }
+    }
+    // add column to benchamrk results: operations per second
+
+    state.counters["OPS"] = benchmark::Counter(N * state.iterations(), benchmark::Counter::kIsRate);
+    benchmark::ClobberMemory();
+}
+
+BENCHMARK(BM_ARRAY_ITERATION)->Arg(1 * 1024)->Arg(3 * 1024)->Arg(6 * 1024)->Arg(12 * 1024);
+// BENCHMARK(BM_ARRAY_ITERATION)->DenseRange(24 * 1024, 64 * 1024 * 1024, 24 * 1024);
+//    ->Arg(24 * 1024)
+//    ->Arg(48 * 1024)
+//    ->Arg(72 * 1024)
+//    ->Arg(96 * 1024)
+//    ->Arg(512 * 1024)
+//    ->Arg(1024 * 1024)
+//    ->Arg(32 * 1024 * 1024)
+//    ->Arg(64 * 1024 * 1024);
+
 BENCHMARK(BM_RowOrderMattrix)->Arg(NN);
 BENCHMARK(BM_ColOrderMattrix)->Arg(NN);
 BENCHMARK(BM_ColOrderMatrixPrefetch)->Arg(NN);

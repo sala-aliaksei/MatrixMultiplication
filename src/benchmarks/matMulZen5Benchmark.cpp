@@ -1,6 +1,6 @@
 
 #include "mm/matmul/matMulZen5.hpp"
-
+#include "mm/core/utils/utils.hpp"
 #include "benchmark_utils.hpp"
 #include <benchmark/benchmark.h>
 

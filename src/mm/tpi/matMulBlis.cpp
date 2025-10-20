@@ -1,5 +1,7 @@
 #include "mm/tpi/matMulBlis.hpp"
+#include <stdexcept>
 
+#ifdef ENABLED_TPI_BLIS
 #define BLIS_FAMILY_ZEN3
 
 #include <blis/blis.h>
@@ -33,3 +35,9 @@ void matmulBlis(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>
               1,
               M);
 }
+#else
+void matmulBlis(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
+{
+    throw std::runtime_error("matmulBlis is not enabled!");
+}
+#endif

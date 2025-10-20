@@ -2,6 +2,18 @@
 #include <atomic>
 #include <iostream>
 
+int GetMatrixDimFromEnv()
+{
+    const char* env = std::getenv("MATRIX_DIM");
+    if (env)
+        return std::atoi(env);
+#ifdef MATRIX_DIMS
+    return MATRIX_DIMS;
+#else
+    return 3072;
+#endif
+}
+
 Profiler::Profiler()
 {
     _start = std::chrono::high_resolution_clock::now();

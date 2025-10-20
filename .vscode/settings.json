@@ -1,0 +1,115 @@
+{
+    // --- TestMate basics ---
+    "testMate.cpp.log.logpanel": true,
+    // If your test exe isn't named *test*, set explicit patterns:
+    "testMate.cpp.test.executables": "",
+    "testMate.cpp.test.advancedExecutables": [
+        {
+            "name": "TestKernels",
+            "pattern": "build/Release/TestKernels",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "TestMatmul",
+            "pattern": "build/Release/TestMatmul",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "TestMatmul_BFP16",
+            "pattern": "build/Release/TestMatmul_BFP16",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "TestMatmul_Zen5",
+            "pattern": "build/Release/TestMatmul_Zen5",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "TestRepacking",
+            "pattern": "build/Release/TestRepacking",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "TestZorder",
+            "pattern": "build/Release/TestZorder",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "BM_Cache",
+            "pattern": "build/Release/BM_Cache",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "BM_Kernels",
+            "pattern": "build/Release/BM_Kernels",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "BM_Matmul",
+            "pattern": "build/Release/BM_Matmul",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "BM_MatmulAutotune",
+            "pattern": "build/Release/BM_MatmulAutotune",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "BM_Matmul_Zen5",
+            "pattern": "build/Release/BM_Matmul_Zen5",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "BM_Prefetch",
+            "pattern": "build/Release/BM_Prefetch",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+        {
+            "name": "BM_Repacking",
+            "pattern": "build/Release/BM_Repacking",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+            }
+        },
+    ],
+    // Optional quality-of-life
+    "testMate.cpp.test.parallelExecutionLimit": 4,
+    "testMate.cpp.discovery.loadOnStartup": true
+}

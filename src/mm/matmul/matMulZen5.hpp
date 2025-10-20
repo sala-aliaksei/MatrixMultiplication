@@ -97,8 +97,7 @@ void matMulZen5(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
     massert(N % num_threads == 0, "N % num_threads == 0");
     massert((N / num_threads) % Nc == 0, "(N/num_threads) % Nc == 0");
 
-    std::vector<T, boost::alignment::aligned_allocator<T, PAGE_SIZE>> buffer(num_threads * Kc
-                                                                             * (Mc + Nc));
+    std::vector<T> buffer(num_threads * Kc * (Mc + Nc));
 
 #pragma omp parallel for num_threads(num_threads)
     for (int j_block = 0; j_block < N; j_block += Nc)
@@ -193,8 +192,7 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
     constexpr int      GRID_J      = 8;
     constexpr unsigned num_threads = GRID_I * GRID_J;
 
-    std::vector<T, boost::alignment::aligned_allocator<T, PAGE_SIZE>> buffer(num_threads * Kc
-                                                                             * (Mc + Nc));
+    std::vector<T> buffer(num_threads * Kc * (Mc + Nc));
 
     // Square-chunking in block units
     constexpr int ChunkBlocks = 2; // tiles per side in a chunk (Mc/Nc multiples)
@@ -309,8 +307,7 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
 
     const std::size_t per_thread_buf_elems =
       static_cast<std::size_t>(Kc) * (Mc + Nc) + static_cast<std::size_t>(Mc) * Nc;
-    std::vector<T, boost::alignment::aligned_allocator<T, PAGE_SIZE>> buffer(
-      num_threads * per_thread_buf_elems);
+    std::vector<T> buffer(num_threads * per_thread_buf_elems);
 
     // Grid threading like matMulZen5MTBlocking
     constexpr int      GRID_I       = 4;
@@ -464,8 +461,7 @@ void matMulZen5MTBlockingSpan(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>&
     using b_tile_ext_t = std::extents<std::size_t, Nc / Nr, Nr * Kc>;
     using a_tile_ext_t = std::extents<std::size_t, Mc / Mr, Mr * Kc>;
 
-    std::vector<T, boost::alignment::aligned_allocator<T, PAGE_SIZE>> buffer(num_threads
-                                                                             * tiles_size);
+    std::vector<T> buffer(num_threads * tiles_size);
 
     // Square-chunking in block units
     constexpr int ChunkBlocks              = 2; // tiles per side in a chunk (Mc/Nc multiples)
@@ -599,90 +595,113 @@ void matMulZen5MTBlockingL1(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C
     massert(M % Mc == 0, "M % Mc == 0");
 
     // Fixed thread grid 4x8 → 32 threads
-    constexpr int      GRID_I      = 4;
-    constexpr int      GRID_J      = 8;
-    constexpr unsigned num_threads = GRID_I * GRID_J;
+    constexpr int GRID_I = 4;
+    constexpr int GRID_J = 4;
+
+    constexpr unsigned num_cores   = GRID_I * GRID_J;
+    constexpr unsigned num_threads = 2 * num_cores;
 
     constexpr auto tiles_size = Kc * (Mr + Nr);
 
-    std::vector<T, boost::alignment::aligned_allocator<T, PAGE_SIZE>> buffer(num_threads
-                                                                             * tiles_size);
+    std::vector<T> buffer(num_cores * tiles_size);
 
-    // Square-chunking in block units
-    constexpr int ChunkBlocks = 2; // tiles per side in a chunk (Mc/Nc multiples)
-    const int     blocksI     = M / Mc;
-    const int     blocksJ     = N / Nc;
-    const int     chunkRows   = (blocksI + ChunkBlocks - 1) / ChunkBlocks;
-    const int     chunkCols   = (blocksJ + ChunkBlocks - 1) / ChunkBlocks;
+    const int total_iblocks_per_thread = M / Mc;
+    const int total_jblocks_per_thread = N / Nc;
+
+    const int iblocks_per_thread = total_iblocks_per_thread / GRID_I;
+    const int jblocks_per_thread = total_jblocks_per_thread / GRID_J;
 
     std::vector<std::jthread> workers;
     workers.reserve(num_threads);
 
-    // static_for<0, num_threads>(
-    //   [&]<int t>()
-    for (int t = 0; t < num_threads; ++t)
+    // auto gemm_fn = [&](int t)
+    auto gemm_fn = [&]<int t>()
     {
-        workers.emplace_back(
-          [&, t]()
-          {
-              // core id will be the same for threads which share resources
-              auto core_id = map_thread_id_to_core_id(t);
+        // core id will be the same for threads which share resources
+        constexpr auto cpu_core_id = map_thread_id_to_core_id(t);
+        constexpr auto core_id     = cpu_core_id % num_cores;
 
-              cpu_set_t cpuset;
-              CPU_ZERO(&cpuset);
-              CPU_SET(core_id, &cpuset);
-              (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+        // auto& barrier = core_barriers[core_id];
 
-              T* const buf = buffer.data() + t * tiles_size;
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(cpu_core_id, &cpuset);
+        (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
-              std::mdspan<T, std::extents<std::size_t, Kc, Mr>> a_utile(buf, Kc, Mr);
-              std::mdspan<T, std::extents<std::size_t, Kc, Nr>> b_utile(
-                buf + a_utile.size(), Kc, Nr);
+        T* const buf = buffer.data() + core_id * tiles_size;
 
-              // Thread's grid coords
-              int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
-              int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
+        std::mdspan<T, std::extents<std::size_t, Kc, Mr>> a_utile(buf, Kc, Mr);
+        std::mdspan<T, std::extents<std::size_t, Kc, Nr>> b_utile(buf + a_utile.size(), Kc, Nr);
 
-              for (int chi = ti; chi < chunkRows; chi += GRID_I)
-              {
-                  for (int chj = tj; chj < chunkCols; chj += GRID_J)
-                  {
-                      const int ibegin = chi * ChunkBlocks;
-                      const int iend   = std::min(ibegin + ChunkBlocks, blocksI);
-                      const int jbegin = chj * ChunkBlocks;
-                      const int jend   = std::min(jbegin + ChunkBlocks, blocksJ);
+        // Thread's grid coords
+        const int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
+        const int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
 
-                      for (int k_block = 0; k_block < K; k_block += Kc)
-                      {
-                          for (int jb = jbegin; jb < jend; ++jb)
-                          {
-                              const int j_block = jb * Nc;
-                              auto      b_tile  = core::submatrix<Kc, Nc>(B, k_block, j_block);
+        const int ibegin = ti * iblocks_per_thread * Mc;
+        const int iend   = ibegin + iblocks_per_thread * Mc;
+        const int jbegin = tj * jblocks_per_thread * Nc;
+        const int jend   = jbegin + jblocks_per_thread * Nc;
 
-                              for (int ib = ibegin; ib < iend; ++ib)
-                              {
-                                  const int i_block = ib * Mc;
-                                  auto      a_tile  = core::submatrix<Mc, Kc>(A, i_block, k_block);
+        for (int j_block = jbegin; j_block < jend; j_block += Nc)
+        {
+            for (int k_block = 0; k_block < K; k_block += Kc)
+            {
+                auto b_tile = core::submatrix<Kc, Nc>(B, k_block, j_block);
+                for (int i_block = ibegin; i_block < iend; i_block += Mc)
+                {
+                    auto a_tile = core::submatrix<Mc, Kc>(A, i_block, k_block);
+                    for (int j = 0; j < Nc; j += Nr)
+                    {
+                        if constexpr (cpu_core_id < 16)
+                        {
+                            initBTile(b_tile, b_utile, j);
+                        }
+                        // barrier.arrive_and_wait();
 
-                                  for (int j = 0; j < Nc; j += Nr)
-                                  {
-                                      initBTile(b_tile, b_utile);
-                                      for (int i = 0; i < Mc; i += Mr)
-                                      {
-                                          // Retrive next a_utile
-                                          initATile(a_tile, a_utile);
-                                          T* Cc0 = &C(i_block + i, j_block + j);
-                                          kernels::zen5_mdspan_kernel(a_utile, b_utile, Cc0, N);
-                                      }
-                                  }
-                              }
-                          }
-                      }
-                  }
-              }
-          });
-    }
-    //});
+                        for (int i = 0; i < Mc; i += Mr)
+                        {
+                            if constexpr (cpu_core_id < 16)
+                            {
+                                initATile(a_tile, a_utile, i);
+                            }
+                            // barrier.arrive_and_wait();
+
+                            if constexpr (cpu_core_id >= 16)
+                            {
+                                auto Cc0 = core::dsubmatrix(C, i_block + i, j_block + j);
+                                kernels::zen5_mdspan_kernel(a_utile, b_utile, Cc0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    // for (int t = 0; t < num_threads; ++t)
+    // {
+    //     workers.emplace_back(gemm_fn, t);
+    // }
+
+    // FAST (38ms)
+
+    // THE SLOWEST (537 ms), bit here we didn't use std::jthread!!!
+    // [&]<std::size_t... I>(std::index_sequence<I...>)
+    // { (..., gemm_fn.template operator()<I>()); }(std::make_index_sequence<num_threads>{});
+
+    // doesn't compile, You can’t form a pointer-to-member from an object:
+    //  static_for<num_threads>([&]<int t>() { workers.emplace_back(gemm_fn.template operator()<t>);
+    //  });
+
+    // SLOW (130ms)
+    // static_for<num_threads>(
+    //   [&]<int t>()
+    //   {
+    //       workers.emplace_back(
+    //         [&]
+    //         {
+    //             gemm_fn.template operator()<t>(); // or <t>(A,B,C) if it takes args
+    //         });
+    //   });
 }
-
 } // namespace mm::zen5

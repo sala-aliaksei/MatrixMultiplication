@@ -1,0 +1,28 @@
+# ~/.conan2/profiles/gcc16
+# Host profile for GCC 16 installed at /home/aliaksei/wp/gcc-16
+
+[settings]
+os=Linux
+arch=x86_64
+compiler=gcc
+compiler.version=15
+compiler.libcxx=libstdc++11
+compiler.cppstd=23
+build_type=Release
+
+[buildenv]
+# Also export CC/CXX for CMake and any build tools that read them
+CC=/home/aliaksei/wp/gcc-16/bin/gcc-16
+CXX=/home/aliaksei/wp/gcc-16/bin/g++-16
+AR=/home/aliaksei/wp/gcc-16/bin/x86_64-pc-linux-gnu-gcc-ar-16
+NM=/home/aliaksei/wp/gcc-16/bin/x86_64-pc-linux-gnu-gcc-nm-16
+RANLIB=/home/aliaksei/wp/gcc-16/bin/x86_64-pc-linux-gnu-gcc-ranlib-16
+LD_LIBRARY_PATH=/home/aliaksei/wp/gcc-16/lib64:$LD_LIBRARY_PATH
+LIBSTDCXX_INCLUDE_DIR=/home/aliaksei/wp/gcc-16/include/c++/16.0.0
+LIBSTDCXX_LIB_DIR=/home/aliaksei/wp/gcc-16/lib64
+
+
+[runenv]
+LD_LIBRARY_PATH=/home/aliaksei/wp/gcc-16/lib64
+
+

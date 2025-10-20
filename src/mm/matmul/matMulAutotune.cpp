@@ -1,5 +1,9 @@
 #include "matMulAutotune.hpp"
-#include "mm/core/reorderMatrix.hpp"
+#include <mm/core/Matrix.hpp>
+#include <thread>
+
+#include <experimental/simd>
+// #include "mm/core/reorderMatrix.hpp"
 // #include "mm/core/kernels.hpp"
 
 // #include "omp.h"
@@ -469,8 +473,7 @@ constexpr int Kc = 96;
 //     const auto K = A.col();
 //     const auto M = A.row();
 
-//     std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(4 * Kc
-//                                                                                   * (Mc + Nc));
+//     std::vector<double> buffer(4 * Kc* (Mc + Nc));
 
 //     // tail is only in last block
 //     int dNc = N % Nc;
@@ -547,15 +550,6 @@ constexpr int Kc = 96;
 //       buffer.data(), A.data(), &B(0, jl), &C(0, jl), M, K, N, dNc);
 // }
 
-#include <mm/core/Matrix.hpp>
-// #include <mm/core/kernels.hpp>
-// #include <mm/core/reorderMatrix.hpp>
-// #include <mm/core/bf16kernel.hpp>
-
-#include <thread>
-// #include <algorithm>
-// #include <omp.h>
-#include <experimental/simd>
 namespace
 {
 
@@ -564,6 +558,22 @@ namespace stdx          = std::experimental;
 
 template<typename T, int WIDTH>
 using fix_simd = stdx::fixed_size_simd<T, WIDTH>;
+
+static constexpr int mceil(int value, int elem)
+{
+    auto v = value / elem;
+    return value % elem == 0 ? v : v + 1;
+}
+
+static_assert(mceil(100, 12) == 9, "mceil failed");
+
+constexpr int blockWithPadding(int Nc, int Nr)
+{
+    return mceil(Nc, Nr) * Nr;
+}
+
+//
+static_assert(blockWithPadding(256, 12) == 264, "blockWithPadding failed");
 
 template<typename T, int WIDTH>
 static inline void load_inc_store_double(T* __restrict ptr, fix_simd<T, WIDTH> increment)
@@ -712,7 +722,6 @@ inline void reorderColOrderMatrixPadded(const T* __restrict matrix,
 template<typename T>
 void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 {
-    // std::cout << "Nc: " << Nc << ", Mc: " << Mc << ", Kc: " << Kc << std::endl;
 
     constexpr auto num_of_regs = 32;
     constexpr auto bregs_cnt   = 3;
@@ -721,8 +730,8 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
     constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
 
     constexpr int Kr = 1;
-    constexpr int Nr = bregs_cnt * num_of_elems_in_reg; // 24
-    constexpr int Mr{8}; //{(num_of_regs - aregs_cnt - bregs_cnt) / bregs_cnt};
+    constexpr int Nr = 8; // bregs_cnt * num_of_elems_in_reg; // 24
+    constexpr int Mr{8};  //{(num_of_regs - aregs_cnt - bregs_cnt) / bregs_cnt};
 
     static_assert(Nr % num_of_elems_in_reg == 0, "Nr must be divisible by num_of_elems_in_reg");
 
@@ -739,8 +748,7 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
     // Minimal per-tail padding during repacking enables arbitrary M/N/K
     const std::size_t per_thread_buf_elems =
       static_cast<std::size_t>(Kc) * (Mc + Nc) + static_cast<std::size_t>(Mc) * Nc;
-    std::vector<T, boost::alignment::aligned_allocator<T, PAGE_SIZE>> buffer(
-      num_threads * per_thread_buf_elems);
+    std::vector<T> buffer(num_threads * per_thread_buf_elems);
 
     // Grid threading like matMulZen5MTBlocking
     constexpr int      GRID_I       = 4;

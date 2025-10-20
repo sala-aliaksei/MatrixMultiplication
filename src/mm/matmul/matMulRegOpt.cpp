@@ -9,9 +9,6 @@
 
 #include <thread>
 
-// #include <boost/asio.hpp>
-// #include <boost/thread/thread.hpp>
-
 namespace
 {
 
@@ -1102,8 +1099,7 @@ void matMulRegOptBuff(const Matrix<double>& A, const Matrix<double>& B, Matrix<d
     const double* mb = B.data();
     const double* ma = A.data();
 
-    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(
-      num_threads * GEMM_K * (GEMM_I + GEMM_J));
+    std::vector<double> buffer(num_threads * GEMM_K * (GEMM_I + GEMM_J));
 
     auto task = [&](const std::size_t tid) -> void
     {

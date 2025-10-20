@@ -15,6 +15,7 @@
 #include "mm/matmul/matMulRegOpt.hpp"
 #include "mm/matmul/matMulSimd.hpp"
 
+#include "mm/core/utils/utils.hpp"
 #include "benchmark_utils.hpp"
 #include <benchmark/benchmark.h>
 

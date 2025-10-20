@@ -175,8 +175,7 @@ void matMulPadding(const Matrix<double>& A, const Matrix<double>& B, Matrix<doub
     // We don't need it for outerloop J; since jtail will be handled separatly
     //
 
-    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(4 * Kc
-                                                                                  * (Mc + Nc));
+    std::vector<double> buffer(4 * Kc * (Mc + Nc));
 
     // TODO: rewrite to while(N/Nc) and handle tail properly
 

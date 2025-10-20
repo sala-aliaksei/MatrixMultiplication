@@ -8,12 +8,6 @@
 #include <gtest/gtest.h> //--gtest_filter=MatrixMulTest.MatMulLoopsRepack
 #include <vector>
 
-int GetMatrixDimFromEnv()
-{
-    const char* env = std::getenv("MATRIX_DIM");
-    return env ? std::atoi(env) : 3072;
-}
-
 class MatrixMulZen5Test : public testing::Test
 {
   protected:

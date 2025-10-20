@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+int GetMatrixDimFromEnv();
+
 #define massert(x, msg) \
     (bool((x)) == true ? void(0) : throw std::runtime_error("Assertion failed: " #x " " msg))
 

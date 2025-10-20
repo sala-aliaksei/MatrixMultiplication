@@ -817,8 +817,7 @@ void matMulLoopsRepack(const Matrix<double>& A, const Matrix<double>& B, Matrix<
     const auto K = A.col();
     const auto M = A.row();
 
-    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(4 * Kc
-                                                                                  * (Mc + Nc));
+    std::vector<double> buffer(4 * Kc * (Mc + Nc));
 
 #pragma omp parallel for
     for (int j = 0; j < N; j += Nc)
@@ -889,8 +888,7 @@ void matMulLoopsRepackIKJ(const Matrix<double>& A, const Matrix<double>& B, Matr
     auto num_threads = std::thread::hardware_concurrency(); // std::thread::hardware_concurrency();
     num_threads      = num_threads > 4 ? 16 : num_threads;
 
-    std::vector<double, boost::alignment::aligned_allocator<double, 4096>> buffer(num_threads * Kc
-                                                                                  * (Mc + Nc));
+    std::vector<double> buffer(num_threads * Kc * (Mc + Nc));
 
 #pragma omp parallel for num_threads(num_threads)
     for (int i = 0; i < M; i += Mc)

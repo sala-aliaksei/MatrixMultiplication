@@ -3,7 +3,6 @@
 #include <iomanip> // for std::setw
 
 #include <vector>
-#include <boost/align/aligned_allocator.hpp>
 
 #ifdef __cpp_lib_hardware_interference_size
 using std::hardware_constructive_interference_size;
@@ -18,7 +17,7 @@ constexpr std::size_t hardware_destructive_interference_size  = 64;
 constexpr size_t ALIGN_SIZE = hardware_destructive_interference_size;
 
 template<typename T>
-using aligned_vector = std::vector<T, boost::alignment::aligned_allocator<T, ALIGN_SIZE>>;
+using aligned_vector = std::vector<T>;
 
 template<typename T>
 class Matrix

@@ -4,6 +4,7 @@
 #include "mm/matmul/matMulZen5.hpp"
 
 #include "benchmark_utils.hpp"
+#include "mm/core/utils/utils.hpp"
 
 int main(int argc, char** argv)
 {

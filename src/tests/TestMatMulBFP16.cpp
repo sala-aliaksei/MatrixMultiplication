@@ -1,7 +1,11 @@
-
-#include "mm/matmul/matMulAutotune.hpp"
+#include "mm/matmul/matMul.hpp"
+#include "mm/matmul/matMulZen5.hpp"
+#include "mm/core/utils/utils.hpp"
 
 #include <gtest/gtest.h>
+
+#if __STDCPP_FLOAT64_T__ == 1
+#include <stdfloat>
 
 constexpr std::size_t N = 3072;
 
@@ -9,16 +13,10 @@ constexpr std::size_t I = N;
 constexpr std::size_t J = N;
 constexpr std::size_t K = N;
 
-static int GetMatrixDimFromEnv()
-{
-    const char* env = std::getenv("MATRIX_DIM");
-    return env ? std::atoi(env) : N;
-}
-
-class MatrixMulAutotuneTest : public testing::Test
+class MatrixMulBFP16Test : public testing::Test
 {
   protected:
-    MatrixMulAutotuneTest()
+    MatrixMulBFP16Test()
       //: matrices(initDoubleMatrix(I, J, K))
       : a(generateRandomMatrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
       , b(generateRandomMatrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
@@ -32,7 +30,7 @@ class MatrixMulAutotuneTest : public testing::Test
         c = Matrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv());
     }
 
-    ~MatrixMulAutotuneTest() override
+    ~MatrixMulBFP16Test() override
     {
         // You can do clean-up work that doesn't throw exceptions here.
     }
@@ -49,20 +47,26 @@ class MatrixMulAutotuneTest : public testing::Test
         // before the destructor).
     }
 
-    Matrix<double> a;
-    Matrix<double> b;
-    Matrix<double> c;
-    Matrix<double> expected;
+    Matrix<std::bfloat16_t> a;
+    Matrix<std::bfloat16_t> b;
+    Matrix<std::bfloat16_t> c;
+    Matrix<std::bfloat16_t> expected;
 };
 
 /***********   FLOAT 32   ***********/
-TEST_F(MatrixMulAutotuneTest, MatMulAutotune)
+TEST_F(MatrixMulBFP16Test, MatMulZen5)
 {
-    matMulAutotune(a, b, c);
+    mm::zen5::matMulZen5(a, b, c);
 
     EXPECT_EQ((expected == c), true);
 }
 
+TEST_F(MatrixMulBFP16Test, MatMulZen5MTBlocking)
+{
+    mm::zen5::matMulZen5MTBlocking(a, b, c);
+    EXPECT_EQ((expected == c), true);
+}
+#endif
 /********************       MAIN        ********************/
 
 int main(int argc, char** argv)

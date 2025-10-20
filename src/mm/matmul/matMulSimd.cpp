@@ -452,7 +452,8 @@ static void cpp_ukernelLambda(const T* __restrict ma,
             simd<T> bs[Nrs] = {simd<T>(&b[J * simd<T>::size()], stdx::element_aligned)...};
 
             (..., (compute_row(simd<T>(a[I]), bs, &r[I * Nrs], std::make_index_sequence<Nrs>{})));
-        }(std::make_index_sequence<Mr>{}, std::make_index_sequence<Nrs>{});
+        }
+        (std::make_index_sequence<Mr>{}, std::make_index_sequence<Nrs>{});
     }
 
     store_kernel<Nr / Mr>(c, r, N, std::make_index_sequence<Mr>{});
@@ -496,8 +497,7 @@ void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>
     massert(N % num_threads == 0, "N % num_threads == 0");
     massert((N / num_threads) % Nc == 0, "(N/num_threads) % Nc == 0");
 
-    std::vector<double, boost::alignment::aligned_allocator<double, PAGE_SIZE>> buffer(
-      num_threads * Kc * (Mc + Nc));
+    std::vector<double> buffer(num_threads * Kc * (Mc + Nc));
 
 #pragma omp parallel for num_threads(num_threads)
     for (int j_block = 0; j_block < N; j_block += Nc)
@@ -571,8 +571,7 @@ void matMulSimdTails(const Matrix<double>& A, const Matrix<double>& B, Matrix<do
 
     auto num_threads = std::thread::hardware_concurrency();
 
-    std::vector<double, boost::alignment::aligned_allocator<double, PAGE_SIZE>> buffer(
-      num_threads * Kc * (Mc + Nc));
+    std::vector<double> buffer(num_threads * Kc * (Mc + Nc));
 
     // tail is only in last block
     int dNc = N % Nc;
