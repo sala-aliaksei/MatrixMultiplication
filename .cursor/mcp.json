@@ -9,6 +9,10 @@
         "env": {
           "CLANGD_PATH": "/usr/bin/clangd-20"
         }
+      },
+      "clang-file-verification": {
+        "command":"uv",
+        "args": ["run", "${workspaceFolder}/tools/clang-verify-file-server.py"]
       }
     }
   }
