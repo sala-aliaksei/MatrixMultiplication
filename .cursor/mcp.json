@@ -1,0 +1,8 @@
+{
+    "mcpServers": {
+      "clang-tidy": {
+        "command": "uv",
+        "args": [ "run", "${workspaceFolder}/tools/clang-tidy-server.py"]
+      }
+    }
+  }
