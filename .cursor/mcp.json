@@ -3,6 +3,12 @@
       "clang-tidy": {
         "command": "uv",
         "args": [ "run", "${workspaceFolder}/tools/clang-tidy-server.py"]
+      },
+      "cpp-tools": {
+        "command": "mcp-cpp-server",
+        "env": {
+          "CLANGD_PATH": "/usr/bin/clangd-20"
+        }
       }
     }
   }

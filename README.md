@@ -76,6 +76,10 @@ The benchmarking is conducted by multiplying matrices of varying sizes and compa
 - **OpenBLAS**: An open-source implementation of BLAS (Basic Linear Algebra Subprograms).
 
 
+## AI integration
+
+C++ MCP Server: https://github.com/mpsm/mcp-cpp
+
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request if you have improvements or bug fixes.
