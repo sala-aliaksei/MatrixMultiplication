@@ -13,6 +13,10 @@
       "clang-file-verification": {
         "command":"uv",
         "args": ["run", "${workspaceFolder}/tools/clang-verify-file-server.py"]
+      },
+      "llvm-mca":{
+        "command": "uv",
+        "args" : ["run", "${workspaceFolder}/tools/llvm-mca-server.py"]
       }
     }
   }
