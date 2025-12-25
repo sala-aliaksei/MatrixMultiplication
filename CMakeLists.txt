@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project("MatrixMultiplication" VERSION 1.0)
+project(MatrixMultiplication VERSION 1.0)
 
 option(ENABLE_LLVM_MCA "Run llvm-mca performance analysis" OFF)
 option(ENABLE_GPU_BUILD "Enable GPU build" OFF)
@@ -11,49 +11,12 @@ option(ENABLE_TPI_BLIS "Use BLIS library" OFF)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD 11)
-
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -O3 -g -ffast-math -march=native -Wno-interference-size -fdiagnostics-color")
-set(CMAKE_C_FLAGS  "${CMAKE_C_FLAGS} -O3 -march=native ") # -masm=intel
-if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fopenmp")
-endif()
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -fopenmp=libomp")
-endif()
 
-# Add custom OpenBLAS
-# set(CUSTOM_OPENBLAS_ROOT "/home/aliaksei/wp/cpp/lib/openblas")
-# add_library(CustomOpenBLAS SHARED IMPORTED)
-# set_target_properties(CustomOpenBLAS PROPERTIES
-#     IMPORTED_LOCATION "${CUSTOM_OPENBLAS_ROOT}/lib/libopenblas.so"
-#     INTERFACE_INCLUDE_DIRECTORIES "${CUSTOM_OPENBLAS_ROOT}/include"
-#     IMPORTED_NO_SONAME ON
-# )
-# add_library(OpenBLAS::OpenBLAS ALIAS CustomOpenBLAS)
+include(cmake/compiler_flags.cmake)
+set_compiler_flags(native)
 
-# Use blis from system path (no conan receipt)
-# set(CUSTOM_BLIS_ROOT "/home/aliaksei/wp/cpp/lib/amdblis")
-# set(BLIS_LIB "${CUSTOM_BLIS_ROOT}/lib/libblis.so")
-# set(BLIS_INCLUDE_DIR "${CUSTOM_BLIS_ROOT}/include")
-
-# # Verify files exist
-# if(NOT EXISTS "${BLIS_LIB}")
-#     message(FATAL_ERROR "AMD BLIS library not found at: ${BLIS_LIB}")
-# endif()
-
-# if(NOT EXISTS "${BLIS_INCLUDE_DIR}/blis/blis.h")
-#     message(FATAL_ERROR "AMD BLIS headers not found at: ${BLIS_INCLUDE_DIR}")
-# endif()
-
-# add_library(CustomBLIS SHARED IMPORTED)
-# set_target_properties(CustomBLIS PROPERTIES
-#     IMPORTED_LOCATION "${CUSTOM_BLIS_ROOT}/lib/libblis.so"
-#     INTERFACE_INCLUDE_DIRECTORIES "${CUSTOM_BLIS_ROOT}/include"
-#     IMPORTED_NO_SONAME ON
-# )
-# add_library(BLIS::BLIS ALIAS CustomBLIS)
+include(cmake/dependencies.cmake)
 
 
 #find_package(tensorflow-lite REQUIRED)
@@ -195,8 +158,7 @@ add_executable(MulMatrixApp code/MulMatrixApp.cpp)
 target_link_libraries(MulMatrixApp  ${PROJECT_NAME})
 target_compile_definitions(MulMatrixApp PUBLIC MDSPAN_USE_BRACKET_OPERATOR)
 
-#-fprofile-generate=${CMAKE_CURRENT_SOURCE_DIR}
-#-fprofile-use=${CMAKE_CURRENT_SOURCE_DIR}
+
 
 if(ENABLE_BENCHMARKS)
     find_package(benchmark REQUIRED)
@@ -204,6 +166,7 @@ if(ENABLE_BENCHMARKS)
     add_library(benchmark_utils STATIC code/benchmarks/benchmark_utils.cpp)
     target_include_directories(benchmark_utils PUBLIC ${CMAKE_SOURCE_DIR}/code)
     target_link_libraries(benchmark_utils PUBLIC benchmark::benchmark ${PROJECT_NAME} MatMulAutotune GenAI TPI)
+
 
     add_executable(BM_Matmul code/benchmarks/matMulBenchmarks.cpp)
     target_link_libraries(BM_Matmul benchmark_utils)
@@ -235,20 +198,23 @@ if(ENABLE_BENCHMARKS)
 
     add_executable(BM_MM_Hyper code/benchmarks/matmulHyperBenchmark.cpp)
     target_link_libraries(BM_MM_Hyper benchmark_utils)
-    
+
 endif()
 
 
 if(ENABLE_UNIT_TESTS)
     find_package(GTest REQUIRED)
     set(SANITIZER_FLAGS -fsanitize=address,undefined) # address,undefined -fno-omit-frame-pointer
-    #set(SANITIZER_FLAGS "")
+
+    # Define the RPATH that should be propagated to all targets linking with UnitTestUtils
+    #set(UNITTEST_UTILS_INSTALL_RPATH "$ORIGIN;/home/aliaksei/wp/gcc-16/lib64")
 
     add_library(UnitTestUtils INTERFACE)
     target_compile_options(UnitTestUtils INTERFACE ${SANITIZER_FLAGS})
     target_link_options(UnitTestUtils INTERFACE ${SANITIZER_FLAGS})
     target_link_libraries(UnitTestUtils INTERFACE GTest::gtest GTest::gtest_main)
-    
+
+
     add_executable(TestMatmul code/tests/TestMatMul.cpp)
     target_link_libraries(TestMatmul ${PROJECT_NAME} MatMulAutotune GenAI TPI UnitTestUtils)
 
@@ -269,22 +235,6 @@ if(ENABLE_UNIT_TESTS)
 
     add_executable(TestMMHyper code/tests/TestMatMulHyper.cpp)
     target_link_libraries(TestMMHyper ${PROJECT_NAME} TPI UnitTestUtils)
-
-    set(ALL_MY_TESTS
-        TestMatmul
-        TestMatmul_Zen5
-        TestMatmul_BFP16
-        TestKernels
-        TestRepacking
-        TestZorder
-        TestMMHyper
-    )
-    foreach(test_target ${ALL_MY_TESTS})
-        set_target_properties(${test_target} PROPERTIES
-            # This tells the executable to look for .so files in its own directory
-            INSTALL_RPATH "$ORIGIN;/home/aliaksei/wp/gcc-16/lib64"
-        )
-    endforeach()
 
 endif()
 

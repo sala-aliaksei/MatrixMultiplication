@@ -20,9 +20,13 @@ RANLIB=/home/aliaksei/wp/gcc-16/bin/x86_64-pc-linux-gnu-gcc-ranlib-16
 LD_LIBRARY_PATH=/home/aliaksei/wp/gcc-16/lib64:$LD_LIBRARY_PATH
 LIBSTDCXX_INCLUDE_DIR=/home/aliaksei/wp/gcc-16/include/c++/16.0.0
 LIBSTDCXX_LIB_DIR=/home/aliaksei/wp/gcc-16/lib64
+# Embed RPATH in binaries during linking so they can find libstdc++ at runtime
+# -Wl,-rpath,<path> tells the linker to embed the library search path in the binary
+# CMake reads these environment variables and uses them as linker flags
+LDFLAGS=-Wl,-rpath,/home/aliaksei/wp/gcc-16/lib64
+CMAKE_EXE_LINKER_FLAGS=-Wl,-rpath,/home/aliaksei/wp/gcc-16/lib64
+CMAKE_SHARED_LINKER_FLAGS=-Wl,-rpath,/home/aliaksei/wp/gcc-16/lib64
 
 
 [runenv]
 LD_LIBRARY_PATH=/home/aliaksei/wp/gcc-16/lib64
-
-
