@@ -1,0 +1,54 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build with Conan",
+            "type": "shell",
+            "command": "conan",
+            "args": [
+                "build",
+                ".",
+                "-pr",
+                "conan/profiles/gcc16"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": false,
+                "clear": true
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Run BM_Matmul_Zen5 Benchmark",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/Release/BM_Matmul_Zen5",
+            "args": [
+                "--benchmark_format=console",
+                "--benchmark_time_unit=ms",
+                "--benchmark_color=true"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "LD_LIBRARY_PATH": "/home/aliaksei/wp/gcc-16/lib64:/home/aliaksei/wp/gcc-16/lib/gcc/x86_64-linux-gnu/16.0.0:${env:LD_LIBRARY_PATH}"
+                }
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "focus": true,
+                "clear": true
+            }
+        }
+    ]
+}
+
