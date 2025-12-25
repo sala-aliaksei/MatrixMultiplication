@@ -10,9 +10,9 @@ int main(int argc, char** argv)
 
     // Zen5
     REGISTER_DOUBLE(mm::zen5::matMulZen5, matrix_dim);
-    REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlocking, matrix_dim);
-    REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlockingTails, matrix_dim);
-    REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlockingSpan, matrix_dim);
+    REGISTER_DOUBLE_MT(mm::zen5::matMulZen5MTBlocking, matrix_dim);
+    REGISTER_DOUBLE_MT(mm::zen5::matMulZen5MTBlockingTails, matrix_dim);
+    REGISTER_DOUBLE_MT(mm::zen5::matMulZen5MTBlockingSpan, matrix_dim);
     // REGISTER_DOUBLE(mm::zen5::matMulZen5MTBlockingL1, matrix_dim);
     //  REGISTER_DOUBLE_RANGE(mm::zen5::matMulZen5MTBlockingTails, matrix_dim);
 
