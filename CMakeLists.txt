@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 project(MatrixMultiplication VERSION 1.0)
 
 option(ENABLE_LLVM_MCA "Run llvm-mca performance analysis" OFF)
-option(ENABLE_GPU_BUILD "Enable GPU build" OFF)
+option(ENABLE_GPU_BUILD "Enable GPU build" ON)
 option(ENABLE_UNIT_TESTS "Enable Unit Tests" ON)
 option(ENABLE_BENCHMARKS "Enable Benchmarks" ON)
 option(ENABLE_TPI_BLIS "Use BLIS library" OFF)
@@ -33,7 +33,13 @@ find_package(Eigen3 REQUIRED)
 
 
 if(ENABLE_GPU_BUILD)
-    find_package(CUDA REQUIRED)
+    set(CMAKE_CUDA_STANDARD 20)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    enable_language(CUDA)
+    find_package(CUDAToolkit QUIET)
+    if(NOT CUDAToolkit_FOUND)
+        find_package(CUDA REQUIRED)
+    endif()
 endif()
 
 
@@ -133,6 +139,38 @@ target_include_directories(GenAI PUBLIC Core)
 target_link_libraries(GenAI Core)
 
 
+######     GPU GEMM     #################
+
+if(ENABLE_GPU_BUILD)
+    add_library(GPUGemm SHARED
+        code/gpu/matmulGpuBlas.cu
+        code/gpu/matmulGpu.cu
+        # code/gpu/matmulGpuBlas.hpp
+        # code/gpu/matmulGpu.hpp
+ )
+
+    target_include_directories(GPUGemm PUBLIC
+        ${CMAKE_SOURCE_DIR}/code
+    )
+
+    # Link CUDA libraries
+    if(TARGET CUDA::cudart)
+        target_link_libraries(GPUGemm
+            CUDA::cudart
+            CUDA::cublas
+            Core
+        )
+    else()
+        # Fallback for older CMake/CUDA setups
+        target_link_libraries(GPUGemm
+            ${CUDA_LIBRARIES}
+            ${CUDA_CUBLAS_LIBRARIES}
+        )
+        target_include_directories(GPUGemm PRIVATE ${CUDA_INCLUDE_DIRS})
+    endif()
+endif()
+
+
 ######     MatMulAutotune      #####
 
 add_library(MatMulAutotune SHARED
@@ -199,42 +237,53 @@ if(ENABLE_BENCHMARKS)
     add_executable(BM_MM_Hyper code/benchmarks/matmulHyperBenchmark.cpp)
     target_link_libraries(BM_MM_Hyper benchmark_utils)
 
+    if(ENABLE_GPU_BUILD)
+        add_executable(BM_Matmul_GPU code/benchmarks/matmulGpuBenchmark.cpp)
+        target_link_libraries(BM_Matmul_GPU benchmark_utils GPUGemm)
+    endif()
+
 endif()
 
 
 if(ENABLE_UNIT_TESTS)
     find_package(GTest REQUIRED)
     set(SANITIZER_FLAGS -fsanitize=address,undefined) # address,undefined -fno-omit-frame-pointer
+    add_library(SanitizerFlags INTERFACE)
+    target_compile_options(SanitizerFlags INTERFACE ${SANITIZER_FLAGS})
+    target_link_options(SanitizerFlags INTERFACE ${SANITIZER_FLAGS})
 
     # Define the RPATH that should be propagated to all targets linking with UnitTestUtils
     #set(UNITTEST_UTILS_INSTALL_RPATH "$ORIGIN;/home/aliaksei/wp/gcc-16/lib64")
 
     add_library(UnitTestUtils INTERFACE)
-    target_compile_options(UnitTestUtils INTERFACE ${SANITIZER_FLAGS})
-    target_link_options(UnitTestUtils INTERFACE ${SANITIZER_FLAGS})
     target_link_libraries(UnitTestUtils INTERFACE GTest::gtest GTest::gtest_main)
 
 
     add_executable(TestMatmul code/tests/TestMatMul.cpp)
-    target_link_libraries(TestMatmul ${PROJECT_NAME} MatMulAutotune GenAI TPI UnitTestUtils)
+    target_link_libraries(TestMatmul ${PROJECT_NAME} MatMulAutotune GenAI TPI UnitTestUtils SanitizerFlags)
 
     add_executable(TestMatmul_Zen5 code/tests/TestMatmulZen5.cpp)
-    target_link_libraries(TestMatmul_Zen5 ${PROJECT_NAME} MatMulAutotune TPI UnitTestUtils)
+    target_link_libraries(TestMatmul_Zen5 ${PROJECT_NAME} MatMulAutotune TPI UnitTestUtils SanitizerFlags)
 
     add_executable(TestMatmul_BFP16 code/tests/TestMatMulBFP16.cpp)
-    target_link_libraries(TestMatmul_BFP16 ${PROJECT_NAME} UnitTestUtils)
+    target_link_libraries(TestMatmul_BFP16 ${PROJECT_NAME} UnitTestUtils SanitizerFlags)
 
     add_executable(TestKernels code/tests/TestKernels.cpp)
-    target_link_libraries(TestKernels Core UnitTestUtils)
+    target_link_libraries(TestKernels Core UnitTestUtils SanitizerFlags)
 
     add_executable(TestRepacking code/tests/TestRepacking.cpp)
-    target_link_libraries(TestRepacking ${PROJECT_NAME} UnitTestUtils)
+    target_link_libraries(TestRepacking ${PROJECT_NAME} UnitTestUtils SanitizerFlags)
 
     add_executable(TestZorder code/tests/TestZorder.cpp)
-    target_link_libraries(TestZorder ${PROJECT_NAME} UnitTestUtils)
+    target_link_libraries(TestZorder ${PROJECT_NAME} UnitTestUtils SanitizerFlags)
 
     add_executable(TestMMHyper code/tests/TestMatMulHyper.cpp)
-    target_link_libraries(TestMMHyper ${PROJECT_NAME} TPI UnitTestUtils)
+    target_link_libraries(TestMMHyper ${PROJECT_NAME} TPI UnitTestUtils SanitizerFlags)
+
+    if(ENABLE_GPU_BUILD)
+        add_executable(TestMatmulGpu code/tests/TestMatmulGpu.cpp)
+        target_link_libraries(TestMatmulGpu GPUGemm UnitTestUtils)
+    endif()
 
 endif()
 
