@@ -233,12 +233,13 @@ static void BM_ColOrderMatrixPrefetchRefactor(benchmark::State& state)
 static void BM_ARRAY_ITERATION(benchmark::State& state)
 {
     std::size_t         N = state.range(0);
-    std::vector<double> a(N);
+    std::vector<double> a(N/sizeof(double));
+    auto size = a.size();
 
     benchmark::DoNotOptimize(a);
     for (auto _ : state)
     {
-        for (int i = 0; i < N; i++)
+        for (int i = 0; i < size; i++)
         {
             a[i] = i;
         }
@@ -249,22 +250,47 @@ static void BM_ARRAY_ITERATION(benchmark::State& state)
     benchmark::ClobberMemory();
 }
 
-BENCHMARK(BM_ARRAY_ITERATION)->Arg(1 * 1024)->Arg(3 * 1024)->Arg(6 * 1024)->Arg(12 * 1024);
-// BENCHMARK(BM_ARRAY_ITERATION)->DenseRange(24 * 1024, 64 * 1024 * 1024, 24 * 1024);
-//    ->Arg(24 * 1024)
-//    ->Arg(48 * 1024)
-//    ->Arg(72 * 1024)
-//    ->Arg(96 * 1024)
-//    ->Arg(512 * 1024)
-//    ->Arg(1024 * 1024)
-//    ->Arg(32 * 1024 * 1024)
-//    ->Arg(64 * 1024 * 1024);
+
+
+BENCHMARK(BM_ARRAY_ITERATION)
+->Arg(4 * 1024)
+->Arg(8 * 1024)
+->Arg(16 * 1024)
+    ->Arg(24 * 1024)
+   ->Arg(48 * 1024) // L1 Cache size (9950x)
+   ->Arg(52 * 1024)
+   ->Arg(64 * 1024)
+   ->Arg(72 * 1024)
+   ->Arg(84 * 1024)
+   ->Arg(96 * 1024)
+   ->Arg(256 * 1024)
+   ->Arg(384 * 1024)
+   ->Arg(512 * 1024) 
+   ->Arg(640 * 1024)
+   ->Arg(768 * 1024)
+   ->Arg(896 * 1024)
+   ->Arg(1024 * 1024) // L2 Cache size(9950x)
+   ->Arg((256+1024) * 1024)
+   ->Arg((512+1024) * 1024)
+   ->Arg((768+1024) * 1024)
+   ->Arg(2* 1024 * 1024)
+   ->Arg(4* 1024 * 1024) // L3 Cache size(9950x)
+   ->Arg(8* 1024 * 1024)
+   ->Arg(16* 1024 * 1024)
+   ->Arg(20* 1024 * 1024)
+   ->Arg(24* 1024 * 1024)
+   ->Arg(32 * 1024 * 1024)
+   ->Arg(48 * 1024 * 1024)
+   ->Arg(64 * 1024 * 1024)
+   ->Threads(1);
+
+// BENCHMARK(BM_ColOrderMatrixPrefetchRefactor)->Arg(NN);
+//    BENCHMARK(BM_ColOrderMatrixPrefetchBadRefactor)->Arg(NN);
 
 BENCHMARK(BM_RowOrderMattrix)->Arg(NN);
 BENCHMARK(BM_ColOrderMattrix)->Arg(NN);
 BENCHMARK(BM_ColOrderMatrixPrefetch)->Arg(NN);
-// BENCHMARK(BM_ColOrderMatrixPrefetchRefactor)->Arg(NN);
-//    BENCHMARK(BM_ColOrderMatrixPrefetchBadRefactor)->Arg(NN);
+
 
 BENCHMARK(BM_RowStride)->Arg(NN);
 BENCHMARK(BM_ColStride)->Arg(NN);
