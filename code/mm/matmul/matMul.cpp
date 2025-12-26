@@ -56,6 +56,7 @@ void matMul_Naive_Order(const Matrix<std::bfloat16_t>& A,
     auto K = A.col();
     auto N = B.col();
 
+    #pragma omp parallel for
     for (int i = 0; i < M; ++i)
     {
         for (int k = 0; k < K; ++k)
