@@ -5,12 +5,10 @@
 #include "mm/tpi/matMulEigen.hpp"
 
 #include "mm/matmul/matMul.hpp"
-#include "mm/matmul/matMulRegOpt.hpp"
-#include "mm/matmul/matMulColOpt.hpp"
-#include "mm/matmul/matMulLoops.hpp"
+
 #include "mm/matmul/matMulPadding.hpp"
 #include "mm/matmul/matMulAutotune.hpp"
-#include "mm/matmul/matMulSimd.hpp"
+#include "mm/matmul/matMulTail.hpp"
 
 #include "mm/core/utils/utils.hpp"
 
@@ -149,48 +147,6 @@ TEST_F(MatrixMulTest, CN_matMul_Naive_Block)
     EXPECT_EQ((valid_res == matrices.c), true);
 }
 #endif
-
-TEST_F(MatrixMulTest, MatMulLoops)
-{
-    matMulLoops(matrices.a, matrices.b, matrices.c);
-
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
-
-TEST_F(MatrixMulTest, MatMulLoopsRepack)
-{
-    matMulLoopsRepack(matrices.a, matrices.b, matrices.c);
-
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
-
-TEST_F(MatrixMulTest, MatMulLoopsRepackIKJ)
-{
-    matMulLoopsRepackIKJ(matrices.a, matrices.b, matrices.c);
-
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
-
-TEST_F(MatrixMulTest, MatMulLoopsIKJ)
-{
-    matMulLoopsIKJ(matrices.a, matrices.b, matrices.c);
-
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
-
-TEST_F(MatrixMulTest, MatMulLoopsBPacked)
-{
-    matMulLoopsBPacked(matrices.a, matrices.b, matrices.c);
-
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
-
-TEST_F(MatrixMulTest, MatMulRegOpt)
-{
-    matMulRegOpt(matrices.a, matrices.b, matrices.c);
-
-    EXPECT_EQ((valid_res == matrices.c), true);
-}
 
 TEST_F(MatrixMulTest, GPT)
 {

@@ -65,16 +65,10 @@ target_include_directories(Core PUBLIC
 add_library(${PROJECT_NAME} SHARED
     code/mm/matmul/matMul.hpp
     code/mm/matmul/matMul.cpp
-    code/mm/matmul/matMulSimd.hpp
-    code/mm/matmul/matMulSimd.cpp
+    code/mm/matmul/matMulTail.hpp
+    code/mm/matmul/matMulTail.cpp
     code/mm/matmul/matMulPadding.hpp
     code/mm/matmul/matMulPadding.cpp
-    code/mm/matmul/matMulLoops.cpp
-    code/mm/matmul/matMulLoops.hpp
-    code/mm/matmul/matMulColOpt.hpp
-    code/mm/matmul/matMulColOpt.cpp
-    code/mm/matmul/matMulRegOpt.hpp
-    code/mm/matmul/matMulRegOpt.cpp
     code/mm/matmul/matMulZen5.cpp
     code/mm/matmul/matMulZen5.hpp
     code/mm/matmul/matMulHyper.cpp

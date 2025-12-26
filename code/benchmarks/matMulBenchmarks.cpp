@@ -9,11 +9,11 @@
 
 #include "mm/matmul/matMul.hpp"
 #include "mm/matmul/matMulAutotune.hpp"
-// #include "mm/matmul/matMulColOpt.hpp"
-#include "mm/matmul/matMulLoops.hpp"
+
+
 #include "mm/matmul/matMulPadding.hpp"
-#include "mm/matmul/matMulRegOpt.hpp"
-#include "mm/matmul/matMulSimd.hpp"
+
+#include "mm/matmul/matMulTail.hpp"
 
 #include "mm/core/utils/utils.hpp"
 #include "benchmark_utils.hpp"
@@ -68,11 +68,6 @@ int main(int argc, char** argv)
     REGISTER_DOUBLE(mm::matMul_Avx_Cache_Regs_Unroll_MT, matrix_dim);
     REGISTER_DOUBLE(mm::matMul_Avx_Cache_Regs_Unroll_BPack_MT, matrix_dim);
 
-    REGISTER_DOUBLE(matMulRegOpt, matrix_dim);
-
-    REGISTER_DOUBLE(matMulLoopsRepack, matrix_dim);
-    // REGISTER_DOUBLE(BM_MatMulLoopRepackIKJ, matrix_dim); // slower
-    REGISTER_DOUBLE(matMulLoopsBPacked, matrix_dim);
 
     //
     REGISTER_DOUBLE(matMulPadding, matrix_dim);

@@ -1,5 +1,5 @@
 #include "mm/core/reorderMatrix.hpp"
-#include "mm/matmul/matMulSimd.hpp"
+#include "mm/matmul/matMulTail.hpp"
 
 #include "mm/core/kernels.hpp"
 
