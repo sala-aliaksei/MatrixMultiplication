@@ -3,34 +3,23 @@ import os
 import math
 import sys
 # Given constants
-Nr, Mr, Kr = 12, 4, 1
+Nr, Mr, Kr = 24, 8, 1
 
-Nstep = 2*Nr  # 48
-Mstep = 4*Mr # 16
-Kstep = 20
+Nstep = Nr  
+Mstep = 2*Mr
+Kstep = 16
 
-
+MAX=384
 # constexpr int Mc = 20;
-Mc = [ i for i in range(4,204,Mstep)]
+Mc = [ i for i in range(Mr,MAX,Mstep)]
 
 # constexpr int Nc = 180;
-Nc = [ i for i in range(144,720,Nstep)]
+Nc = [ j for j in range(Nr,MAX,Nstep)]
 
 # constexpr int Kc = 80;
-Kc = [ i for i in range(20,260,Kstep)]
+Kc = [ k for k in range(32,MAX,Kstep)]
 
 
-Mb = 128 # 144 # 128
-Nb = 720
-Kb = 256
-
-Mb = 20 # 144 # 128
-Nb = 180
-Kb = 80
-
-Mc = [ i for i in range(Mb,Mb+Mstep,Mstep)]
-Nc = [ i for i in range(Nb,Nb+Nstep,Nstep)]
-Kc = [ i for i in range(Kb,Kb+Kstep,Kstep)]
 
 
 BM_NAME = "BM_MatMulAutotune"
@@ -43,10 +32,11 @@ print("workspace: ", workspace)
 output_dir = workspace + "output/autotune-constants"
 os.makedirs(output_dir, exist_ok=True)
 
-for Ncc in Nc:
-    for Mcc in Mc:
-        for Kcc in Kc:
-            size = 2880
+for Kcc in Kc:
+    for Ncc in Nc:
+        for Mcc in Mc:
+
+            size = 3072
             # calc new size which should be divisible by Ncc and Mcc and value should be around 2880
             # if size % Ncc != 0 or size % Mcc != 0 or size % Kcc != 0:
             #     size = math.lcm(Mcc,Ncc,Kcc)
@@ -58,10 +48,10 @@ for Ncc in Nc:
                 f.write(f"{Mcc}, {Ncc}, {Kcc}, ")
             print(f"Run experiment with Ncc: {Ncc}, Mcc: {Mcc}, Kcc: {Kcc}, size: {size}")
             # run cmake ffrom current directory
-            ret = os.system(f"cd {workspace} && cmake -DN_CACHE_SIZE={Ncc} -DM_CACHE_SIZE={Mcc} -DK_CACHE_SIZE={Kcc} \
+            ret = os.system(f"cd {workspace} && rm -f build/CMakeCache.txt && cmake -DN_CACHE_SIZE={Ncc} -DM_CACHE_SIZE={Mcc} -DK_CACHE_SIZE={Kcc} \
                       -DCMAKE_BUILD_TYPE=Release -DENABLE_UNIT_TESTS=OFF \
                       -DCMAKE_TOOLCHAIN_FILE=./build/Release/generators/conan_toolchain.cmake \
-                      -B ./build && cmake --build ./build -j4 --target BM_MatmulAutotune")
+                      -B ./build && cmake --build ./build -j$(nproc) --config Release --target BM_MatmulAutotune")
             
             if ret != 0:
                 print("\n[Error]Failed to build matmul !!!")
