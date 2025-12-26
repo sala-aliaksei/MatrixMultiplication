@@ -171,11 +171,11 @@ if(ENABLE_BENCHMARKS)
     add_executable(BM_Matmul code/benchmarks/matMulBenchmarks.cpp)
     target_link_libraries(BM_Matmul benchmark_utils)
 
-    # add_executable(BM_Matmul_Float code/benchmarks/matMulFloatBenchmarks.cpp)
-    # target_link_libraries(BM_Matmul_Float benchmark_utils)
+    add_executable(BM_Matmul_Float code/benchmarks/matMulFloatBenchmarks.cpp)
+    target_link_libraries(BM_Matmul_Float benchmark_utils)
 
-    # add_executable(BM_Matmul_BFP16 code/benchmarks/matMulBf16Benchmarks.cpp)
-    # target_link_libraries(BM_Matmul_BFP16 benchmark_utils)
+    add_executable(BM_Matmul_BFP16 code/benchmarks/matMulBf16Benchmarks.cpp)
+    target_link_libraries(BM_Matmul_BFP16 benchmark_utils)
 
     add_executable(BM_Matmul_Zen5 code/benchmarks/matMulZen5Benchmark.cpp)
     target_link_libraries(BM_Matmul_Zen5 benchmark_utils)
