@@ -46,13 +46,13 @@ static void BM_MatMul(benchmark::State& state)
     benchmark::RegisterBenchmark(#NAME, (BM_MatMul<float, &NAME>))->Arg(DIM);
 
 #define REGISTER_FLOAT_MT(NAME, DIM) \
-    benchmark::RegisterBenchmark(#NAME, (BM_MatMul<float, &NAME>))->Arg(DIM);
+    benchmark::RegisterBenchmark(#NAME, (BM_MatMul<float, &NAME>))->Arg(DIM)->UseRealTime();;
 
 #define REGISTER_BF16(NAME, DIM) \
     benchmark::RegisterBenchmark(#NAME, (BM_MatMul<std::bfloat16_t, &NAME>))->Arg(DIM);
 
 #define REGISTER_BF16_MT(NAME, DIM) \
-    benchmark::RegisterBenchmark(#NAME, (BM_MatMul<std::bfloat16_t, &NAME>))->Arg(DIM)-;
+    benchmark::RegisterBenchmark(#NAME, (BM_MatMul<std::bfloat16_t, &NAME>))->Arg(DIM)->UseRealTime();
 
 #define REGISTER_FLOAT_RANGE(NAME, DIM) \
     benchmark::RegisterBenchmark(#NAME, (BM_MatMul<float, &NAME>))->DenseRange(1024, 16384, 1024);

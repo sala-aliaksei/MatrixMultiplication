@@ -17,11 +17,11 @@ fi
 
 if [ -z "$3" ]; then
     #UT_Name="UT_Matmul"
-    UT_Name="UT_Matmul_Zen5"
+    UT_Name="TestMatmul_Zen5"
 else
     UT_Name=$3
 fi
 
 WORKSPACE=$(realpath $(dirname $0)/..)
 
-MATRIX_DIM=$Matrix_Size ${WORKSPACE}/build/${UT_Name} --gtest_filter=$TEST_NAME --gtest_output=xml:${WORKSPACE}/build/results/${UT_Name}.xml
+MATRIX_DIM=$Matrix_Size ${WORKSPACE}/build/Release/${UT_Name} --gtest_filter=$TEST_NAME --gtest_output=xml:${WORKSPACE}/build/results/${UT_Name}.xml
