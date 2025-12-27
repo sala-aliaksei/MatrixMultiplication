@@ -151,13 +151,6 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 
     std::vector<T> buffer(num_threads * Kc * (Mc + Nc));
 
-    // Square-chunking in block units
-    constexpr int ChunkBlocks = 2; // tiles per side in a chunk (Mc/Nc multiples)
-    const int     blocksI     = M / Mc;
-    const int     blocksJ     = N / Nc;
-    const int     chunkRows   = (blocksI + ChunkBlocks - 1) / ChunkBlocks;
-    const int     chunkCols   = (blocksJ + ChunkBlocks - 1) / ChunkBlocks;
-
     std::vector<std::jthread> workers;
     workers.reserve(num_threads);
 
@@ -172,58 +165,45 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
               CPU_SET(core_id, &cpuset);
               (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
-              const std::size_t ofs = t * Kc * (Mc + Nc);
-              T* const          buf = buffer.data() + ofs;
-
-              // Thread's grid coords
               const int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
               const int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
 
-              // Each thread walks its subset of chunks with strides GRID_I/GRID_J
-              for (int chi = ti; chi < chunkRows; chi += GRID_I)
+              auto jbegin = tj * N / GRID_J; // flatted j index
+              auto ibegin = ti * M / GRID_I; // flatten i index
+
+              auto jend = jbegin + N / GRID_J;
+              auto iend = ibegin + M / GRID_I;
+
+              const std::size_t ofs = t * Kc * (Mc + Nc);
+              T* const          buf = buffer.data() + ofs;
+
+              for (int j_block = jbegin; j_block < jend; j_block+=Nc)
               {
-                  for (int chj = tj; chj < chunkCols; chj += GRID_J)
+                for (int k_block = 0; k_block < K; k_block += Kc)
                   {
-                      const int ibegin = chi * ChunkBlocks;
-                      const int iend   = std::min(ibegin + ChunkBlocks, blocksI);
-                      const int jbegin = chj * ChunkBlocks;
-                      const int jend   = std::min(jbegin + ChunkBlocks, blocksJ);
+                      reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
+                        B.data() + N * k_block + j_block, N, buf + Mc * Kc);
 
-                      for (int k_block = 0; k_block < K; k_block += Kc)
+                      for (int i_block = ibegin; i_block < iend; i_block+=Mc)
                       {
-                          // For each j_block in the chunk, pack B once and reuse across all i_block
-                          for (int jb = jbegin; jb < jend; ++jb)
+                          reorderColOrderMatrix<Mc, Kc, Mr, Kr>(
+                            A.data() + K * i_block + k_block, K, buf);
+
+                          for (int j = 0; j < Nc; j += Nr)
                           {
-                              const int j_block = jb * Nc;
-
-                              reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
-                                B.data() + N * k_block + j_block, N, buf + Mc * Kc);
-
-                              for (int ib = ibegin; ib < iend; ++ib)
+                              const T* Bc1 = buf + Mc * Kc + Kc * j;
+                              for (int i = 0; i < Mc; i += Mr)
                               {
-                                  const int i_block = ib * Mc;
-
-                                  reorderColOrderMatrix<Mc, Kc, Mr, Kr>(
-                                    A.data() + K * i_block + k_block, K, buf);
-
-                                  for (int j = 0; j < Nc; j += Nr)
+                                  T*       Cc0 = C.data() + N * i_block + j + N * i + j_block;
+                                  const T* Ac0 = buf + Kc * i;
+                                  if constexpr (std::is_same_v<T, std::bfloat16_t>)
                                   {
-                                      const T* Bc1 = buf + Mc * Kc + Kc * j;
-                                      for (int i = 0; i < Mc; i += Mr)
-                                      {
-                                          T* Cc0 = C.data() + N * i_block + j + N * i + j_block;
-                                          const T* Ac0 = buf + Kc * i;
-                                          if constexpr (std::is_same_v<T, std::bfloat16_t>)
-                                          {
-                                              kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(
-                                                Ac0, Bc1, Cc0, N);
-                                          }
-                                          else
-                                          {
-                                              kernels::zen5_packed_kernel<Nr, Mr, Kc>(
-                                                Ac0, Bc1, Cc0, N);
-                                          }
-                                      }
+                                      kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(
+                                        Ac0, Bc1, Cc0, N);
+                                  }
+                                  else
+                                  {
+                                      kernels::zen5_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                                   }
                               }
                           }
@@ -271,13 +251,6 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
     constexpr int      GRID_J       = 8;
     constexpr unsigned grid_threads = GRID_I * GRID_J;
 
-    // Square-chunking in block units; use ceil for tail tiles
-    constexpr int ChunkBlocks              = 2;
-    const int     total_iblocks_per_thread = (M + Mc - 1) / Mc;
-    const int     total_jblocks_per_thread = (N + Nc - 1) / Nc;
-    const int     chunkRows = (total_iblocks_per_thread + ChunkBlocks - 1) / ChunkBlocks;
-    const int     chunkCols = (total_jblocks_per_thread + ChunkBlocks - 1) / ChunkBlocks;
-
     auto worker_fn = [&](unsigned t)
     {
         const std::size_t ofs  = static_cast<std::size_t>(t) * per_thread_buf_elems;
@@ -286,82 +259,74 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
         T* const          bufB = buf + Mc * Kc;
         T* const          bufC = buf + static_cast<std::size_t>(Kc) * (Mc + Nc);
 
-        const int ti = static_cast<int>(t) / GRID_J;
-        const int tj = static_cast<int>(t) % GRID_J;
+        const int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
+        const int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
 
-        for (int chi = ti; chi < chunkRows; chi += GRID_I)
+        auto jbegin = tj * N / GRID_J; // flatted j index
+        auto ibegin = ti * M / GRID_I; // flatten i index
+
+        auto jend = jbegin + N / GRID_J;
+        auto iend = ibegin + M / GRID_I;
+
+        for (int j_block = jbegin; j_block < jend; j_block+=Nc)
         {
-            for (int chj = tj; chj < chunkCols; chj += GRID_J)
+            const int N_blk     = std::min(Nc, N - j_block);
+            const int N_blk_pad = blockWithPadding(N_blk, Nr);
+            for (int k_block = 0; k_block < K; k_block += Kc)
             {
-                const int ibegin = chi * ChunkBlocks;
-                const int iend   = std::min(ibegin + ChunkBlocks, total_iblocks_per_thread);
-                const int jbegin = chj * ChunkBlocks;
-                const int jend   = std::min(jbegin + ChunkBlocks, total_jblocks_per_thread);
+                const int K_blk = std::min(Kc, K - k_block);
 
-                for (int jb = jbegin; jb < jend; ++jb)
+                reorderRowMajorMatrixPadded<Kc, Nc, Kr, Nr>(
+                  B.data() + static_cast<std::size_t>(N) * k_block + j_block,
+                  N,
+                  bufB,
+                  K_blk,
+                  N_blk);
+
+                for (int i_block = ibegin; i_block < iend; i_block+=Mc)
                 {
-                    const int j_block   = jb * Nc;
-                    const int N_blk     = std::min(Nc, N - j_block);
-                    const int N_blk_pad = blockWithPadding(N_blk, Nr);
-                    for (int k_block = 0; k_block < K; k_block += Kc)
+                    const int M_blk     = std::min(Mc, M - i_block);
+                    const int M_blk_pad = blockWithPadding(M_blk, Mr);
+
+                    reorderColOrderMatrixPadded<Mc, Kc, Mr, Kr>(
+                      A.data() + static_cast<std::size_t>(K) * i_block + k_block,
+                      K,
+                      bufA,
+                      M_blk,
+                      K_blk);
+
+                    const std::size_t c_tile_elems =
+                      static_cast<std::size_t>(M_blk_pad) * N_blk_pad;
+                    std::fill(bufC, bufC + c_tile_elems, T(0));
+
+                    for (int j = 0; j < N_blk_pad; j += Nr)
                     {
-                        const int K_blk = std::min(Kc, K - k_block);
-
-                        reorderRowMajorMatrixPadded<Kc, Nc, Kr, Nr>(
-                          B.data() + static_cast<std::size_t>(N) * k_block + j_block,
-                          N,
-                          bufB,
-                          K_blk,
-                          N_blk);
-
-                        for (int ib = ibegin; ib < iend; ++ib)
+                        const T* Bc1 = bufB + Kc * j;
+                        for (int i = 0; i < M_blk_pad; i += Mr)
                         {
-                            const int i_block   = ib * Mc;
-                            const int M_blk     = std::min(Mc, M - i_block);
-                            const int M_blk_pad = blockWithPadding(M_blk, Mr);
+                            T*       Cc0 = bufC + static_cast<std::size_t>(N_blk_pad) * i + j;
+                            const T* Ac0 = bufA + Kc * i;
 
-                            reorderColOrderMatrixPadded<Mc, Kc, Mr, Kr>(
-                              A.data() + static_cast<std::size_t>(K) * i_block + k_block,
-                              K,
-                              bufA,
-                              M_blk,
-                              K_blk);
-
-                            const std::size_t c_tile_elems =
-                              static_cast<std::size_t>(M_blk_pad) * N_blk_pad;
-                            std::fill(bufC, bufC + c_tile_elems, T(0));
-
-                            for (int j = 0; j < N_blk_pad; j += Nr)
+                            if constexpr (std::is_same_v<T, std::bfloat16_t>)
                             {
-                                const T* Bc1 = bufB + Kc * j;
-                                for (int i = 0; i < M_blk_pad; i += Mr)
-                                {
-                                    T* Cc0 = bufC + static_cast<std::size_t>(N_blk_pad) * i + j;
-                                    const T* Ac0 = bufA + Kc * i;
-
-                                    if constexpr (std::is_same_v<T, std::bfloat16_t>)
-                                    {
-                                        kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(
-                                          Ac0, Bc1, Cc0, N_blk_pad);
-                                    }
-                                    else
-                                    {
-                                        kernels::zen5_packed_kernel<Nr, Mr, Kc>(
-                                          Ac0, Bc1, Cc0, N_blk_pad);
-                                    }
-                                }
+                                kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(
+                                  Ac0, Bc1, Cc0, N_blk_pad);
                             }
-
-                            for (int ii = 0; ii < M_blk; ++ii)
+                            else
                             {
-                                T* c_row =
-                                  C.data() + static_cast<std::size_t>(N) * (i_block + ii) + j_block;
-                                const T* tile_row = bufC + static_cast<std::size_t>(N_blk_pad) * ii;
-                                for (int jj = 0; jj < N_blk; ++jj)
-                                {
-                                    c_row[jj] += tile_row[jj];
-                                }
+                                kernels::zen5_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N_blk_pad);
                             }
+                        }
+                    }
+
+                    for (int ii = 0; ii < M_blk; ++ii)
+                    {
+                        T* c_row =
+                          C.data() + static_cast<std::size_t>(N) * (i_block + ii) + j_block;
+                        const T* tile_row = bufC + static_cast<std::size_t>(N_blk_pad) * ii;
+                        for (int jj = 0; jj < N_blk; ++jj)
+                        {
+                            c_row[jj] += tile_row[jj];
                         }
                     }
                 }
@@ -421,13 +386,6 @@ void matMulZen5MTBlockingSpan(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>&
 
     std::vector<T> buffer(num_threads * tiles_size);
 
-    // Square-chunking in block units
-    constexpr int ChunkBlocks              = 2; // tiles per side in a chunk (Mc/Nc multiples)
-    const int     total_iblocks_per_thread = M / Mc;
-    const int     total_jblocks_per_thread = N / Nc;
-    const int     chunkRows = (total_iblocks_per_thread + ChunkBlocks - 1) / ChunkBlocks;
-    const int     chunkCols = (total_jblocks_per_thread + ChunkBlocks - 1) / ChunkBlocks;
-
     std::vector<std::jthread> workers;
     workers.reserve(num_threads);
 
@@ -453,65 +411,56 @@ void matMulZen5MTBlockingSpan(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>&
                 buf + a_utile.size(), Kc, Nr);
 
               // Thread's grid coords
-              int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
-              int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
+              const int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
+              const int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
 
-              for (int chi = ti; chi < chunkRows; chi += GRID_I)
+              auto jbegin = tj * N / GRID_J; // flatted j index
+              auto ibegin = ti * M / GRID_I; // flatten i index
+
+              auto jend = jbegin + N / GRID_J;
+              auto iend = ibegin + M / GRID_I;
+
+              for (int k_block = 0; k_block < K; k_block += Kc)
               {
-                  for (int chj = tj; chj < chunkCols; chj += GRID_J)
+                  for (int j_block = jbegin; j_block < jend; j_block+=Nc)
                   {
-                      const int ibegin = chi * ChunkBlocks;
-                      const int iend   = std::min(ibegin + ChunkBlocks, total_iblocks_per_thread);
-                      const int jbegin = chj * ChunkBlocks;
-                      const int jend   = std::min(jbegin + ChunkBlocks, total_jblocks_per_thread);
 
-                      for (int k_block = 0; k_block < K; k_block += Kc)
+                      typename layout_blocked_colmajor<Nr>::mapping b_mapping(
+                        b_tile_ext_t{}, M, N, k_block, j_block);
+                      std::mdspan b_tile(B.data(), b_mapping);
+
+                      for (int i_block = ibegin; i_block < iend; i_block+=Mc)
                       {
-                          for (int jb = jbegin; jb < jend; ++jb)
+                          typename layout_microtile_colorder<Mr, Nr>::mapping a_mapping(
+                            a_tile_ext_t{}, M, N, i_block, k_block);
+                          std::mdspan a_tile(A.data(), a_mapping);
+
+                          for (int j = 0; j < Nc; j += Nr)
                           {
-                              const int j_block = jb * Nc;
-
-                              typename layout_blocked_colmajor<Nr>::mapping b_mapping(
-                                b_tile_ext_t{}, M, N, k_block, j_block);
-                              std::mdspan b_tile(B.data(), b_mapping);
-
-                              for (int ib = ibegin; ib < iend; ++ib)
+                              int tile_idx{0};
+                              for (int kdx = 0; kdx < b_utile.static_extent(0); kdx++)
                               {
-                                  const int i_block = ib * Mc;
-
-                                  typename layout_microtile_colorder<Mr, Nr>::mapping a_mapping(
-                                    a_tile_ext_t{}, M, N, i_block, k_block);
-                                  std::mdspan a_tile(A.data(), a_mapping);
-
-                                  for (int j = 0; j < Nc; j += Nr)
+                                  for (int jdx = 0; jdx < b_utile.static_extent(1); jdx++)
                                   {
-                                      int tile_idx{0};
-                                      for (int kdx = 0; kdx < b_utile.static_extent(0); kdx++)
-                                      {
-                                          for (int jdx = 0; jdx < b_utile.static_extent(1); jdx++)
-                                          {
-                                              b_utile[kdx, jdx] = b_tile[j / Nr, tile_idx++];
-                                          }
-                                      }
+                                      b_utile[kdx, jdx] = b_tile[j / Nr, tile_idx++];
+                                  }
+                              }
 
-                                      for (int i = 0; i < Mc; i += Mr)
+                              for (int i = 0; i < Mc; i += Mr)
+                              {
+                                  // Retrive next a_utile
+                                  int tile_idx{0};
+                                  // int tile_col;
+                                  for (int kdx = 0; kdx < a_utile.static_extent(0); kdx++)
+                                  {
+                                      for (int idx = 0; idx < a_utile.static_extent(1); idx++)
                                       {
-                                          // Retrive next a_utile
-                                          int tile_idx{0};
-                                          // int tile_col;
-                                          for (int kdx = 0; kdx < a_utile.static_extent(0); kdx++)
-                                          {
-                                              for (int idx = 0; idx < a_utile.static_extent(1);
-                                                   idx++)
-                                              {
-                                                  a_utile[kdx, idx] = a_tile[i / Mr, tile_idx++];
-                                              }
-                                          }
-
-                                          T* Cc0 = &C(i_block + i, j_block + j);
-                                          kernels::zen5_mdspan_kernel(a_utile, b_utile, Cc0, N);
+                                          a_utile[kdx, idx] = a_tile[i / Mr, tile_idx++];
                                       }
                                   }
+
+                                  T* Cc0 = &C(i_block + i, j_block + j);
+                                  kernels::zen5_mdspan_kernel(a_utile, b_utile, Cc0, N);
                               }
                           }
                       }
