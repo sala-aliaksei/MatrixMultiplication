@@ -203,7 +203,7 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                   }
                                   else
                                   {
-                                      kernels::zen5_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                                    kernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
                                   }
                               }
                           }

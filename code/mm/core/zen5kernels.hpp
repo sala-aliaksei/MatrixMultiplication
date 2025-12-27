@@ -32,6 +32,35 @@ inline void naive_block(const double* __restrict a,
     }
 }
 
+template<int Nr, int Mr>
+inline void naive_block_dkc(const double* __restrict a,
+                            const double* __restrict b,
+                            double* __restrict c,
+                            int N,
+                            int Kc)
+{
+    double carr[Nr * Mr] = {};
+    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
+    {
+        for (int i = 0; i < Mr; ++i)
+        {
+            for (int j = 0; j < Nr; ++j)
+            {
+                carr[i * Nr + j] += a[i] * b[j];
+            }
+        }
+    }
+    for (int i = 0; i < Mr; ++i)
+    {
+        for (int j = 0; j < Nr; ++j)
+        {
+            c[i * N + j] += carr[i * Nr + j];
+        }
+    }
+
+}
+
+
 template<int Nr, int Mr, int Kc, typename T>
 static inline void zen5_packed_kernel(const T* __restrict a,
                                       const T* __restrict b,
@@ -49,6 +78,27 @@ static inline void zen5_packed_kernel(const T* __restrict a,
     }
     store_kernel<Nrs, Mr>(c, r, N);
 }
+
+template<int Nr, int Mr, typename T>
+static inline void zen5_packed_kernel(const T* __restrict a,
+                                      const T* __restrict b,
+                                      T* __restrict c,
+                                      int N,
+                                      int Kc)
+{
+    constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
+    constexpr int  Nrs{Nr / num_of_elems_in_reg};
+    static_assert(Nr % num_of_elems_in_reg == 0, "Nr must be divisible by num_of_elems_in_reg");
+
+    fix_simd<T, num_of_elems_in_reg> r[Nrs * Mr] = {};
+    for (int k = 0; k < Kc; ++k, b += Nr, a += Mr)
+    {
+        packed_compute_kernel<Mr, Nrs>(a, b, r);
+    }
+    store_kernel<Nrs, Mr>(c, r, N);
+}
+
+
 
 template<std::size_t Nr, std::size_t Mr, std::size_t Kc, typename T>
 static inline void zen5_mdspan_kernel(const std::mdspan<T, std::extents<std::size_t, Kc, Mr>> a,
@@ -85,4 +135,5 @@ static inline void zen5_mdspan_kernel(
     }
     store_kernel<Nrs, Mr>(c.data_handle(), r, 3072); //(int)c.extent(1)
 }
+
 } // namespace kernels
