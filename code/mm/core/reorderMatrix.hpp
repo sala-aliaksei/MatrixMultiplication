@@ -502,11 +502,11 @@ tail:
 
     return ret;
 }
-template<int M, int N, int ib, int jb, typename T>
+template<int Kc, int Nc, int Kr, int Nr, typename T>
 void reorderRowMajorMatrixAVX(const T* b, int cols, T* dest)
 {
-    static_assert(ib == 1, "ib != 1, but we optimize for ib =1");
-    // reorder B; J I I J order
+    static_assert(Kr == 1, "Kr != 1, but we optimize for Kr =1");
+    // reorder B; J K J order
 
     /*
      * ------->
@@ -520,15 +520,15 @@ void reorderRowMajorMatrixAVX(const T* b, int cols, T* dest)
     int            idx           = 0;
     constexpr auto prefetch_type = _MM_HINT_NTA;
 
-    for (int j = 0; j < N; j += jb)
+    for (int j = 0; j < Nc; j += Nr)
     {
         //_mm_prefetch(b + jb + j, prefetch_type);
-        for (int i = 0; i < M; i += ib)
+        for (int k = 0; k < Kc; k += Kr)
         {
             // what is dependency of the offset from type?
-            _mm_prefetch(b + (i + 1) * cols + j, prefetch_type);
-            inline_memcpy(dest + idx, &b[i * cols + j], sizeof(T) * jb);
-            idx += jb;
+            _mm_prefetch(b + (k + 1) * cols + j, prefetch_type);
+            inline_memcpy(dest + idx, &b[k * cols + j], sizeof(T) * Nr);
+            idx += Nr;
         }
     }
 }
