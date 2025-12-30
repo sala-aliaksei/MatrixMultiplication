@@ -42,12 +42,12 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
     constexpr int GRID_I = 4;
     constexpr int GRID_J = 4;
 
-    constexpr unsigned num_cores   = GRID_I * GRID_J;
-    constexpr unsigned num_threads = 2 * num_cores;
+    constexpr unsigned num_physical_cores = GRID_I * GRID_J;
+    constexpr unsigned num_threads        = 2 * num_physical_cores;
 
-    constexpr auto tiles_size = Kc * (Mr + Nr);
+    constexpr auto tiles_size = 2 * Kc * (Mr + Nr);
 
-    std::vector<T> buffer(num_cores * tiles_size);
+    std::vector<T> buffer(num_physical_cores * tiles_size);
 
     const int total_iblocks_per_thread = M / Mc;
     const int total_jblocks_per_thread = N / Nc;
@@ -55,48 +55,66 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
     const int iblocks_per_thread = total_iblocks_per_thread / GRID_I;
     const int jblocks_per_thread = total_jblocks_per_thread / GRID_J;
 
-    std::vector<std::jthread> workers;
+    std::vector<std::thread> workers;
     workers.reserve(num_threads);
 
-    std::array<std::barrier<>, num_cores> core_barriers = {std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2),
-                                                           std::barrier(2)};
+    std::array<std::barrier<>, num_physical_cores> core_barriers = {std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2),
+                                                                    std::barrier(2)};
+
+    constexpr auto is_data_core_id = [](int core_id) constexpr
+    { return core_id < num_physical_cores; };
 
     auto gemm_fn = [&]<int t>()
     {
         // core id will be the same for threads which share resources
-        constexpr auto cpu_id  = map_thread_id_to_core_id(t);
-        constexpr auto core_id = cpu_id % num_cores;
+        constexpr auto logical_core_id  = map_thread_id_to_core_id(t);
+        constexpr auto physical_core_id = logical_core_id % num_physical_cores;
 
-        auto& barrier = core_barriers[core_id];
+        // two threads are sharing the buf with same physical_core_id
+        T* const buf     = buffer.data() + physical_core_id * tiles_size;
+        auto&    barrier = core_barriers[physical_core_id];
 
         cpu_set_t cpuset;
         CPU_ZERO(&cpuset);
-        CPU_SET(cpu_id, &cpuset);
+        CPU_SET(logical_core_id, &cpuset);
         (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
-        // two threads are sharing the buf with same core_id
-        T* const buf = buffer.data() + core_id * tiles_size;
+        std::mdspan<T, std::extents<std::size_t, Kc, Mr>> a0_utile(buf, Kc, Mr);
+        std::mdspan<T, std::extents<std::size_t, Kc, Mr>> a1_utile(
+          a0_utile.data_handle() + a0_utile.size(), Kc, Mr);
+        std::mdspan<T, std::extents<std::size_t, Kc, Nr>> b0_utile(
+          a1_utile.data_handle() + a1_utile.size(), Kc, Nr);
+        std::mdspan<T, std::extents<std::size_t, Kc, Nr>> b1_utile(
+          b0_utile.data_handle() + b0_utile.size(), Kc, Nr);
 
-        std::mdspan<T, std::extents<std::size_t, Kc, Mr>> a_utile(buf, Kc, Mr);
-        std::mdspan<T, std::extents<std::size_t, Kc, Nr>> b_utile(buf + a_utile.size(), Kc, Nr);
+        std::array<std::mdspan<T, std::extents<std::size_t, Kc, Mr>>, 2> a_utiles = {a0_utile,
+                                                                                     a1_utile};
+        std::array<std::mdspan<T, std::extents<std::size_t, Kc, Nr>>, 2> b_utiles = {b0_utile,
+                                                                                     b1_utile};
+
+        auto a_data_idx  = 0;
+        auto b_data_idx  = 0;
+        auto compute_idx = 0;
+        T*   aptr        = nullptr;
+        T*   bptr        = nullptr;
 
         // Thread's grid coords
-        const int ti = static_cast<int>(core_id) / GRID_J; // 0..GRID_I-1
-        const int tj = static_cast<int>(core_id) % GRID_J; // 0..GRID_J-1
+        const int ti = static_cast<int>(physical_core_id) / GRID_J; // 0..GRID_I-1
+        const int tj = static_cast<int>(physical_core_id) % GRID_J; // 0..GRID_J-1
 
         const int ibegin = ti * iblocks_per_thread * Mc;
         const int iend   = ibegin + iblocks_per_thread * Mc;
@@ -113,8 +131,9 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                     auto a_tile = &A(i_block, k_block);
                     for (int j = 0; j < Nc; j += Nr)
                     {
-                        auto bptr = b_utile.data_handle();
-                        if constexpr (cpu_id < num_cores)
+
+                        bptr = b_utiles[b_data_idx].data_handle();
+                        if constexpr (is_data_core_id(logical_core_id))
                         {
                             for (int idx = 0, kl = 0; kl < Kc; kl++)
                             {
@@ -124,11 +143,12 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                 }
                             }
                         }
+                        b_data_idx = (b_data_idx + 1) % 2;
 
                         for (int i = 0; i < Mc; i += Mr)
                         {
-                            auto aptr = a_utile.data_handle();
-                            if constexpr (cpu_id < num_cores)
+                            aptr = a_utiles[a_data_idx].data_handle();
+                            if constexpr (is_data_core_id(logical_core_id))
                             {
                                 for (int idx = 0, kl = 0; kl < Kc; kl++)
                                 {
@@ -138,15 +158,18 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                     }
                                 }
                             }
+                            a_data_idx = (a_data_idx + 1) % 2;
                             barrier.arrive_and_wait();
 
-                            if constexpr (cpu_id >= num_cores)
+                            if constexpr (!is_data_core_id(logical_core_id))
                             {
-                                auto Cc0 = &C(i_block + i, j_block + j);
-                                // kernels::zen5_packed_kernel<Nr, Mr, Kc>(aptr, bptr, Cc0, N);
-                                kernels::naive_block<Nr, Mr, Kc>(aptr, bptr, Cc0, N);
+                                auto* compute_abuf = aptr;
+                                auto* compute_bbuf = bptr;
+                                auto  Cc0          = &C(i_block + i, j_block + j);
+                                // kernels::zen5_packed_kernel<Nr, Mr, Kc>(compute_abuf,
+                                kernels::naive_block<Nr, Mr, Kc>(
+                                  compute_abuf, compute_bbuf, Cc0, N);
                             }
-                            barrier.arrive_and_wait();
                         }
                     }
                 }
@@ -156,6 +179,11 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 
     static_for<num_threads>([&]<int t>()
                             { workers.emplace_back([&] { gemm_fn.template operator()<t>(); }); });
+
+    for (auto& worker : workers)
+    {
+        worker.join();
+    }
 }
 } // namespace mm::hyper
 
