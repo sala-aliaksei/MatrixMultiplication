@@ -14,8 +14,9 @@
 #include <thread>
 #include <algorithm>
 #include <omp.h>
+#include <tracy/Tracy.hpp>
 // #include <array>
-// #include <barrier>
+#include <barrier>
 
 #ifdef __linux__
 #include <pthread.h>
@@ -159,11 +160,15 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
         workers.emplace_back(
           [&, t]()
           {
+              using namespace std::string_literals;
               auto      core_id = map_thread_id_to_core_id(t);
               cpu_set_t cpuset;
               CPU_ZERO(&cpuset);
               CPU_SET(core_id, &cpuset);
               (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+
+            //   tracy::SetThreadName(
+            //     ("core"s + std::to_string(core_id % 16) + "_thread_"s + std::to_string(t)).c_str());
 
               const int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
               const int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
@@ -177,18 +182,25 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
               const std::size_t ofs = t * Kc * (Mc + Nc);
               T* const          buf = buffer.data() + ofs;
 
-              for (int j_block = jbegin; j_block < jend; j_block+=Nc)
+              for (int j_block = jbegin; j_block < jend; j_block += Nc)
               {
-                for (int k_block = 0; k_block < K; k_block += Kc)
+                  for (int k_block = 0; k_block < K; k_block += Kc)
                   {
-                      reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
-                        B.data() + N * k_block + j_block, N, buf + Mc * Kc);
-
-                      for (int i_block = ibegin; i_block < iend; i_block+=Mc)
                       {
-                          reorderColOrderMatrix<Mc, Kc, Mr, Kr>(
-                            A.data() + K * i_block + k_block, K, buf);
+                          //ZoneScopedN("[Data] Repacking B tile");
+                          reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
+                            B.data() + N * k_block + j_block, N, buf + Mc * Kc);
+                      }
 
+                      for (int i_block = ibegin; i_block < iend; i_block += Mc)
+                      {
+                          {
+                              //ZoneScopedN("[Data] Repacking A tile");
+                              reorderColOrderMatrix<Mc, Kc, Mr, Kr>(
+                                A.data() + K * i_block + k_block, K, buf);
+                          }
+
+                          //ZoneScopedN("[Compute] Copmute McxNc block");
                           for (int j = 0; j < Nc; j += Nr)
                           {
                               const T* Bc1 = buf + Mc * Kc + Kc * j;
@@ -203,7 +215,7 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                   }
                                   else
                                   {
-                                    kernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
+                                      kernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
                                   }
                               }
                           }
@@ -211,6 +223,7 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                   }
               }
           });
+
     } // jthreads auto-join on destruction
 }
 
@@ -268,7 +281,7 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
         auto jend = jbegin + N / GRID_J;
         auto iend = ibegin + M / GRID_I;
 
-        for (int j_block = jbegin; j_block < jend; j_block+=Nc)
+        for (int j_block = jbegin; j_block < jend; j_block += Nc)
         {
             const int N_blk     = std::min(Nc, N - j_block);
             const int N_blk_pad = blockWithPadding(N_blk, Nr);
@@ -283,7 +296,7 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
                   K_blk,
                   N_blk);
 
-                for (int i_block = ibegin; i_block < iend; i_block+=Mc)
+                for (int i_block = ibegin; i_block < iend; i_block += Mc)
                 {
                     const int M_blk     = std::min(Mc, M - i_block);
                     const int M_blk_pad = blockWithPadding(M_blk, Mr);
@@ -422,14 +435,14 @@ void matMulZen5MTBlockingSpan(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>&
 
               for (int k_block = 0; k_block < K; k_block += Kc)
               {
-                  for (int j_block = jbegin; j_block < jend; j_block+=Nc)
+                  for (int j_block = jbegin; j_block < jend; j_block += Nc)
                   {
 
                       typename layout_blocked_colmajor<Nr>::mapping b_mapping(
                         b_tile_ext_t{}, M, N, k_block, j_block);
                       std::mdspan b_tile(B.data(), b_mapping);
 
-                      for (int i_block = ibegin; i_block < iend; i_block+=Mc)
+                      for (int i_block = ibegin; i_block < iend; i_block += Mc)
                       {
                           typename layout_microtile_colorder<Mr, Nr>::mapping a_mapping(
                             a_tile_ext_t{}, M, N, i_block, k_block);

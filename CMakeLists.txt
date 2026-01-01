@@ -13,8 +13,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-include(cmake/compiler_flags.cmake)
-set_compiler_flags(native)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -march=native -Wno-interference-size -fdiagnostics-color -g")
 
 include(cmake/dependencies.cmake)
 
@@ -25,6 +24,9 @@ include(cmake/dependencies.cmake)
 #find_package(LinAlg  REQUIRED) # LinAlg
 find_package(OpenBLAS REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(Tracy REQUIRED)
+add_compile_definitions(TRACY_ENABLE)
+
 
 #find_package(Kokkos REQUIRED)
 #find_package(Boost REQUIRED) # for aligment allocator # COMPONENTS system
@@ -60,6 +62,7 @@ target_include_directories(Core PUBLIC
     ${CMAKE_SOURCE_DIR}/code
 )
 
+target_link_libraries(Core PUBLIC Tracy::TracyClient)
 
 ######      MATMUL     #################
 add_library(${PROJECT_NAME} SHARED
