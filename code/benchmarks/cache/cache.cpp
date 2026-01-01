@@ -3,6 +3,10 @@
 #include <mm/core/utils/utils.hpp>
 #include <mm/core/Matrix.hpp>
 
+#include "mm/matmul/zen5_constants.hpp"
+#include "mm/core/utils/cpu.hpp"
+#include <mm/core/zen5kernels.hpp>
+
 #include <benchmark/benchmark.h>
 #include <mdspan>
 #include <vector>
@@ -21,7 +25,7 @@ constexpr std::size_t Nr = 24;
 
 constexpr std::size_t l1_cache_size_per_core = 48 * 1024;            // 48KB per core
 constexpr std::size_t l2_cache_size_per_core = 1024 * 1024 + 8 * 10; // 1MB
-constexpr std::size_t l3_cache_size_per_cpu  = 64 * 1024 * 1024;     // 64MB per cpu
+constexpr std::size_t l3_cache_size_per_cpu  = 4 * 1024 * 1024;     //  4MB per core
 
 static_assert(Mc % Mr == 0, "invalid cache/reg size of the block");
 static_assert(Nc % Nr == 0, "invalid cache/reg size of the block");
