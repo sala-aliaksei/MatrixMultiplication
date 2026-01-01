@@ -239,7 +239,7 @@ void reorderColOrderMatrixTail(const double* matrix, int N, double* dest, int Mc
     //    }
 }
 
-template<int Mc, int Nc, int Mr, int Nr, typename T>
+template<int Mc, int Kc, int Mr, int Kr, typename T>
 void reorderColOrderMatrix(const T* matrix, int cols, T* dest)
 {
     /*
@@ -250,38 +250,26 @@ void reorderColOrderMatrix(const T* matrix, int cols, T* dest)
     v    v
     */
     static_assert(Mc % Mr == 0, "Invalid m pattern");
-    static_assert(Nc % Nr == 0, "Invalid n pattern");
+    static_assert(Kc % Kr == 0, "Invalid k pattern");
     int idx = 0;
 
     constexpr auto prefetch_type = _MM_HINT_NTA;
 
     // DON'T REORDER LOOPS
-    // Process columns in groups of 4
     for (int i = 0; i < Mc; i += Mr)
     {
-        for (int j = 0; j < Nc; j += Nr)
+        for (int k = 0; k < Kc; k += Kr)
         {
-            _mm_prefetch(matrix + (i + 0) * cols + j + Nr, prefetch_type);
-            //_mm_prefetch(matrix + (i + 1) * cols + j + Nr, prefetch_type);
-            //_mm_prefetch(matrix + (i + 2) * cols + j + Nr, prefetch_type);
-            //_mm_prefetch(matrix + (i + 3) * cols + j + Nr, prefetch_type);
-
-            for (int jc = 0; jc < Nr; ++jc)
+            for (int kk = 0; kk < Kr; ++kk)
             {
-                //                _mm_prefetch(matrix + (i + 1) * cols + j, prefetch_type);
-                //                _mm_prefetch(matrix + (i + 2) * cols + j, prefetch_type);
-                //                _mm_prefetch(matrix + (i + 3) * cols + j, prefetch_type);
-
                 for (int ic = 0; ic < Mr; ++ic)
                 {
-
-                    dest[idx++] = matrix[(i + ic) * cols + j + jc];
+                    dest[idx++] = matrix[(i + ic) * cols + k + kk];
                 }
             }
         }
     }
 
-    // TODO: Add tailes
 }
 
 // Padded variant: packs an Mc x Kc tile in Col-major micro-tiles (Mr x Kr),
