@@ -65,20 +65,24 @@ void matmulGpu(const Matrix<float>& A, const Matrix<float>& B, Matrix<float>& C)
         "Failed to allocate device memory for C");
 
 
-    cudaMemcpy(d_M, A.data(), size, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_N, B.data(), size, cudaMemcpyHostToDevice);
+    checkCudaError(cudaMemcpy(d_M, A.data(), size, cudaMemcpyHostToDevice),
+        "Failed to copy A to device");
+    checkCudaError(cudaMemcpy(d_N, B.data(), size, cudaMemcpyHostToDevice),
+        "Failed to copy B to device");
 
-    {
+    // Kernel launch
+    dim3 threadsPerBlock(16, 16);
+    dim3 blocksPerGrid((width + threadsPerBlock.x - 1) / threadsPerBlock.x,
+                        (width + threadsPerBlock.y - 1) / threadsPerBlock.y);
 
-        // Kernel launch
-        dim3 threadsPerBlock(16, 16);
-        dim3 blocksPerGrid((width + threadsPerBlock.x - 1) / threadsPerBlock.x,
-                            (width + threadsPerBlock.y - 1) / threadsPerBlock.y);
+    matrixMulKernel<<<blocksPerGrid, threadsPerBlock>>>(d_M, d_N, d_P, width);
+    
+    // Check for kernel launch errors and synchronize
+    checkCudaError(cudaGetLastError(), "Kernel launch failed");
+    checkCudaError(cudaDeviceSynchronize(), "Kernel execution failed");
 
-        matrixMulKernel<<<blocksPerGrid, threadsPerBlock>>>(d_M, d_N, d_P, width);
-    }
-
-    cudaMemcpy(C.data(), d_P, size, cudaMemcpyDeviceToHost);
+    checkCudaError(cudaMemcpy(C.data(), d_P, size, cudaMemcpyDeviceToHost),
+        "Failed to copy C from device");
 
     cudaFree(d_M);
     cudaFree(d_N);
