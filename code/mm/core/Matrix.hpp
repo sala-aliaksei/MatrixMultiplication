@@ -2,6 +2,7 @@
 #include <iostream>
 #include <iomanip> // for std::setw
 
+#include <new>
 #include <vector>
 
 #ifdef __cpp_lib_hardware_interference_size

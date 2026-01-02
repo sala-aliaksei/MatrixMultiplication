@@ -15,9 +15,9 @@
 #include <algorithm>
 #include <omp.h>
 #include <tracy/Tracy.hpp>
-// #include <array>
-#include <barrier>
 
+
+#include <sys/mman.h>
 #ifdef __linux__
 #include <pthread.h>
 #include <sched.h>
@@ -100,7 +100,7 @@ void matMulZen5(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                         T*       Cc0 = C.data() + N * i_block + j + N * i + j_block;
                         const T* Ac0 = buf + Kc * i;
 
-                        if constexpr (std::is_same_v<T, bf16_std>)
+                        if constexpr (std::is_same_v<T, std::bfloat16_t>)
                         {
                             kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                         }
@@ -258,6 +258,7 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
     const std::size_t per_thread_buf_elems =
       static_cast<std::size_t>(Kc) * (Mc + Nc) + static_cast<std::size_t>(Mc) * Nc;
     std::vector<T> buffer(num_threads * per_thread_buf_elems);
+    madvise(buffer.data(), buffer.size() * sizeof(T), MADV_HUGEPAGE);
 
     // Grid threading like matMulZen5MTBlocking
     constexpr int      GRID_I       = 4;

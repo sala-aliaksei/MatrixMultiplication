@@ -1,7 +1,6 @@
 #include "mm/matmul/zen5_constants.hpp"
 
 #include "mm/core/reorderMatrix.hpp"
-#include "mm/core/layout.hpp"
 #include "mm/core/utils/cpu.hpp"
 #include "mm/core/utils/utils.hpp"
 #include "mm/core/utils/algorithms.hpp"
@@ -187,7 +186,7 @@ template<typename T>
 void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 {
     using namespace mm::constants;
-    using namespace mm::core;
+    
 
     constexpr std::size_t Nc = MatMulZen5Config<T>::Nc;
     constexpr std::size_t Mc = MatMulZen5Config<T>::Mc;

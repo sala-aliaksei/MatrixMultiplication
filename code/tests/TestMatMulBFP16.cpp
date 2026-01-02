@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 
 #if __STDCPP_FLOAT64_T__ == 1
-#include <stdfloat>
+#include <mm/core/bf16.hpp>
 
 constexpr std::size_t N = 3072;
 

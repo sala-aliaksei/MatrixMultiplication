@@ -2,7 +2,7 @@
 #include <mm/core/Matrix.hpp>
 
 #if __STDCPP_FLOAT64_T__ == 1
-#include <stdfloat>
+#include <mm/core/bf16.hpp>
 namespace mm
 {
 void matMul_Naive_Order(const Matrix<std::bfloat16_t>& A,

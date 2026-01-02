@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdfloat>
+#include <mm/core/bf16.hpp>
 
 namespace mm::constants
 {

@@ -4,38 +4,17 @@
 #include <cstring>
 #include <immintrin.h>
 
-// Detect and alias a bfloat16 type as bf16_std
-#if defined(__has_include)
-#if __has_include(<stdfloat>)
-#include <stdfloat>
-#if defined(__STDCPP_BFLOAT16_T__)
-using bf16_std = std::bfloat16_t;
-#endif
-#endif
-#endif
 
-#if !defined(bf16_std)
-#if defined(__clang__) || defined(__GNUC__)
-using bf16_std = __bf16;
-#else
-#include <type_traits>
-struct alignas(2) bf16_fallback
-{
-    uint16_t v;
-};
-static_assert(sizeof(bf16_fallback) == 2, "bf16_fallback must be 2 bytes");
-using bf16_std = bf16_fallback;
-#endif
-#endif
+#include <mm/core/bf16.hpp>
 
-static_assert(sizeof(bf16_std) == 2, "bf16 type must be 2 bytes");
+static_assert(sizeof(std::bfloat16_t) == 2, "bf16 type must be 2 bytes");
 
 namespace kernels
 {
 
 // Build a 512-bit BF16 vector with alternating pair [a0, a1] repeated across 32 lanes
 // Requires AVX-512BW for 16-bit lane operations.
-static inline __m512bh bf16_broadcast_pair(bf16_std a0, bf16_std a1)
+static inline __m512bh bf16_broadcast_pair(std::bfloat16_t a0, std::bfloat16_t a1)
 {
 #if defined(__AVX512BF16__) && defined(__AVX512BW__)
     uint16_t a0_bits{};
@@ -58,7 +37,7 @@ static inline __m512bh bf16_broadcast_pair(bf16_std a0, bf16_std a1)
 
 // Interleave two 16-element BF16 rows into one 32-element BF16 vector:
 // result = [row0[0], row1[0], row0[1], row1[1], ..., row0[15], row1[15]]
-static inline __m512bh bf16_interleave2x16_to_32(const bf16_std* row0, const bf16_std* row1)
+static inline __m512bh bf16_interleave2x16_to_32(const std::bfloat16_t* row0, const std::bfloat16_t* row1)
 {
 #if defined(__AVX512BF16__)
     const __m256i r0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(row0));
@@ -78,7 +57,7 @@ static inline __m512bh bf16_interleave2x16_to_32(const bf16_std* row0, const bf1
 
 // Convert 16 std::bfloat16_t values to 16 float32 values in an __m512 vector
 // using integer widening and bit-shift (bf16 occupies the upper 16 bits of f32).
-static inline __m512 bf16_load16_to_ps(const bf16_std* src)
+static inline __m512 bf16_load16_to_ps(const std::bfloat16_t* src)
 {
     // Load 16x u16 (32 bytes)
     const __m256i v16 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(src));
@@ -91,7 +70,7 @@ static inline __m512 bf16_load16_to_ps(const bf16_std* src)
 }
 
 // Store 16 float32 values as bf16
-static inline void bf16_store16_from_ps(bf16_std* dst, __m512 v)
+static inline void bf16_store16_from_ps(std::bfloat16_t* dst, __m512 v)
 {
 #if defined(__AVX512BF16__)
     __m256bh packed_bh = _mm512_cvtneps_pbh(v);
@@ -115,7 +94,7 @@ static inline void bf16_store16_from_ps(bf16_std* dst, __m512 v)
 }
 
 // Convert one std::bfloat16_t to float32 (scalar)
-static inline float bf16_to_float(bf16_std v)
+static inline float bf16_to_float(std::bfloat16_t v)
 {
     uint16_t h{};
     std::memcpy(&h, &v, sizeof(h));
@@ -126,7 +105,7 @@ static inline float bf16_to_float(bf16_std v)
 }
 
 // Store r (accumulators) into C with increment (C += r), for Mr rows and Nrs vector blocks per row
-static inline void store_rows_inc_add(bf16_std* c, const __m512* r, int N, int Mr, int Nrs)
+static inline void store_rows_inc_add(std::bfloat16_t* c, const __m512* r, int N, int Mr, int Nrs)
 {
     constexpr int VEC_WIDTH = 16; // number of float32 elements per __m512
 
@@ -137,7 +116,7 @@ static inline void store_rows_inc_add(bf16_std* c, const __m512* r, int N, int M
         for (int j = 0; j < Nrs; ++j)
         {
             // Load 16 bf16 -> f32, add, convert back to bf16 and store
-            bf16_std* cj = c + j * VEC_WIDTH;
+            std::bfloat16_t* cj = c + j * VEC_WIDTH;
             __m512    cv = bf16_load16_to_ps(cj);
             cv           = _mm512_add_ps(cv, r[row * Nrs + j]);
             bf16_store16_from_ps(cj, cv);
@@ -153,9 +132,9 @@ static inline void store_rows_inc_add(bf16_std* c, const __m512* r, int N, int M
 // - c: points to C tile top-left (row-major, leading dimension N), accumulate into float32
 // - Nr must be divisible by 16 (vector width of __m512 floats)
 template<int Nr, int Mr, int Kc>
-static inline void zen5_packed_kernel_bf16(const bf16_std* __restrict a,
-                                           const bf16_std* __restrict b,
-                                           bf16_std* __restrict c,
+static inline void zen5_packed_kernel_bf16(const std::bfloat16_t* __restrict a,
+                                           const std::bfloat16_t* __restrict b,
+                                           std::bfloat16_t* __restrict c,
                                            int N)
 {
     static_assert(Nr % 16 == 0, "Nr must be divisible by 16 for AVX-512 float accumulators");
@@ -169,16 +148,16 @@ static inline void zen5_packed_kernel_bf16(const bf16_std* __restrict a,
         r[i] = _mm512_setzero_ps();
     }
 
-    const bf16_std* a_iter = a;
-    const bf16_std* b_iter = b;
+    const std::bfloat16_t* a_iter = a;
+    const std::bfloat16_t* b_iter = b;
 
 #if defined(__AVX512BF16__)
     // Process K in pairs using BF16 dot-product accumulate
     int k = 0;
     for (; k + 1 < Kc; k += 2, b_iter += 2 * Nr, a_iter += 2 * Mr)
     {
-        const bf16_std* b0 = b_iter;
-        const bf16_std* b1 = b_iter + Nr;
+        const std::bfloat16_t* b0 = b_iter;
+        const std::bfloat16_t* b1 = b_iter + Nr;
 
         __m512bh b_pairs[Nrs];
         for (int j = 0; j < Nrs; ++j)
@@ -187,8 +166,8 @@ static inline void zen5_packed_kernel_bf16(const bf16_std* __restrict a,
             b_pairs[j] = bf16_interleave2x16_to_32(b0 + j * VEC_WIDTH, b1 + j * VEC_WIDTH);
         }
 
-        const bf16_std* a0 = a_iter;
-        const bf16_std* a1 = a_iter + Mr;
+        const std::bfloat16_t* a0 = a_iter;
+        const std::bfloat16_t* a1 = a_iter + Mr;
 
         for (int i = 0; i < Mr; ++i)
         {
@@ -206,10 +185,10 @@ static inline void zen5_packed_kernel_bf16(const bf16_std* __restrict a,
     {
         // Build B interleave with zero for the missing partner
         __m512bh        b_pairs[Nrs];
-        const bf16_std* b0 = b_iter;
+        const std::bfloat16_t* b0 = b_iter;
         for (int j = 0; j < Nrs; ++j)
         {
-            const bf16_std* row0 = b0 + j * VEC_WIDTH;
+            const std::bfloat16_t* row0 = b0 + j * VEC_WIDTH;
             // Interleave row0 with zeros: [row0[i], 0]
             const __m256i r0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(row0));
             const __m256i z  = _mm256_setzero_si256();
@@ -220,8 +199,8 @@ static inline void zen5_packed_kernel_bf16(const bf16_std* __restrict a,
             b_pairs[j]       = (__m512bh)v;
         }
 
-        const bf16_std* a0        = a_iter;
-        const bf16_std  zero_bf16 = static_cast<bf16_std>(0);
+        const std::bfloat16_t* a0        = a_iter;
+        const std::bfloat16_t  zero_bf16 = static_cast<std::bfloat16_t>(0);
         for (int i = 0; i < Mr; ++i)
         {
             const __m512bh a_pair = bf16_broadcast_pair(a0[i], zero_bf16);

@@ -10,8 +10,8 @@
 
 // This application will be used to analyze perfomance of the fastest
 // implementation Example: using perf.
-#include <mdspan>
-#include <stdfloat>
+
+#include <mm/core/bf16.hpp>
 #include <print>
 #include <vector>
 

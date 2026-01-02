@@ -205,6 +205,6 @@ template Matrix<float>  generateRandomMatrix<float>(int M, int N);
 template Matrix<double> generateRandomMatrix<double>(int M, int N);
 
 #if __STDCPP_FLOAT64_T__ == 1
-#include <stdfloat>
+#include <mm/core/bf16.hpp>
 template Matrix<std::bfloat16_t> generateRandomMatrix<std::bfloat16_t>(int M, int N);
 #endif

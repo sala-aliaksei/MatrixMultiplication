@@ -2,7 +2,7 @@
 #include "mm/core/reorderMatrix.hpp"
 #include "mm/core/ikernels.hpp"
 
-#include "omp.h"
+#include <omp.h>
 
 namespace
 {
