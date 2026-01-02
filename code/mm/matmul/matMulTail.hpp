@@ -4,7 +4,7 @@
 void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 void matMulSimdTails(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 
-#include "mm/core/kernels.hpp"
+#include "mm/core/experimental_kernels.hpp"
 #include "mm/core/reorderMatrix.hpp"
 
 constexpr int N_LOG_DIM = 25;

@@ -1,6 +1,6 @@
 
 #include "mm/core/Matrix.hpp"
-#include "mm/core/kernels.hpp"
+#include "mm/core/experimental_kernels.hpp"
 
 #include <numeric>
 

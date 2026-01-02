@@ -49,8 +49,7 @@ endif()
 #######    CORE     ##########
 # TODO: Make public and private headers
 add_library(Core SHARED
-    code/mm/core/kernels.cpp
-    code/mm/core/kernels.hpp
+    code/mm/core/experimental_kernels.hpp
     code/mm/core/ikernels.hpp
     code/mm/core/Matrix.cpp
     code/mm/core/Matrix.hpp

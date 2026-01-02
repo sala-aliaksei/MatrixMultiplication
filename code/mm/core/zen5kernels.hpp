@@ -1,6 +1,6 @@
 #pragma once
 
-#include <mm/core/kernels.hpp>
+#include <mm/core/experimental_kernels.hpp>
 #include <mdspan>
 
 namespace kernels

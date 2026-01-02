@@ -1,5 +1,5 @@
 #include "mm/core/Matrix.hpp"
-#include "mm/core/kernels.hpp"
+#include "mm/core/experimental_kernels.hpp"
 #include "mm/core/zen5kernels.hpp"
 #include "mm/matmul/zen5_constants.hpp"
 #include <benchmark/benchmark.h>
