@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 project(MatrixMultiplication VERSION 1.0)
 
 option(ENABLE_LLVM_MCA "Run llvm-mca performance analysis" OFF)
-option(ENABLE_GPU_BUILD "Enable GPU build" ON)
+option(ENABLE_GPU_BUILD "Enable GPU build" OFF)
 option(ENABLE_UNIT_TESTS "Enable Unit Tests" ON)
 option(ENABLE_BENCHMARKS "Enable Benchmarks" ON)
 option(ENABLE_TPI_BLIS "Use BLIS library" OFF)
@@ -13,8 +13,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -march=native -Wno-interference-size -fdiagnostics-color -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -march=native -Wno-interference-size -fdiagnostics-color  -g")
 
+
+add_compile_definitions(_LIBCPP_ENABLE_EXPERIMENTAL)
 include(cmake/dependencies.cmake)
 
 
@@ -25,6 +27,9 @@ include(cmake/dependencies.cmake)
 find_package(OpenBLAS REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Tracy REQUIRED)
+find_package(xsimd REQUIRED)
+
+
 add_compile_definitions(TRACY_ENABLE)
 
 
@@ -61,7 +66,7 @@ target_include_directories(Core PUBLIC
     ${CMAKE_SOURCE_DIR}/code
 )
 
-target_link_libraries(Core PUBLIC Tracy::TracyClient)
+target_link_libraries(Core PUBLIC Tracy::TracyClient xsimd)
 
 ######      MATMUL     #################
 add_library(${PROJECT_NAME} SHARED
