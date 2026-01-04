@@ -9,13 +9,13 @@
 #include <mm/core/utils/algorithms.hpp>
 #include "mm/matmul/zen5_constants.hpp"
 #include "mm/core/utils/cpu.hpp"
+#include "mm/core/kernels.hpp"
 
 #include <mdspan>
 #include <thread>
 #include <algorithm>
 #include <omp.h>
 #include <tracy/Tracy.hpp>
-
 
 #include <sys/mman.h>
 #ifdef __linux__
@@ -25,6 +25,27 @@
 
 namespace mm::zen5
 {
+
+template<typename T>
+constexpr auto number_of_elems_in_512_reg_v = []()
+{
+    if constexpr (std::is_same_v<T, double>)
+    {
+        return 8;
+    }
+    else if constexpr (std::is_same_v<T, float>)
+    {
+        return 16;
+    }
+    else if constexpr (std::is_same_v<T, std::bfloat16_t>)
+    {
+        return 32;
+    }
+    else
+    {
+        static_assert(false, "Unsupported type");
+    }
+}();
 
 constexpr int PAGE_SIZE = 4096;
 
@@ -127,7 +148,7 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
     constexpr auto bregs_cnt   = 3;
     constexpr auto aregs_cnt   = 1;
 
-    constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
+    constexpr auto num_of_elems_in_reg = number_of_elems_in_512_reg_v<T>;
 
     constexpr int Nr{bregs_cnt * num_of_elems_in_reg};
     constexpr int Mr{8};
@@ -167,8 +188,9 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
               CPU_SET(core_id, &cpuset);
               (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
-            //   tracy::SetThreadName(
-            //     ("core"s + std::to_string(core_id % 16) + "_thread_"s + std::to_string(t)).c_str());
+              //   tracy::SetThreadName(
+              //     ("core"s + std::to_string(core_id % 16) + "_thread_"s +
+              //     std::to_string(t)).c_str());
 
               const int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
               const int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
@@ -187,7 +209,7 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                   for (int k_block = 0; k_block < K; k_block += Kc)
                   {
                       {
-                          //ZoneScopedN("[Data] Repacking B tile");
+                          ZoneScopedN("[Data] Repacking B tile");
                           reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
                             B.data() + N * k_block + j_block, N, buf + Mc * Kc);
                       }
@@ -195,12 +217,12 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                       for (int i_block = ibegin; i_block < iend; i_block += Mc)
                       {
                           {
-                              //ZoneScopedN("[Data] Repacking A tile");
+                              ZoneScopedN("[Data] Repacking A tile");
                               reorderColOrderMatrix<Mc, Kc, Mr, Kr>(
                                 A.data() + K * i_block + k_block, K, buf);
                           }
 
-                          //ZoneScopedN("[Compute] Copmute McxNc block");
+                          ZoneScopedN("[Compute] Copmute McxNc block");
                           for (int j = 0; j < Nc; j += Nr)
                           {
                               const T* Bc1 = buf + Mc * Kc + Kc * j;
@@ -212,6 +234,11 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                   {
                                       kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(
                                         Ac0, Bc1, Cc0, N);
+                                  }
+                                  else if constexpr (std::is_same_v<T, double>)
+                                  {
+                                      //
+                                      xkernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
                                   }
                                   else
                                   {
