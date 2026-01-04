@@ -6,6 +6,8 @@
 
 int main(int argc, char** argv)
 {
+    benchmark::MaybeReenterWithoutASLR(argc, argv);
+    
     int matrix_dim = GetMatrixDimFromEnv();
 
     // Zen5
