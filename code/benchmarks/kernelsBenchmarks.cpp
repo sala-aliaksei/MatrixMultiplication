@@ -1,8 +1,11 @@
 #include "mm/core/Matrix.hpp"
 #include "mm/core/experimental_kernels.hpp"
 #include "mm/core/zen5kernels.hpp"
+#include "mm/core/utils/cpu.hpp"
 #include "mm/matmul/zen5_constants.hpp"
+#include "tracy_utils/tracy_cache_miss_counter.hpp"
 #include <benchmark/benchmark.h>
+#include <pthread.h>
 
 
 
@@ -223,6 +226,14 @@ static void BM_NaiveBlockDynamicKc(benchmark::State& state)
 
 static void BM_PackedKernelZen5(benchmark::State& state)
 {
+    // Pin thread to specific core
+    int       thread_idx = state.thread_index();
+    int       core_id    = map_thread_id_to_core_id(thread_idx);
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+
     std::size_t memBytes = state.range(0);
     constexpr std::size_t Nc = 96;
     constexpr std::size_t Mc = 96;
@@ -232,11 +243,31 @@ static void BM_PackedKernelZen5(benchmark::State& state)
 
     auto          matrices = initDoubleMatrix(Mc,Nc,Kc);
 
+    static std::size_t last_memBytes = 0;
+    if (memBytes != last_memBytes) {
+        last_memBytes = memBytes;
+        // Mark a new frame/zone in Tracy when the argument changes
+        FrameMarkNamed("ArgChange");
+        char msg[64];
+        std::snprintf(msg, sizeof(msg), "Argument Changed: %zu", last_memBytes);
+        TracyMessage(msg, std::strlen(msg));
+    }
+
+    tracy_utils::CacheMissTracer l1_cache_miss_tracer(tracy_utils::Metric::L1DataCacheMissRate);
+    tracy_utils::CacheMissTracer l2_cache_miss_tracer(tracy_utils::Metric::L2CacheMissRate);
+    tracy_utils::CacheMissTracer llc_cache_miss_tracer(tracy_utils::Metric::LLCCacheMissRate);
+    tracy_utils::CacheMissTracer instr_tracer(tracy_utils::Metric::InstructionsRetired);
     for (auto _ : state)
     {
+        ZoneScoped;
         kernels::zen5_packed_kernel<Nr, Mr>(
           matrices.a.data(), matrices.b.data(), matrices.c.data(), Nc, Kc);
 
+          l1_cache_miss_tracer.update();
+          l2_cache_miss_tracer.update();
+          llc_cache_miss_tracer.update();
+          instr_tracer.update();
+          
         benchmark::ClobberMemory();
     }
 
@@ -310,7 +341,7 @@ BENCHMARK(BM_PackedKernelZen5)
   ->Arg(16 * 1024 * 1024)
   ->Arg(20 * 1024 * 1024)
   ->Arg(24 * 1024 * 1024)
-  ->ThreadPerCpu();
-//   ->Threads(16);
+//   ->ThreadPerCpu();
+  ->Threads(1);
 
   BENCHMARK_MAIN();

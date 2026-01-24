@@ -3,6 +3,12 @@
 #include <cmath>
 #include <immintrin.h>
 #include <iostream>
+#include <pthread.h>
+#include "mm/core/utils/cpu.hpp"
+#include "tracy_utils/tracy_cache_miss_counter.hpp"
+#include <tracy/Tracy.hpp>
+#include <cstring>
+
 // constexpr int NN = 1536; // L3 Cache size
 constexpr int NN = 2 * 2048;
 
@@ -232,18 +238,50 @@ static void BM_ColOrderMatrixPrefetchRefactor(benchmark::State& state)
 
 static void BM_WriteToArray(benchmark::State& state)
 {
+    int       thread_idx = state.thread_index();
+    int       core_id    = map_thread_id_to_core_id(thread_idx);
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+
+    tracy_utils::CacheMissTracer l1_cache_miss_tracer(tracy_utils::Metric::L1DataCacheMissRate);
+    tracy_utils::CacheMissTracer l2_cache_miss_tracer(tracy_utils::Metric::L2CacheMissRate);
+    tracy_utils::CacheMissTracer llc_cache_miss_tracer(tracy_utils::Metric::LLCCacheMissRate);
+
+
+
+
     std::size_t         N = state.range(0);
     std::vector<double> a(N / sizeof(double));
     auto                size = a.size();
 
+    static std::size_t last_memBytes = 0;
+    if (N != last_memBytes) {
+        last_memBytes = N;
+        // Mark a new frame/zone in Tracy when the argument changes
+        FrameMarkNamed("ArgChange");
+        char msg[64];
+        std::snprintf(msg, sizeof(msg), "Argument Changed: %zu", last_memBytes);
+        TracyMessage(msg, std::strlen(msg));
+    }
+
     benchmark::DoNotOptimize(a);
     for (auto _ : state)
     {
+        {
+            ZoneScoped;
         for (int i = 0; i < size; i++)
         {
             a[i] = i;
         }
+        }
+
         benchmark::ClobberMemory();
+
+        l1_cache_miss_tracer.update();
+        l2_cache_miss_tracer.update();
+        llc_cache_miss_tracer.update();
     }
     // add column to benchamrk results: operations per second
     state.counters["MemBW"] =
@@ -276,21 +314,16 @@ BENCHMARK(BM_WriteToArray)
   ->Arg(4 * 1024 * 1024) // L3 Cache size(9950x)
   ->Arg(8 * 1024 * 1024)
   ->Arg(16 * 1024 * 1024)
-  ->Arg(20 * 1024 * 1024)
-  ->Arg(24 * 1024 * 1024)
-  ->Arg(32 * 1024 * 1024)
-  ->Arg(48 * 1024 * 1024)
-  ->Arg(64 * 1024 * 1024)
   ->Threads(1);
 
 // BENCHMARK(BM_ColOrderMatrixPrefetchRefactor)->Arg(NN);
 //    BENCHMARK(BM_ColOrderMatrixPrefetchBadRefactor)->Arg(NN);
 
-BENCHMARK(BM_RowOrderMattrix)->Arg(NN);
-BENCHMARK(BM_ColOrderMattrix)->Arg(NN);
-BENCHMARK(BM_ColOrderMatrixPrefetch)->Arg(NN);
+// BENCHMARK(BM_RowOrderMattrix)->Arg(NN);
+// BENCHMARK(BM_ColOrderMattrix)->Arg(NN);
+// BENCHMARK(BM_ColOrderMatrixPrefetch)->Arg(NN);
 
-BENCHMARK(BM_RowStride)->Arg(NN);
-BENCHMARK(BM_ColStride)->Arg(NN);
-BENCHMARK(BM_ColStridePrefetch)->Arg(NN);
+// BENCHMARK(BM_RowStride)->Arg(NN);
+// BENCHMARK(BM_ColStride)->Arg(NN);
+// BENCHMARK(BM_ColStridePrefetch)->Arg(NN);
 BENCHMARK_MAIN();

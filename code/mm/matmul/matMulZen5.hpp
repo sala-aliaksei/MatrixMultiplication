@@ -11,6 +11,8 @@
 #include "mm/core/utils/cpu.hpp"
 #include "mm/core/kernels.hpp"
 
+#include "tracy_utils/tracy_cache_miss_counter.hpp"
+
 #include <mdspan>
 #include <thread>
 #include <algorithm>
@@ -188,9 +190,9 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
               CPU_SET(core_id, &cpuset);
               (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
-              //   tracy::SetThreadName(
-              //     ("core"s + std::to_string(core_id % 16) + "_thread_"s +
-              //     std::to_string(t)).c_str());
+                tracy::SetThreadName(
+                  ("core"s + std::to_string(core_id % 16) + "_thread_"s +
+                  std::to_string(t)).c_str());
 
               const int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
               const int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
@@ -204,22 +206,33 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
               const std::size_t ofs = t * Kc * (Mc + Nc);
               T* const          buf = buffer.data() + ofs;
 
+              tracy_utils::CacheMissTracer l1_cache_miss_tracer(tracy_utils::Metric::L1DataCacheMissRate);
+              tracy_utils::CacheMissTracer llc_cache_miss_tracer(tracy_utils::Metric::LLCCacheMissRate);
+
               for (int j_block = jbegin; j_block < jend; j_block += Nc)
               {
                   for (int k_block = 0; k_block < K; k_block += Kc)
                   {
                       {
-                          ZoneScopedN("[Data] Repacking B tile");
-                          reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
-                            B.data() + N * k_block + j_block, N, buf + Mc * Kc);
+                        l1_cache_miss_tracer.update();
+                        llc_cache_miss_tracer.update();
+                        ZoneScopedN("[Data] Repacking B tile");
+                        reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
+                          B.data() + N * k_block + j_block, N, buf + Mc * Kc);
+                        l1_cache_miss_tracer.update();
+                        llc_cache_miss_tracer.update();
                       }
 
                       for (int i_block = ibegin; i_block < iend; i_block += Mc)
                       {
                           {
+                            l1_cache_miss_tracer.update();
+                            llc_cache_miss_tracer.update();
                               ZoneScopedN("[Data] Repacking A tile");
                               reorderColOrderMatrix<Mc, Kc, Mr, Kr>(
                                 A.data() + K * i_block + k_block, K, buf);
+                            l1_cache_miss_tracer.update();
+                            llc_cache_miss_tracer.update();
                           }
 
                           ZoneScopedN("[Compute] Copmute McxNc block");
@@ -230,6 +243,8 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                               {
                                   T*       Cc0 = C.data() + N * i_block + j + N * i + j_block;
                                   const T* Ac0 = buf + Kc * i;
+                                  l1_cache_miss_tracer.update();
+                                  llc_cache_miss_tracer.update();
                                   if constexpr (std::is_same_v<T, std::bfloat16_t>)
                                   {
                                       kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(
@@ -244,6 +259,8 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                   {
                                       kernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
                                   }
+                                  l1_cache_miss_tracer.update();
+                                  llc_cache_miss_tracer.update();
                               }
                           }
                       }
