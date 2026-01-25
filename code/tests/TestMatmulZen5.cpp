@@ -53,7 +53,6 @@ TEST_F(MatrixMulZen5Test, mmblocking)
 
 TEST_F(MatrixMulZen5Test, submatrix)
 {
-    // gtest --gtest_filter=MatrixMulZen5Test.matMulZen5Submatrix
     constexpr std::size_t N  = 512;
     constexpr std::size_t Mc = 128;
     constexpr std::size_t Kc = 128;
