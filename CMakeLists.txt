@@ -13,7 +13,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -march=native -Wno-interference-size -fdiagnostics-color  -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -march=native  -fdiagnostics-color  -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ferror-limit=1")
+
+# GCC option -Wno-interference-size -fmax-errors=1
 
 
 add_compile_definitions(_LIBCPP_ENABLE_EXPERIMENTAL)
@@ -28,6 +31,7 @@ find_package(OpenBLAS REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Tracy REQUIRED)
 find_package(xsimd REQUIRED)
+find_package(fmt REQUIRED)
 
 
 add_compile_definitions(TRACY_ENABLE)
@@ -66,7 +70,7 @@ target_include_directories(Core PUBLIC
     ${CMAKE_SOURCE_DIR}/code
 )
 
-target_link_libraries(Core PUBLIC Tracy::TracyClient xsimd)
+target_link_libraries(Core PUBLIC Tracy::TracyClient xsimd fmt::fmt)
 
 ######      MATMUL     #################
 add_library(${PROJECT_NAME} SHARED
@@ -76,7 +80,6 @@ add_library(${PROJECT_NAME} SHARED
     code/mm/matmul/matMulTail.cpp
     code/mm/matmul/matMulPadding.hpp
     code/mm/matmul/matMulPadding.cpp
-    code/mm/matmul/matMulZen5.cpp
     code/mm/matmul/matMulZen5.hpp
     code/mm/matmul/matMulHyper.cpp
     code/mm/matmul/matMulHyper.hpp
@@ -219,8 +222,8 @@ if(ENABLE_BENCHMARKS)
     add_executable(BM_Matmul_Zen5 code/benchmarks/matMulZen5Benchmark.cpp)
     target_link_libraries(BM_Matmul_Zen5 benchmark_utils)
 
-    add_executable(BM_Prefetch code/benchmarks/stride/benchEffectiveColStride.cpp)
-    target_link_libraries(BM_Prefetch benchmark::benchmark)
+    add_executable(BM_SeqWRite code/benchmarks/stride/bm_seq_write.cpp)
+    target_link_libraries(BM_SeqWRite benchmark::benchmark Core)
 
     add_executable(BM_Repacking code/benchmarks/reorder/reorderBenchmark.cpp)
     target_link_libraries(BM_Repacking benchmark::benchmark)
@@ -382,4 +385,3 @@ if(ENABLE_LLVM_MCA AND "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 
     message(STATUS "llvm-mca analysis enabled; results in ${MCA_DIR}/MulMatrixApp.mca")
 endif()
-
