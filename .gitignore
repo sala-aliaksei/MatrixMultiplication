@@ -6,4 +6,4 @@ perf-result
 .cache/*
 
 *~
-
+python_env/*
