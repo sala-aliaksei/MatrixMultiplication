@@ -23,10 +23,6 @@ add_compile_definitions(_LIBCPP_ENABLE_EXPERIMENTAL)
 include(cmake/dependencies.cmake)
 
 
-#find_package(tensorflow-lite REQUIRED)
-#find_package(tensorflowlite REQUIRED)
-#find_package(mdspan  REQUIRED)
-#find_package(LinAlg  REQUIRED) # LinAlg
 find_package(OpenBLAS REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(Tracy REQUIRED)
@@ -35,13 +31,6 @@ find_package(fmt REQUIRED)
 
 
 add_compile_definitions(TRACY_ENABLE)
-
-
-#find_package(Kokkos REQUIRED)
-#find_package(Boost REQUIRED) # for aligment allocator # COMPONENTS system
-#find_package(OpenMP REQUIRED)
-
-
 
 if(ENABLE_GPU_BUILD)
     set(CMAKE_CUDA_STANDARD 20)
@@ -106,16 +95,12 @@ add_library(TPI SHARED
 
 target_include_directories(TPI PUBLIC
     Core
-    #Kokkos::kokkos
-    #std::linalg
 )
 
 target_link_libraries(TPI
     Core
     OpenBLAS::OpenBLAS
     Eigen3::Eigen
-    #tensorflow::tensorflowlite
-    #std::linalg
 )
 
 target_compile_definitions(TPI PRIVATE KOKKOS_ENABLE_OPENMP)
@@ -149,8 +134,6 @@ if(ENABLE_GPU_BUILD)
     add_library(GPUGemm SHARED
         code/gpu/matmulGpuBlas.cu
         code/gpu/matmulGpu.cu
-        # code/gpu/matmulGpuBlas.hpp
-        # code/gpu/matmulGpu.hpp
  )
 
     target_include_directories(GPUGemm PUBLIC
