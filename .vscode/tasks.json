@@ -9,7 +9,8 @@
                 "build",
                 ".",
                 "-pr",
-                "conan/profiles/gcc16"
+                "conan/profiles/clang20",
+                "-b missing"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
