@@ -1,0 +1,27 @@
+cuda-tile==1.0.1
+cupy-cuda13x==13.6.0
+fastrlock==0.8.3
+iniconfig==2.3.0
+numpy==2.4.0
+packaging==25.0
+pluggy==1.6.0
+Pygments==2.19.2
+pytest==9.0.2
+typing_extensions==4.15.0
+jax==0.8.2
+
+# JAX for CUDA 13
+jax[cuda13]
+
+# Pallas dependencies (Triton integration)
+jax-triton
+
+# OpenAI Triton for GPU kernel development
+triton>=2.0.0
+
+# PyTorch for Triton matmul (if not using JAX)
+torch>=2.0.0
+
+# Common additions for JAX development
+numpy>=2.0
+ml-dtypes
