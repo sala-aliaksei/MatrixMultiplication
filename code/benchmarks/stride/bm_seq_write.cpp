@@ -249,15 +249,13 @@ static void BM_WriteToArray(benchmark::State& state)
     tracy_utils::CacheMissTracer l2_cache_miss_tracer(tracy_utils::Metric::L2CacheMissRate);
     tracy_utils::CacheMissTracer llc_cache_miss_tracer(tracy_utils::Metric::LLCCacheMissRate);
 
-
-
-
     std::size_t         N = state.range(0);
     std::vector<double> a(N / sizeof(double));
     auto                size = a.size();
 
     static std::size_t last_memBytes = 0;
-    if (N != last_memBytes) {
+    if (N != last_memBytes)
+    {
         last_memBytes = N;
         // Mark a new frame/zone in Tracy when the argument changes
         FrameMarkNamed("ArgChange");
@@ -271,10 +269,10 @@ static void BM_WriteToArray(benchmark::State& state)
     {
         {
             ZoneScoped;
-        for (int i = 0; i < size; i++)
-        {
-            a[i] = i;
-        }
+            for (int i = 0; i < size; i++)
+            {
+                a[i] = i;
+            }
         }
 
         benchmark::ClobberMemory();

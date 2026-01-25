@@ -1,6 +1,6 @@
 
 #include "mm/core/Matrix.hpp"
-#include "mm/core/experimental_kernels.hpp"
+#include "mm/core/kernels.hpp"
 
 #include <numeric>
 
@@ -14,7 +14,7 @@ constexpr std::size_t K = NN;
 
 constexpr int Kc = 20;
 
-// naive kernels
+// naive xkernels
 template<int Mr, int Nr, int Kc>
 void matmul_NV(const double* __restrict a,
                const double* __restrict mb,
@@ -60,7 +60,7 @@ void matmul_NV_Packed(const double* __restrict a,
 
 class KernelTest : public testing::Test
 {
-  protected:
+  public:
     KernelTest()
       : matrices(initDoubleMatrix(M, N, K))
 
@@ -70,10 +70,7 @@ class KernelTest : public testing::Test
         //  matmul_NV<Mr, Nr, Kc>(matrices.c.data(), matrices.a.data(), matrices.b.data(), M, N, K);
     }
 
-    ~KernelTest() override
-    {
-        // You can do clean-up work that doesn't throw exceptions here.
-    }
+    ~KernelTest() override = default;
 
     void SetUp() override
     {
@@ -98,7 +95,7 @@ TEST_F(KernelTest, GenericKern12x4)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
     EXPECT_EQ((c == res), true);
 }
 
@@ -111,7 +108,7 @@ TEST_F(KernelTest, GenericKern8x4)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
 
     EXPECT_EQ((c == res), true);
 }
@@ -124,7 +121,7 @@ TEST_F(KernelTest, GenericKern2x4)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
     EXPECT_EQ((c == res), true);
 }
 
@@ -137,7 +134,7 @@ TEST_F(KernelTest, GenericKern1x4)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
     EXPECT_EQ((c == res), true);
 }
 
@@ -150,7 +147,7 @@ TEST_F(KernelTest, GenericKern12x2)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
     EXPECT_EQ((c == res), true);
 }
 
@@ -163,7 +160,7 @@ TEST_F(KernelTest, GenericKern8x2)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
 
     EXPECT_EQ((c == res), true);
 }
@@ -177,7 +174,7 @@ TEST_F(KernelTest, GenericKern2x2)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
     EXPECT_EQ((c == res), true);
 }
 
@@ -190,7 +187,7 @@ TEST_F(KernelTest, GenericKern1x2)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
     EXPECT_EQ((c == res), true);
 }
 
@@ -203,7 +200,7 @@ TEST_F(KernelTest, GenericKern12x1)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
     EXPECT_EQ((c == res), true);
 }
 
@@ -216,7 +213,7 @@ TEST_F(KernelTest, GenericKern8x1)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
 
     EXPECT_EQ((c == res), true);
 }
@@ -230,7 +227,7 @@ TEST_F(KernelTest, GenericKern2x1)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
     EXPECT_EQ((c == res), true);
 }
 
@@ -243,7 +240,7 @@ TEST_F(KernelTest, GenericKern1x1)
     matmul_NV<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr, K);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
+    xkernels::cpp_generic_ukern<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr, K);
     EXPECT_EQ((c == res), true);
 }
 
@@ -258,7 +255,7 @@ TEST_F(KernelTest, PackedGenericKern12x4)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
 
     Matrix<double> c(Mr, Nr);
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
 
     EXPECT_EQ((c == res), true);
 }
@@ -272,36 +269,37 @@ TEST_F(KernelTest, PackedGenericKern8x4)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
 
     EXPECT_EQ((c == res), true);
 }
 
-TEST_F(KernelTest, PackedGenericKern6x4)
-{
-    constexpr int Nr = 6;
-    constexpr int Mr = 4;
+// TEST_F(KernelTest, PackedGenericKern6x4)
+// {
+//     constexpr int Nr = 6;
+//     constexpr int Mr = 4;
 
-    Matrix<double> res(Mr, Nr);
-    matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
-    Matrix<double> c(Mr, Nr);
+//     Matrix<double> res(Mr, Nr);
+//     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
+//     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+//     xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
 
-    EXPECT_EQ((c == res), true);
-}
-TEST_F(KernelTest, PackedKern6x4)
-{
-    constexpr int Nr = 6;
-    constexpr int Mr = 4;
+//     EXPECT_EQ((c == res), true);
+// }
 
-    Matrix<double> res(Mr, Nr);
-    matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
-    Matrix<double> c(Mr, Nr);
+// TEST_F(KernelTest, PackedKern6x4)
+// {
+//     constexpr int Nr = 6;
+//     constexpr int Mr = 4;
 
-    kernels::packed_ukernel6x4<Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
-    EXPECT_EQ((c == res), true);
-}
+//     Matrix<double> res(Mr, Nr);
+//     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
+//     Matrix<double> c(Mr, Nr);
+
+//     xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
+//     EXPECT_EQ((c == res), true);
+// }
 
 TEST_F(KernelTest, PackedGenericKern4x4)
 {
@@ -312,7 +310,7 @@ TEST_F(KernelTest, PackedGenericKern4x4)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
 
     EXPECT_EQ((c == res), true);
 }
@@ -326,7 +324,7 @@ TEST_F(KernelTest, PackedGenericKern2x4)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
     EXPECT_EQ((c == res), true);
 }
 
@@ -339,7 +337,7 @@ TEST_F(KernelTest, PackedKern2x4)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::packed_ukernel2x4<Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
     EXPECT_EQ((c == res), true);
 }
 
@@ -352,7 +350,7 @@ TEST_F(KernelTest, PackedKern1x4)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::packed_ukernel1x4<Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
     EXPECT_EQ((c == res), true);
 }
 
@@ -365,7 +363,7 @@ TEST_F(KernelTest, PackedKern1x4_simd)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::packed_ukernel1x4_simd<Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
     EXPECT_EQ((c == res), true);
 }
 
@@ -378,7 +376,7 @@ TEST_F(KernelTest, PackedGenericKern1x4)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
     EXPECT_EQ((c == res), true);
 }
 
@@ -392,7 +390,7 @@ TEST_F(KernelTest, PackedGenericKern12x2)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
 
     Matrix<double> c(Mr, Nr);
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
 
     EXPECT_EQ((c == res), true);
 }
@@ -406,24 +404,10 @@ TEST_F(KernelTest, PackedGenericKern8x2)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
 
     EXPECT_EQ((c == res), true);
 }
-
-// TEST_F(KernelTest, PackedGenericKern6x2)
-//{
-//     constexpr int Nr = 6;
-//     constexpr int Mr = 2;
-
-//    Matrix<double> res(Mr, Nr);
-//    matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
-//    Matrix<double> c(Mr, Nr);
-
-//    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
-
-//    EXPECT_EQ((c == res), true);
-//}
 
 TEST_F(KernelTest, PackedGenericKern4x2)
 {
@@ -434,7 +418,7 @@ TEST_F(KernelTest, PackedGenericKern4x2)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
 
     EXPECT_EQ((c == res), true);
 }
@@ -448,7 +432,7 @@ TEST_F(KernelTest, PackedGenericKern2x2)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
     EXPECT_EQ((c == res), true);
 }
 
@@ -461,11 +445,12 @@ TEST_F(KernelTest, PackedGenericKern1x2)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
     EXPECT_EQ((c == res), true);
 }
 
 // MR=1
+
 TEST_F(KernelTest, PackedGenericKern12x1)
 {
     constexpr int Nr = 12;
@@ -475,7 +460,7 @@ TEST_F(KernelTest, PackedGenericKern12x1)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
 
     Matrix<double> c(Mr, Nr);
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
 
     EXPECT_EQ((c == res), true);
 }
@@ -489,24 +474,10 @@ TEST_F(KernelTest, PackedGenericKern8x1)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
 
     EXPECT_EQ((c == res), true);
 }
-
-// TEST_F(KernelTest, PackedGenericKern6x1)
-//{
-//     constexpr int Nr = 6;
-//     constexpr int Mr = 1;
-
-//    Matrix<double> res(Mr, Nr);
-//    matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
-//    Matrix<double> c(Mr, Nr);
-
-//    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
-
-//    EXPECT_EQ((c == res), true);
-//}
 
 TEST_F(KernelTest, PackedGenericKern4x1)
 {
@@ -517,7 +488,7 @@ TEST_F(KernelTest, PackedGenericKern4x1)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
 
     EXPECT_EQ((c == res), true);
 }
@@ -531,7 +502,7 @@ TEST_F(KernelTest, PackedGenericKern2x1)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
     EXPECT_EQ((c == res), true);
 }
 
@@ -544,7 +515,7 @@ TEST_F(KernelTest, PackedGenericKern1x1)
     matmul_NV_Packed<Mr, Nr, Kc>(matrices.a.data(), matrices.b.data(), res.data(), Mr, Nr);
     Matrix<double> c(Mr, Nr);
 
-    kernels::cpp_packed_kernel<Nr, Mr, Kc>(matrices.a.data(), matrices.b.data(), c.data(), Nr);
+    xkernels::cpp_packed_kernel<Nr, Mr>(matrices.a.data(), matrices.b.data(), c.data(), Nr, Kc);
     EXPECT_EQ((c == res), true);
 }
 

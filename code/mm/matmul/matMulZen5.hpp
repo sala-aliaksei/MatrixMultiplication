@@ -28,41 +28,20 @@
 namespace mm::zen5
 {
 
-template<typename T>
-constexpr auto number_of_elems_in_512_reg_v = []()
-{
-    if constexpr (std::is_same_v<T, double>)
-    {
-        return 8;
-    }
-    else if constexpr (std::is_same_v<T, float>)
-    {
-        return 16;
-    }
-    else if constexpr (std::is_same_v<T, std::bfloat16_t>)
-    {
-        return 32;
-    }
-    else
-    {
-        static_assert(false, "Unsupported type");
-    }
-}();
-
 constexpr int PAGE_SIZE = 4096;
 
 template<typename T>
 void matMulZen5(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 {
-    constexpr int Nc = 96; // 3072/32=96
-    constexpr int Mc = 96;
-    constexpr int Kc = 96 * 2 * 2;
+    constexpr int Nc = constants::MatMulZen5Config<T>::Nc;
+    constexpr int Mc = constants::MatMulZen5Config<T>::Mc;
+    constexpr int Kc = constants::MatMulZen5Config<T>::Kc;
 
     constexpr auto num_of_regs = 32;
     constexpr auto bregs_cnt   = 3;
     constexpr auto aregs_cnt   = 1;
 
-    constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
+    constexpr auto num_of_elems_in_reg = mm::constants::number_of_elems_in_512_reg_v<T>;
 
     constexpr int Kr = 1;
     constexpr int Nr = bregs_cnt * num_of_elems_in_reg;
@@ -90,11 +69,11 @@ void matMulZen5(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 
     //
 
-    massert(N % Nc == 0, "N % Nc == 0");
-    massert(K % Kc == 0, "K % Kc == 0");
-    massert(M % Mc == 0, "M % Mc == 0");
-    massert(N % num_threads == 0, "N % num_threads == 0");
-    massert((N / num_threads) % Nc == 0, "(N/num_threads) % Nc == 0");
+    massert(N % Nc == 0, "N={}, Nc={}", N, Nc);
+    massert(K % Kc == 0, "K={}, Kc={}", K, Kc);
+    massert(M % Mc == 0, "M={}, Mc={}", M, Mc);
+    massert(N % num_threads == 0, "N={}, num_threads={}", N, num_threads);
+    massert((N / num_threads) % Nc == 0, "N={}, num_threads={}, Nc={}", N, num_threads, Nc);
 
     std::vector<T> buffer(num_threads * Kc * (Mc + Nc));
 
@@ -123,13 +102,13 @@ void matMulZen5(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                         T*       Cc0 = C.data() + N * i_block + j + N * i + j_block;
                         const T* Ac0 = buf + Kc * i;
 
-                        if constexpr (std::is_same_v<T, std::bfloat16_t>)
+                        if constexpr (std::is_same_v<T, mm::bfloat16_t>)
                         {
                             kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
                         }
                         else
                         {
-                            kernels::zen5_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                            xkernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
                         }
                     }
                 }
@@ -150,7 +129,7 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
     constexpr auto bregs_cnt   = 3;
     constexpr auto aregs_cnt   = 1;
 
-    constexpr auto num_of_elems_in_reg = number_of_elems_in_512_reg_v<T>;
+    constexpr auto num_of_elems_in_reg = mm::constants::number_of_elems_in_512_reg_v<T>;
 
     constexpr int Nr{bregs_cnt * num_of_elems_in_reg};
     constexpr int Mr{8};
@@ -190,9 +169,9 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
               CPU_SET(core_id, &cpuset);
               (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
-                tracy::SetThreadName(
-                  ("core"s + std::to_string(core_id % 16) + "_thread_"s +
-                  std::to_string(t)).c_str());
+              //   tracy::SetThreadName(
+              //     ("core"s + std::to_string(core_id % 16) + "_thread_"s +
+              //     std::to_string(t)).c_str());
 
               const int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
               const int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
@@ -206,36 +185,38 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
               const std::size_t ofs = t * Kc * (Mc + Nc);
               T* const          buf = buffer.data() + ofs;
 
-              tracy_utils::CacheMissTracer l1_cache_miss_tracer(tracy_utils::Metric::L1DataCacheMissRate);
-              tracy_utils::CacheMissTracer llc_cache_miss_tracer(tracy_utils::Metric::LLCCacheMissRate);
+              //   tracy_utils::CacheMissTracer l1_cache_miss_tracer(
+              //     tracy_utils::Metric::L1DataCacheMissRate);
+              //   tracy_utils::CacheMissTracer llc_cache_miss_tracer(
+              //     tracy_utils::Metric::LLCCacheMissRate);
 
               for (int j_block = jbegin; j_block < jend; j_block += Nc)
               {
                   for (int k_block = 0; k_block < K; k_block += Kc)
                   {
                       {
-                        l1_cache_miss_tracer.update();
-                        llc_cache_miss_tracer.update();
-                        ZoneScopedN("[Data] Repacking B tile");
-                        reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
-                          B.data() + N * k_block + j_block, N, buf + Mc * Kc);
-                        l1_cache_miss_tracer.update();
-                        llc_cache_miss_tracer.update();
+                          //   l1_cache_miss_tracer.update();
+                          //   llc_cache_miss_tracer.update();
+                          //   ZoneScopedN("[Data] Repacking B tile");
+                          reorderRowMajorMatrixAVX<Kc, Nc, Kr, Nr>(
+                            B.data() + N * k_block + j_block, N, buf + Mc * Kc);
+                          //   l1_cache_miss_tracer.update();
+                          //   llc_cache_miss_tracer.update();
                       }
 
                       for (int i_block = ibegin; i_block < iend; i_block += Mc)
                       {
                           {
-                            l1_cache_miss_tracer.update();
-                            llc_cache_miss_tracer.update();
-                              ZoneScopedN("[Data] Repacking A tile");
+                              //   l1_cache_miss_tracer.update();
+                              //   llc_cache_miss_tracer.update();
+                              //   ZoneScopedN("[Data] Repacking A tile");
                               reorderColOrderMatrix<Mc, Kc, Mr, Kr>(
                                 A.data() + K * i_block + k_block, K, buf);
-                            l1_cache_miss_tracer.update();
-                            llc_cache_miss_tracer.update();
+                              //   l1_cache_miss_tracer.update();
+                              //   llc_cache_miss_tracer.update();
                           }
 
-                          ZoneScopedN("[Compute] Copmute McxNc block");
+                          //   ZoneScopedN("[Compute] Copmute McxNc block");
                           for (int j = 0; j < Nc; j += Nr)
                           {
                               const T* Bc1 = buf + Mc * Kc + Kc * j;
@@ -243,9 +224,9 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                               {
                                   T*       Cc0 = C.data() + N * i_block + j + N * i + j_block;
                                   const T* Ac0 = buf + Kc * i;
-                                  l1_cache_miss_tracer.update();
-                                  llc_cache_miss_tracer.update();
-                                  if constexpr (std::is_same_v<T, std::bfloat16_t>)
+                                  //   l1_cache_miss_tracer.update();
+                                  //   llc_cache_miss_tracer.update();
+                                  if constexpr (std::is_same_v<T, mm::bfloat16_t>)
                                   {
                                       kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(
                                         Ac0, Bc1, Cc0, N);
@@ -257,10 +238,10 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                   }
                                   else
                                   {
-                                      kernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
+                                      xkernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
                                   }
-                                  l1_cache_miss_tracer.update();
-                                  llc_cache_miss_tracer.update();
+                                  //   l1_cache_miss_tracer.update();
+                                  //   llc_cache_miss_tracer.update();
                               }
                           }
                       }
@@ -282,7 +263,7 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
     constexpr auto bregs_cnt   = 3;
     constexpr auto aregs_cnt   = 1;
 
-    constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
+    constexpr auto num_of_elems_in_reg = mm::constants::number_of_elems_in_512_reg_v<T>;
 
     constexpr int Kr = 1;
     constexpr int Nr = bregs_cnt * num_of_elems_in_reg; // 24
@@ -365,14 +346,14 @@ void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>
                             T*       Cc0 = bufC + static_cast<std::size_t>(N_blk_pad) * i + j;
                             const T* Ac0 = bufA + Kc * i;
 
-                            if constexpr (std::is_same_v<T, std::bfloat16_t>)
+                            if constexpr (std::is_same_v<T, mm::bfloat16_t>)
                             {
                                 kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(
                                   Ac0, Bc1, Cc0, N_blk_pad);
                             }
                             else
                             {
-                                kernels::zen5_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N_blk_pad);
+                                xkernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N_blk_pad, Kc);
                             }
                         }
                     }
@@ -414,7 +395,7 @@ void matMulZen5MTBlockingSpan(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>&
     constexpr auto bregs_cnt   = 3;
     constexpr auto aregs_cnt   = 1;
 
-    constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
+    constexpr auto num_of_elems_in_reg = mm::constants::number_of_elems_in_512_reg_v<T>;
 
     constexpr int Nr{bregs_cnt * num_of_elems_in_reg};
     constexpr int Mr{8};
@@ -518,7 +499,8 @@ void matMulZen5MTBlockingSpan(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>&
                                   }
 
                                   T* Cc0 = &C(i_block + i, j_block + j);
-                                  kernels::zen5_mdspan_kernel(a_utile, b_utile, Cc0, N);
+                                  xkernels::zen5_mdspan_kernel<Nr, Mr, Kc>(
+                                    a_utile, b_utile, Cc0, N);
                               }
                           }
                       }

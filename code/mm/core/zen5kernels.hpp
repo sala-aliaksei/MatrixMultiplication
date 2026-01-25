@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mm/core/experimental_kernels.hpp>
+
 #include <mdspan>
 
 namespace kernels
@@ -57,9 +58,9 @@ inline void naive_block_dkc(const double* __restrict a,
             c[i * N + j] += carr[i * Nr + j];
         }
     }
-
 }
 
+#if defined(ENABLE_EXPERIMENTAL_SIMD_CODE)
 
 template<int Nr, int Mr, int Kc, typename T>
 static inline void zen5_packed_kernel(const T* __restrict a,
@@ -98,8 +99,6 @@ static inline void zen5_packed_kernel(const T* __restrict a,
     store_kernel<Nrs, Mr>(c, r, N);
 }
 
-
-
 template<std::size_t Nr, std::size_t Mr, std::size_t Kc, typename T>
 static inline void zen5_mdspan_kernel(const std::mdspan<T, std::extents<std::size_t, Kc, Mr>> a,
                                       const std::mdspan<T, std::extents<std::size_t, Kc, Nr>> b,
@@ -135,5 +134,5 @@ static inline void zen5_mdspan_kernel(
     }
     store_kernel<Nrs, Mr>(c.data_handle(), r, 3072); //(int)c.extent(1)
 }
-
+#endif // ENABLE_EXPERIMENTAL_SIMD_CODE
 } // namespace kernels

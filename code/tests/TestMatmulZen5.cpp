@@ -9,20 +9,17 @@
 
 class MatrixMulZen5Test : public testing::Test
 {
-  protected:
+  public:
     MatrixMulZen5Test()
       : a(generateRandomMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
       , b(generateRandomMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
-      , c(generateIotaMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , c(GetMatrixDimFromEnv(), GetMatrixDimFromEnv())
       , valid_res(generateIotaMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
     {
         mm::tpi::matrixMulOpenBlas(a, b, valid_res);
     }
 
-    ~MatrixMulZen5Test() override
-    {
-        // You can do clean-up work that doesn't throw exceptions here.
-    }
+    ~MatrixMulZen5Test() override = default;
 
     void SetUp() override
     {
@@ -86,24 +83,19 @@ TEST_F(MatrixMulZen5Test, mdspan)
 
 class MatrixMulZen5Float32Test : public testing::Test
 {
-  protected:
+  public:
     MatrixMulZen5Float32Test()
       //: matrices(initDoubleMatrix(I, J, K))
       : a(generateRandomMatrix<float>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
       , b(generateRandomMatrix<float>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
-      , c(generateRandomMatrix<float>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , c(GetMatrixDimFromEnv(), GetMatrixDimFromEnv())
+      , expected(GetMatrixDimFromEnv(), GetMatrixDimFromEnv())
     {
         // std::cout << "I : " << I << " J: " << J << " K: " << K << "\n";
-
-        mm::tpi::matrixMulOpenBlas(a, b, c);
-        expected = std::move(c);
-        c        = Matrix<float>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv());
+        mm::tpi::matrixMulOpenBlas(a, b, expected);
     }
 
-    ~MatrixMulZen5Float32Test() override
-    {
-        // You can do clean-up work that doesn't throw exceptions here.
-    }
+    ~MatrixMulZen5Float32Test() override = default;
 
     void SetUp() override
     {

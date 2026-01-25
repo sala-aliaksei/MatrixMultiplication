@@ -5,9 +5,9 @@
 #include <mm/core/bf16.hpp>
 namespace mm
 {
-void matMul_Naive_Order(const Matrix<std::bfloat16_t>& A,
-                        const Matrix<std::bfloat16_t>& B,
-                        Matrix<std::bfloat16_t>&       C);
+void matMul_Naive_Order(const Matrix<mm::bfloat16_t>& A,
+                        const Matrix<mm::bfloat16_t>& B,
+                        Matrix<mm::bfloat16_t>&       C);
 }
 #endif
 

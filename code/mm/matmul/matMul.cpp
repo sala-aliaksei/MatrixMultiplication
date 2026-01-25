@@ -2,6 +2,8 @@
 #include "mm/core/experimental_kernels.hpp"
 #include "mm/core/reorderMatrix.hpp"
 #include "mm/matmul/matMul.hpp"
+#include "mm/core/kernels.hpp"
+#include <immintrin.h>
 
 #include <cstring> // memcpy
 #include <cmath>
@@ -48,15 +50,15 @@ void matMul_Naive(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
 }
 #if __STDCPP_FLOAT64_T__ == 1
 
-void matMul_Naive_Order(const Matrix<std::bfloat16_t>& A,
-                        const Matrix<std::bfloat16_t>& B,
-                        Matrix<std::bfloat16_t>&       C)
+void matMul_Naive_Order(const Matrix<mm::bfloat16_t>& A,
+                        const Matrix<mm::bfloat16_t>& B,
+                        Matrix<mm::bfloat16_t>&       C)
 {
     auto M = A.row();
     auto K = A.col();
     auto N = B.col();
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int i = 0; i < M; ++i)
     {
         for (int k = 0; k < K; ++k)
@@ -711,7 +713,8 @@ handleJtail(const double* a2, const double* mb, double* mc, int K, int N, int jl
            {
                for (int i2 = 0; i2 < Mc; i2 += Mr)
                {
-                   kernels::cpp_generic_ukern<TailSize, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
+                   xkernels::cpp_generic_ukern<TailSize, Mr, Kc>(
+                     &a2[i2 * K], b2, &c2[i2 * N], N, K);
                }
                jl += TailSize;
                j_tail_size -= TailSize;
@@ -751,7 +754,7 @@ static inline void handleItail(const double* ma,
 
                        for (int j2 = 0; j2 < Nc; j2 += Nr)
                        {
-                           kernels::cpp_generic_ukern<Nr, Mrr, Kc>(a, &b2[j2], &c2[j2], N, K);
+                           xkernels::cpp_generic_ukern<Nr, Mrr, Kc>(a, &b2[j2], &c2[j2], N, K);
                        }
                    }
 
@@ -805,7 +808,7 @@ void matMul_Tails(const Matrix<double>& A, const Matrix<double>& B, Matrix<doubl
                     const double* a = &a2[i2 * K];
                     for (int j2 = 0; j2 < Nc; j2 += Nr)
                     {
-                        kernels::cpp_generic_ukern<Nr, Mr, Kc>(a, &b2[j2], &c2[i2 * N + j2], N, K);
+                        xkernels::cpp_generic_ukern<Nr, Mr, Kc>(a, &b2[j2], &c2[i2 * N + j2], N, K);
                     }
                 }
             }
@@ -862,7 +865,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                     const double* a = &a2[i2 * K];
                     for (int j2 = 0; j2 < Nc; j2 += Nr)
                     {
-                        kernels::cpp_generic_ukern<Nr, Mr, Kc>(a, &b2[j2], &c2[i2 * N + j2], N, K);
+                        xkernels::cpp_generic_ukern<Nr, Mr, Kc>(a, &b2[j2], &c2[i2 * N + j2], N, K);
                     }
                 }
             }
@@ -875,7 +878,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
                 for (int i2 = 0; i2 < Mc; i2 += Mr)
                 {
-                    kernels::cpp_generic_ukern<12, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
+                    xkernels::cpp_generic_ukern<12, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
                 }
                 jl += 12;
                 j_tail_size -= 12;
@@ -888,7 +891,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
                 for (int i2 = 0; i2 < Mc; i2 += Mr)
                 {
-                    kernels::cpp_generic_ukern<8, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
+                    xkernels::cpp_generic_ukern<8, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
                 }
                 jl += 8;
                 j_tail_size -= 8;
@@ -901,7 +904,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
                 for (int i2 = 0; i2 < Mc; i2 += Mr)
                 {
-                    kernels::cpp_generic_ukern<4, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
+                    xkernels::cpp_generic_ukern<4, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
                 }
                 jl += 4;
                 j_tail_size -= 4;
@@ -914,7 +917,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
                 for (int i2 = 0; i2 < Mc; i2 += Mr)
                 {
-                    kernels::cpp_generic_ukern<2, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
+                    xkernels::cpp_generic_ukern<2, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
                 }
                 jl += 2;
                 j_tail_size -= 2;
@@ -927,7 +930,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
                 for (int i2 = 0; i2 < Mc; i2 += Mr)
                 {
-                    kernels::cpp_generic_ukern<1, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
+                    xkernels::cpp_generic_ukern<1, Mr, Kc>(&a2[i2 * K], b2, &c2[i2 * N], N, K);
                 }
                 jl += 1;
                 j_tail_size -= 1;
@@ -954,7 +957,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
                 for (int j2 = 0; j2 < Nc; j2 += Nr)
                 {
-                    kernels::cpp_generic_ukern<Nr, Mrr, Kc>(a, &b2[j2], &c2[j2], N, K);
+                    xkernels::cpp_generic_ukern<Nr, Mrr, Kc>(a, &b2[j2], &c2[j2], N, K);
                 }
             }
 
@@ -964,7 +967,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<12, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<12, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 12;
                 j_tail_size -= 12;
             }
@@ -974,7 +977,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<8, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<8, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 8;
                 j_tail_size -= 8;
             }
@@ -984,7 +987,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<4, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<4, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 4;
                 j_tail_size -= 4;
             }
@@ -994,7 +997,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<2, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<2, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 2;
                 j_tail_size -= 2;
             }
@@ -1004,7 +1007,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<1, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<1, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 1;
                 j_tail_size -= 1;
             }
@@ -1032,7 +1035,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
                 for (int j2 = 0; j2 < Nc; j2 += Nr)
                 {
-                    kernels::cpp_generic_ukern<Nr, Mrr, Kc>(a, &b2[j2], &c2[j2], N, K);
+                    xkernels::cpp_generic_ukern<Nr, Mrr, Kc>(a, &b2[j2], &c2[j2], N, K);
                 }
             }
 
@@ -1042,7 +1045,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<12, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<12, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 12;
                 j_tail_size -= 12;
             }
@@ -1052,7 +1055,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<8, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<8, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 8;
                 j_tail_size -= 8;
             }
@@ -1062,7 +1065,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<4, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<4, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 4;
                 j_tail_size -= 4;
             }
@@ -1072,7 +1075,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<2, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<2, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 2;
                 j_tail_size -= 2;
             }
@@ -1082,7 +1085,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<1, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<1, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 1;
                 j_tail_size -= 1;
             }
@@ -1110,7 +1113,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
 
                 for (int j2 = 0; j2 < Nc; j2 += Nr)
                 {
-                    kernels::cpp_generic_ukern<Nr, Mrr, Kc>(a, &b2[j2], &c2[j2], N, K);
+                    xkernels::cpp_generic_ukern<Nr, Mrr, Kc>(a, &b2[j2], &c2[j2], N, K);
                 }
             }
 
@@ -1120,7 +1123,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<12, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<12, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 12;
                 j_tail_size -= 12;
             }
@@ -1130,7 +1133,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<8, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<8, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 8;
                 j_tail_size -= 8;
             }
@@ -1140,7 +1143,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<4, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<4, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 4;
                 j_tail_size -= 4;
             }
@@ -1150,7 +1153,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<2, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<2, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 2;
                 j_tail_size -= 2;
             }
@@ -1160,7 +1163,7 @@ void matMul_ManualTail(const Matrix<double>& A, const Matrix<double>& B, Matrix<
                 double*       c2 = &mc[ilast * N + jl];
                 const double* b2 = &mb[kb * N + jl];
 
-                kernels::cpp_generic_ukern<1, Mrr, Kc>(a, b2, c2, N, K);
+                xkernels::cpp_generic_ukern<1, Mrr, Kc>(a, b2, c2, N, K);
                 jl += 1;
                 j_tail_size -= 1;
             }

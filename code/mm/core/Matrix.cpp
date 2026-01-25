@@ -191,20 +191,19 @@ Matrix<T> generateRandomMatrix(int M, int N)
     std::random_device rd;
     std::mt19937       gen(rd());
 
-    T lower_bound = 1;
-    T upper_bound = 10;
+    using DistT = std::conditional_t<std::is_same_v<T, double>, double, float>;
+    DistT lower_bound = 1;
+    DistT upper_bound = 10;
 
-    std::uniform_real_distribution<T> dis(lower_bound, upper_bound);
+    std::uniform_real_distribution<DistT> dis(lower_bound, upper_bound);
 
     Matrix<T> matrix(M, N);
-    std::generate(matrix.data(), matrix.data() + matrix.size(), [&] { return dis(gen); });
+    std::generate(matrix.data(), matrix.data() + matrix.size(), [&] { return static_cast<T>(dis(gen)); });
     return matrix;
 }
 
 template Matrix<float>  generateRandomMatrix<float>(int M, int N);
 template Matrix<double> generateRandomMatrix<double>(int M, int N);
 
-#if __STDCPP_FLOAT64_T__ == 1
 #include <mm/core/bf16.hpp>
-template Matrix<std::bfloat16_t> generateRandomMatrix<std::bfloat16_t>(int M, int N);
-#endif
+template Matrix<mm::bfloat16_t> generateRandomMatrix<mm::bfloat16_t>(int M, int N);

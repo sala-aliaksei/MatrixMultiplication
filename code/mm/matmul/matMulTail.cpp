@@ -1,18 +1,14 @@
+#include "mm/core/utils/utils.hpp"
 #include "mm/core/reorderMatrix.hpp"
 #include "mm/matmul/matMulTail.hpp"
 
-#include "mm/core/experimental_kernels.hpp"
-
+#include "mm/core/kernels.hpp"
 
 #include <thread>
 
 #include "omp.h"
 
 constexpr unsigned long PAGE_SIZE = 4096;
-
-#define massert(x, msg) \
-    (bool((x)) == true ? void(0) : throw std::runtime_error("Assertion failed: " #x " " msg))
-
 
 void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C)
 {
@@ -22,7 +18,6 @@ void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>
 
     constexpr int Nr = 12;
     constexpr int Mr = 4;
-
 
     constexpr int Kr = 1;
 
@@ -70,7 +65,7 @@ void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>
                         double*       Cc0 = C.data() + N * i_block + j + N * i + j_block;
                         const double* Ac0 = buf + Kc * i;
 
-                        kernels::cpp_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        xkernels::cpp_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
                     }
                 }
             }
@@ -148,7 +143,7 @@ void matMulSimdTails(const Matrix<double>& A, const Matrix<double>& B, Matrix<do
                         const double* Ac0 = a_buf + Kc * i;
 
                         // TODO: deduce args from span?
-                        kernels::cpp_packed_kernel<Nr, Mr, Kc>(Ac0, Bc1, Cc0, N);
+                        xkernels::cpp_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
                     }
                 }
             }

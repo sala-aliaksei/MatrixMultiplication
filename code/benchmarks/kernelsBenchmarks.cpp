@@ -1,5 +1,5 @@
 #include "mm/core/Matrix.hpp"
-#include "mm/core/experimental_kernels.hpp"
+#include "mm/core/kernels.hpp"
 #include "mm/core/zen5kernels.hpp"
 #include "mm/core/utils/cpu.hpp"
 #include "mm/matmul/zen5_constants.hpp"
@@ -7,10 +7,9 @@
 #include <benchmark/benchmark.h>
 #include <pthread.h>
 
-
-
 constexpr int Kc = 80;
 
+#if defined(ENABLE_EXPERIMENTAL_SIMD_CODE)
 
 static void BM_CppGenericKern(benchmark::State& state)
 {
@@ -123,10 +122,10 @@ static void BM_GenericKernel2x4(benchmark::State& state)
     constexpr int Nr = 2;
     constexpr int Mr = 4;
 
-    std::size_t N        = state.range(0);
-    std::size_t K        = N;
+    std::size_t N = state.range(0);
+    std::size_t K = N;
 
-    auto        matrices = initDoubleMatrix(N, N, N);
+    auto matrices = initDoubleMatrix(N, N, N);
 
     for (auto _ : state)
     {
@@ -137,9 +136,9 @@ static void BM_GenericKernel2x4(benchmark::State& state)
 
 static void BM_PackedKernel2x4(benchmark::State& state)
 {
-    constexpr int Nr = 2;
-    std::size_t N        = state.range(0);
-    auto        matrices = initDoubleMatrix(N, N, N);
+    constexpr int Nr       = 2;
+    std::size_t   N        = state.range(0);
+    auto          matrices = initDoubleMatrix(N, N, N);
 
     for (auto _ : state)
     {
@@ -149,9 +148,9 @@ static void BM_PackedKernel2x4(benchmark::State& state)
 
 static void BM_PackedKernelGeneric2x4(benchmark::State& state)
 {
-    constexpr int Nr = 2;
-    std::size_t N        = state.range(0);
-    auto        matrices = initDoubleMatrix(N, N, N);
+    constexpr int Nr       = 2;
+    std::size_t   N        = state.range(0);
+    auto          matrices = initDoubleMatrix(N, N, N);
 
     for (auto _ : state)
     {
@@ -162,9 +161,9 @@ static void BM_PackedKernelGeneric2x4(benchmark::State& state)
 
 static void BM_PackedKernel6x4(benchmark::State& state)
 {
-    constexpr int Nr = 6;
-    std::size_t N        = state.range(0);
-    auto        matrices = initDoubleMatrix(N, N, N);
+    constexpr int Nr       = 6;
+    std::size_t   N        = state.range(0);
+    auto          matrices = initDoubleMatrix(N, N, N);
 
     for (auto _ : state)
     {
@@ -174,9 +173,9 @@ static void BM_PackedKernel6x4(benchmark::State& state)
 
 static void BM_PackedKernel1x4(benchmark::State& state)
 {
-    constexpr int Nr = 1;
-    std::size_t N        = state.range(0);
-    auto        matrices = initDoubleMatrix(N, N, N);
+    constexpr int Nr       = 1;
+    std::size_t   N        = state.range(0);
+    auto          matrices = initDoubleMatrix(N, N, N);
 
     for (auto _ : state)
     {
@@ -195,34 +194,36 @@ static void BM_PackedKernel1x4_Simd(benchmark::State& state)
           matrices.a.data(), matrices.b.data(), matrices.c.data(), N);
     }
 }
+#endif // ENABLE_EXPERIMENTAL_SIMD_CODE
 
 static void BM_NaiveBlockDynamicKc(benchmark::State& state)
 {
-    std::size_t memBytes = state.range(0);
-    constexpr std::size_t Mr = mm::constants::MatMulZen5Config<double>::Mr;
-    constexpr std::size_t Nr = mm::constants::MatMulZen5Config<double>::Nr;
-    constexpr std::size_t Nc = mm::constants::MatMulZen5Config<double>::Nc;
-    constexpr std::size_t Mc = mm::constants::MatMulZen5Config<double>::Mc;
-
+    std::size_t           memBytes = state.range(0);
+    constexpr std::size_t Mr       = mm::constants::MatMulZen5Config<double>::Mr;
+    constexpr std::size_t Nr       = mm::constants::MatMulZen5Config<double>::Nr;
+    constexpr std::size_t Nc       = mm::constants::MatMulZen5Config<double>::Nc;
+    constexpr std::size_t Mc       = mm::constants::MatMulZen5Config<double>::Mc;
 
     int Kc = memBytes / (Mr + Nr) / sizeof(double);
 
-    auto          matrices = initDoubleMatrix(Mc, Nc, Kc);
+    auto matrices = initDoubleMatrix(Mc, Nc, Kc);
 
     for (auto _ : state)
     {
-        kernels::naive_block_dkc<Nr, Mr>(matrices.a.data(), matrices.b.data(), matrices.c.data(), Nc, Kc);
+        kernels::naive_block_dkc<Nr, Mr>(
+          matrices.a.data(), matrices.b.data(), matrices.c.data(), Nc, Kc);
         benchmark::ClobberMemory();
     }
 
-    std::size_t bytes_read = (Kc * Mr + Kc * Nr + Mr * Nr) * sizeof(double);
+    std::size_t bytes_read    = (Kc * Mr + Kc * Nr + Mr * Nr) * sizeof(double);
     std::size_t bytes_written = Mr * Nr * sizeof(double);
-    std::size_t total_bytes = bytes_read + bytes_written;
+    std::size_t total_bytes   = bytes_read + bytes_written;
 
-    state.counters["FLOPS"] = benchmark::Counter(2*Kc * Mr * Nr * state.iterations(), benchmark::Counter::kIsRate);
-    state.counters["MemBW"] = benchmark::Counter(total_bytes * state.iterations(), benchmark::Counter::kIsRate);
+    state.counters["FLOPS"] =
+      benchmark::Counter(2 * Kc * Mr * Nr * state.iterations(), benchmark::Counter::kIsRate);
+    state.counters["MemBW"] =
+      benchmark::Counter(total_bytes * state.iterations(), benchmark::Counter::kIsRate);
 }
-
 
 static void BM_PackedKernelZen5(benchmark::State& state)
 {
@@ -234,17 +235,18 @@ static void BM_PackedKernelZen5(benchmark::State& state)
     CPU_SET(core_id, &cpuset);
     pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 
-    std::size_t memBytes = state.range(0);
-    constexpr std::size_t Nc = 96;
-    constexpr std::size_t Mc = 96;
-    constexpr std::size_t Mr = 8;
-    constexpr std::size_t Nr = 24;
-    int Kc = memBytes / (Mr + Nr) / sizeof(double);
+    std::size_t           memBytes = state.range(0);
+    constexpr std::size_t Nc       = 96;
+    constexpr std::size_t Mc       = 96;
+    constexpr std::size_t Mr       = 8;
+    constexpr std::size_t Nr       = 24;
+    int                   Kc       = memBytes / (Mr + Nr) / sizeof(double);
 
-    auto          matrices = initDoubleMatrix(Mc,Nc,Kc);
+    auto matrices = initDoubleMatrix(Mc, Nc, Kc);
 
     static std::size_t last_memBytes = 0;
-    if (memBytes != last_memBytes) {
+    if (memBytes != last_memBytes)
+    {
         last_memBytes = memBytes;
         // Mark a new frame/zone in Tracy when the argument changes
         FrameMarkNamed("ArgChange");
@@ -260,25 +262,26 @@ static void BM_PackedKernelZen5(benchmark::State& state)
     for (auto _ : state)
     {
         ZoneScoped;
-        kernels::zen5_packed_kernel<Nr, Mr>(
+        xkernels::zen5_packed_kernel<Nr, Mr>(
           matrices.a.data(), matrices.b.data(), matrices.c.data(), Nc, Kc);
 
-          l1_cache_miss_tracer.update();
-          l2_cache_miss_tracer.update();
-          llc_cache_miss_tracer.update();
-          instr_tracer.update();
-          
+        l1_cache_miss_tracer.update();
+        l2_cache_miss_tracer.update();
+        llc_cache_miss_tracer.update();
+        instr_tracer.update();
+
         benchmark::ClobberMemory();
     }
 
-    std::size_t bytes_read = (Kc * Mr + Kc * Nr + Mr * Nr) * sizeof(double);
+    std::size_t bytes_read    = (Kc * Mr + Kc * Nr + Mr * Nr) * sizeof(double);
     std::size_t bytes_written = Mr * Nr * sizeof(double);
-    std::size_t total_bytes = bytes_read + bytes_written;
+    std::size_t total_bytes   = bytes_read + bytes_written;
 
-    state.counters["FLOPS"] = benchmark::Counter(2*Kc * Mr * Nr * state.iterations(), benchmark::Counter::kIsRate);
-    state.counters["MemBW"] = benchmark::Counter(total_bytes * state.iterations(), benchmark::Counter::kIsRate);
+    state.counters["FLOPS"] =
+      benchmark::Counter(2 * Kc * Mr * Nr * state.iterations(), benchmark::Counter::kIsRate);
+    state.counters["MemBW"] =
+      benchmark::Counter(total_bytes * state.iterations(), benchmark::Counter::kIsRate);
 }
-
 
 // BENCHMARK(BM_NaiveBlockDynamicKc)
 // ->Arg(1 * 1024)
@@ -313,8 +316,8 @@ static void BM_PackedKernelZen5(benchmark::State& state)
 //   //->Threads(16);
 
 BENCHMARK(BM_PackedKernelZen5)
-->Arg(1 * 1024)
-->Arg(2 * 1024)
+  ->Arg(1 * 1024)
+  ->Arg(2 * 1024)
   ->Arg(4 * 1024)
   ->Arg(8 * 1024)
   ->Arg(16 * 1024)
@@ -341,7 +344,7 @@ BENCHMARK(BM_PackedKernelZen5)
   ->Arg(16 * 1024 * 1024)
   ->Arg(20 * 1024 * 1024)
   ->Arg(24 * 1024 * 1024)
-//   ->ThreadPerCpu();
+  //   ->ThreadPerCpu();
   ->Threads(1);
 
-  BENCHMARK_MAIN();
+BENCHMARK_MAIN();

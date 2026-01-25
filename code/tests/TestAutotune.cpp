@@ -2,6 +2,7 @@
 #include "mm/matmul/matMulAutotune.hpp"
 #include "mm/core/utils/utils.hpp"
 #include <gtest/gtest.h>
+#include "mm/tpi/matMulOpenBlas.hpp"
 
 constexpr std::size_t N = 3072;
 
@@ -11,25 +12,20 @@ constexpr std::size_t K = N;
 
 class MatrixMulAutotuneTest : public testing::Test
 {
-  protected:
+  public:
     MatrixMulAutotuneTest()
       //: matrices(initDoubleMatrix(I, J, K))
-      : a(generateRandomMatrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
-      , b(generateRandomMatrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
-      , c(generateRandomMatrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      : a(generateRandomMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , b(generateRandomMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , c(GetMatrixDimFromEnv(), GetMatrixDimFromEnv())
+      , expected(GetMatrixDimFromEnv(), GetMatrixDimFromEnv())
     {
         // std::cout << "I : " << I << " J: " << J << " K: " << K << "\n";
 
-        mm::matMul_Naive_Order(a, b, c);
-        expected = std::move(c);
-
-        c = Matrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv());
+        mm::tpi::matrixMulOpenBlas(a, b, expected);
     }
 
-    ~MatrixMulAutotuneTest() override
-    {
-        // You can do clean-up work that doesn't throw exceptions here.
-    }
+    ~MatrixMulAutotuneTest() override = default;
 
     void SetUp() override
     {

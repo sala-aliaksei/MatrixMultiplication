@@ -36,8 +36,9 @@ class MatrixMultiplicationRecipe(ConanFile):
         #self.requires("boost/1.83.0")
         self.requires("openblas/0.3.30")
         self.requires("eigen/5.0.0")
-        self.requires("tracy/0.12.2")
+        self.requires("tracy/0.13.1")
         self.requires("xsimd/13.2.0")
+        self.requires("fmt/12.1.0")
 
         # self.requires("tensorflow-lite/2.12.0")  # Uncomment if/when needed
                 

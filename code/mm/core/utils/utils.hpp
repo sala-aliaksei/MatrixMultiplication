@@ -3,11 +3,15 @@
 #include <chrono>
 #include <string>
 #include <vector>
+#include <stdexcept>
+#include <fmt/core.h>
 
 int GetMatrixDimFromEnv();
 
-#define massert(x, msg) \
-    (bool((x)) == true ? void(0) : throw std::runtime_error("Assertion failed: " #x " " msg))
+#define massert(x, ...)                                        \
+    (bool((x)) == true ? void(0)                               \
+                       : throw std::runtime_error(fmt::format( \
+                           "\nAssertion failed: {}\n {}", #x, fmt::format(__VA_ARGS__))))
 
 class Profiler
 {

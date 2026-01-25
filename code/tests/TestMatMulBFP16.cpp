@@ -18,16 +18,16 @@ class MatrixMulBFP16Test : public testing::Test
   protected:
     MatrixMulBFP16Test()
       //: matrices(initDoubleMatrix(I, J, K))
-      : a(generateRandomMatrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
-      , b(generateRandomMatrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
-      , c(generateRandomMatrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      : a(generateRandomMatrix<mm::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , b(generateRandomMatrix<mm::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , c(generateRandomMatrix<mm::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
     {
         // std::cout << "I : " << I << " J: " << J << " K: " << K << "\n";
 
         mm::matMul_Naive_Order(a, b, c);
         expected = std::move(c);
 
-        c = Matrix<std::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv());
+        c = Matrix<mm::bfloat16_t>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv());
     }
 
     ~MatrixMulBFP16Test() override
@@ -47,10 +47,10 @@ class MatrixMulBFP16Test : public testing::Test
         // before the destructor).
     }
 
-    Matrix<std::bfloat16_t> a;
-    Matrix<std::bfloat16_t> b;
-    Matrix<std::bfloat16_t> c;
-    Matrix<std::bfloat16_t> expected;
+    Matrix<mm::bfloat16_t> a;
+    Matrix<mm::bfloat16_t> b;
+    Matrix<mm::bfloat16_t> c;
+    Matrix<mm::bfloat16_t> expected;
 };
 
 /***********   FLOAT 32   ***********/

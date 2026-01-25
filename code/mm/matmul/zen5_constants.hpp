@@ -5,6 +5,27 @@
 namespace mm::constants
 {
 
+template<typename T>
+constexpr auto number_of_elems_in_512_reg_v = []()
+{
+    if constexpr (std::is_same_v<T, double>)
+    {
+        return 8;
+    }
+    else if constexpr (std::is_same_v<T, float>)
+    {
+        return 16;
+    }
+    else if constexpr (std::is_same_v<T, mm::bfloat16_t>)
+    {
+        return 32;
+    }
+    else
+    {
+        static_assert(false, "Unsupported type");
+    }
+}();
+
 constexpr int PAGE_SIZE = 4096;
 
 template<typename T>
@@ -40,13 +61,13 @@ struct MatMulZen5Config<double>
 template<>
 struct MatMulZen5Config<float>
 {
-    static constexpr int Nc = 96 * 2;
+    static constexpr int Nc = 96;
     static constexpr int Mc = 96;
     static constexpr int Kc = 96 * 2 * 2;
 };
 
 template<>
-struct MatMulZen5Config<std::bfloat16_t>
+struct MatMulZen5Config<mm::bfloat16_t>
 {
     static constexpr int Nc = 96 * 2;
     static constexpr int Mc = 96;

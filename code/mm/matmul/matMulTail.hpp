@@ -4,7 +4,7 @@
 void matMulSimd(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 void matMulSimdTails(const Matrix<double>& A, const Matrix<double>& B, Matrix<double>& C);
 
-#include "mm/core/experimental_kernels.hpp"
+#include "mm/core/kernels.hpp"
 #include "mm/core/reorderMatrix.hpp"
 
 constexpr int N_LOG_DIM = 25;
@@ -53,8 +53,8 @@ static inline void handleItail(double*       a_buf,
                    auto i_tail = i_tail_size;
                    while (i_tail >= Mrr)
                    {
-                       kernels::cpp_packed_kernel<Nr, Mrr, Kc>(
-                         &a_buf[idx * Kc], &packed_b[Kc * j], &c[(idx + i_ofs) * N + j], N);
+                       xkernels::cpp_packed_kernel<Nr, Mrr>(
+                         &a_buf[idx * Kc], &packed_b[Kc * j], &c[(idx + i_ofs) * N + j], N, Kc);
 
                        idx += Mrr;
                        i_tail -= Mrr;
@@ -104,8 +104,8 @@ static inline void handleItail(double*       a_buf,
                    auto i_tail = i_tail_size;
                    while (i_tail >= Mrr)
                    {
-                       kernels::cpp_packed_kernel<Nr, Mrr, Kc>(
-                         &a_buf[idx * Kc], &packed_b[Kc * j], &c[(i_ofs + idx) * N + j], N);
+                       xkernels::cpp_packed_kernel<Nr, Mrr>(
+                         &a_buf[idx * Kc], &packed_b[Kc * j], &c[(i_ofs + idx) * N + j], N, Kc);
 
                        idx += Mrr;
                        i_tail -= Mrr;
@@ -181,7 +181,7 @@ static inline void handleKtail(double*       a_buf,
                                const double* Ac0 = a_buf + Kcc * i;
 
                                // TODO: deduce args from span?
-                               kernels::cpp_packed_kernel<Nr, Mr, Kcc>(Ac0, Bc1, Cc0, N);
+                               xkernels::cpp_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kcc);
                            }
                        }
                    }
@@ -246,7 +246,7 @@ static inline void handleKtail(double*       a_buf,
                                const double* Ac0 = a_buf + Kcc * i;
 
                                // TODO: deduce args from span?
-                               kernels::cpp_packed_kernel<Nr, Mr, Kcc>(Ac0, Bc1, Cc0, N);
+                               xkernels::cpp_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kcc);
                            }
                        }
                    }
@@ -349,7 +349,7 @@ static inline void handleJtail(double*       buf,
                                double*       Cc0 = mc + N * (i_block + i) + jjdx;
                                const double* Ac0 = a_buf + Kc * i;
 
-                               kernels::cpp_packed_kernel<Nrr, Mr, Kc>(Ac0, b_buf, Cc0, N);
+                               xkernels::cpp_packed_kernel<Nrr, Mr>(Ac0, b_buf, Cc0, N, Kc);
                            }
 
                            j_tail -= Nrr;

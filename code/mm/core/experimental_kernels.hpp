@@ -2,6 +2,13 @@
 
 #include <cstddef> // for size_t
 
+#if defined(__GNUC__) && (__GNUC__ >= 16) && defined(__has_include)
+#if __has_include(<experimental/simd>)
+#define ENABLE_EXPERIMENTAL_SIMD_CODE
+#endif
+#endif
+
+#if defined(ENABLE_EXPERIMENTAL_SIMD_CODE)
 #include <experimental/simd>
 #include <immintrin.h>
 
@@ -690,3 +697,5 @@ static inline void ukern(const T* __restrict a,
 }
 
 } // namespace kernels
+
+#endif // ENABLE_EXPERIMENTAL_SIMD_CODE

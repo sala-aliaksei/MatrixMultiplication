@@ -6,6 +6,7 @@
 #include "mm/core/utils/algorithms.hpp"
 #include <mm/core/Matrix.hpp>
 #include <mm/core/zen5kernels.hpp>
+#include <mm/core/kernels.hpp>
 #include <thread>
 #include <barrier>
 
@@ -13,7 +14,6 @@
 
 namespace mm::hyper
 {
-
 
 template<typename T>
 void matMulZen5MTBlockingH(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
@@ -27,7 +27,7 @@ void matMulZen5MTBlockingH(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
     constexpr auto bregs_cnt   = 3;
     constexpr auto aregs_cnt   = 1;
 
-    constexpr auto num_of_elems_in_reg = stdx::simd_size_v<T, stdx::simd_abi::native<T>>;
+    constexpr auto num_of_elems_in_reg = number_of_elems_in_512_reg_v<T>;
 
     constexpr int Nr{bregs_cnt * num_of_elems_in_reg};
     constexpr int Mr{8};
@@ -151,7 +151,7 @@ void matMulZen5MTBlockingH(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                               {
                                   T*       Cc0 = C.data() + N * (i_block + i) + j + j_block;
                                   const T* Ac0 = Ac20 + Kc * i;
-                                  kernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
+                                  xkernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
                               }
                           }
 
@@ -165,7 +165,7 @@ void matMulZen5MTBlockingH(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                       T* Cc0 = C.data() + N * (i_block + Mc + i) + j + j_block;
                                       const T* Ac0 = Ac21 + Kc * i;
 
-                                      kernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
+                                      xkernels::zen5_packed_kernel<Nr, Mr>(Ac0, Bc1, Cc0, N, Kc);
                                   }
                               }
                           }
@@ -181,12 +181,10 @@ void matMulZen5MTBlockingH(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
     } // jthreads auto-join on destruction
 }
 
-
 template<typename T>
 void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 {
     using namespace mm::constants;
-    
 
     constexpr std::size_t Nc = MatMulZen5Config<T>::Nc;
     constexpr std::size_t Mc = MatMulZen5Config<T>::Mc;
@@ -295,7 +293,9 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
             if constexpr (is_data_core_id(logical_core_id))
             {
                 ZoneScopedN("[Data]j_block");
-            }else{
+            }
+            else
+            {
                 ZoneScopedN("[Compute]j_block");
             }
             for (int k_block = 0; k_block < K; k_block += Kc)
@@ -303,7 +303,9 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                 if constexpr (is_data_core_id(logical_core_id))
                 {
                     ZoneScopedN("[Data]k_block");
-                }else{
+                }
+                else
+                {
                     ZoneScopedN("[Compute]k_block");
                 }
                 auto b_tile = &B(k_block, j_block);
@@ -312,7 +314,9 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                     if constexpr (is_data_core_id(logical_core_id))
                     {
                         ZoneScopedN("[Data]i_block");
-                    }else{
+                    }
+                    else
+                    {
                         ZoneScopedN("[Compute]i_block");
                     }
                     auto a_tile = &A(i_block, k_block);
@@ -321,7 +325,9 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                         if constexpr (is_data_core_id(logical_core_id))
                         {
                             ZoneScopedN("[Data] j");
-                        }else{
+                        }
+                        else
+                        {
                             ZoneScopedN("[Compute] j");
                         }
                         bptr = b_utiles[b_data_idx].data_handle();
@@ -335,7 +341,7 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                     bptr[idx++] = b_tile[kl * N + j + jl];
                                 }
                             }
-                            //FrameMark;
+                            // FrameMark;
                         }
                         b_data_idx = (b_data_idx + 1) % 2;
 
@@ -344,7 +350,9 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                             if constexpr (is_data_core_id(logical_core_id))
                             {
                                 ZoneScopedN("[Data] i");
-                            }else{
+                            }
+                            else
+                            {
                                 ZoneScopedN("[Compute] i");
                             }
                             aptr = a_utiles[a_data_idx].data_handle();
@@ -371,17 +379,17 @@ void matMulHyper(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
                                 // kernels::zen5_packed_kernel<Nr, Mr, Kc>(compute_abuf,
                                 kernels::naive_block<Nr, Mr, Kc>(
                                   compute_abuf, compute_bbuf, Cc0, N);
-                                  //FrameMark;
+                                // FrameMark;
                             }
-                            //FrameMark;
+                            // FrameMark;
                         }
-                        //FrameMark;
+                        // FrameMark;
                     }
-                    //FrameMark;
+                    // FrameMark;
                 }
-                //FrameMark;
+                // FrameMark;
             }
-            //FrameMark;
+            // FrameMark;
         }
     };
 

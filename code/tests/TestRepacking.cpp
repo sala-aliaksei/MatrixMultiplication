@@ -43,7 +43,9 @@ class ReorderTest : public ::testing::Test
 
         bool is_succeed = output == expected;
         if (!is_succeed)
+        {
             print(input, output, expected);
+        }
 
         EXPECT_TRUE(is_succeed);
     }

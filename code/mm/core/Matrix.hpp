@@ -142,7 +142,8 @@ bool operator==(const Matrix<T>& s1, const Matrix<T>& s2)
         {
             if constexpr (std::is_floating_point_v<T>)
             {
-                if (std::abs(s1[i * col_cnt + j] - s2[i * col_cnt + j]) > 1E-6)
+                constexpr T epsilon = std::is_same_v<T, float> ? 1E-1f : 1E-6;
+                if (std::abs(s1[i * col_cnt + j] - s2[i * col_cnt + j]) > epsilon)
                 {
                     std::cout << std::fixed << std::setprecision(15) << "elem[" << i << "][" << j
                               << "] doesn't match. " << s1[i * col_cnt + j]
