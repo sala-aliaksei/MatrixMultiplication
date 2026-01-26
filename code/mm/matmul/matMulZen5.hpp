@@ -253,6 +253,151 @@ void matMulZen5MTBlocking(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 }
 
 template<typename T>
+void matMulZen5Padding(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
+{
+    using namespace mm::constants;
+    constexpr int Nc = MatMulZen5Config<T>::Nc;
+    constexpr int Mc = MatMulZen5Config<T>::Mc;
+    constexpr int Kc = MatMulZen5Config<T>::Kc;
+
+    constexpr auto num_of_regs = 32;
+    constexpr auto bregs_cnt   = 3;
+    constexpr auto aregs_cnt   = 1;
+
+    constexpr auto num_of_elems_in_reg = mm::constants::number_of_elems_in_512_reg_v<T>;
+
+    constexpr int Kr = 1;
+    // constexpr int Nr = bregs_cnt * num_of_elems_in_reg;
+    constexpr int Nr = MatMulZen5Config<T>::Nr;
+    constexpr int Mr =
+      MatMulZen5Config<T>::Mr; //{(num_of_regs - aregs_cnt - bregs_cnt) / bregs_cnt};
+
+    static_assert(Nr % num_of_elems_in_reg == 0, "Nr must be divisible by num_of_elems_in_reg");
+
+    auto num_threads = std::thread::hardware_concurrency();
+    static_assert(Mc % Mr == 0, "invalid cache/reg size of the block");
+    static_assert(Nc % Nr == 0, "invalid cache/reg size of the block");
+    static_assert(Kc % Kr == 0, "invalid cache/reg size of the block");
+
+    const int N = static_cast<int>(B.col());
+    const int K = static_cast<int>(A.col());
+    const int M = static_cast<int>(A.row());
+
+    const std::size_t per_thread_buf_elems =
+      static_cast<std::size_t>(Kc) * (Mc + Nc) + static_cast<std::size_t>(Mc) * Nc;
+    std::vector<T> buffer(num_threads * per_thread_buf_elems);
+    madvise(buffer.data(), buffer.size() * sizeof(T), MADV_HUGEPAGE);
+
+    // Grid threading like matMulZen5MTBlocking
+    constexpr int      GRID_I       = 4;
+    constexpr int      GRID_J       = 8;
+    constexpr unsigned grid_threads = GRID_I * GRID_J;
+
+    std::vector<std::jthread> workers;
+    workers.reserve(grid_threads);
+
+    for (unsigned t = 0; t < grid_threads; ++t)
+    {
+        workers.emplace_back(
+          [&, t]()
+          {
+              auto      core_id = map_thread_id_to_core_id(t);
+              cpu_set_t cpuset;
+              CPU_ZERO(&cpuset);
+              CPU_SET(core_id, &cpuset);
+              (void)pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+
+              const std::size_t ofs  = static_cast<std::size_t>(t) * per_thread_buf_elems;
+              T* const          buf  = buffer.data() + ofs;
+              T* const          bufA = buf;
+              T* const          bufB = buf + Mc * Kc;
+              T* const          bufC = buf + static_cast<std::size_t>(Kc) * (Mc + Nc);
+
+              const int ti = static_cast<int>(t) / GRID_J; // 0..GRID_I-1
+              const int tj = static_cast<int>(t) % GRID_J; // 0..GRID_J-1
+
+              auto jbegin = tj * N / GRID_J; // flatted j index
+              auto ibegin = ti * M / GRID_I; // flatten i index
+
+              auto jend = (tj + 1) * N / GRID_J;
+              auto iend = (ti + 1) * M / GRID_I;
+
+              for (int j_block = jbegin; j_block < jend; j_block += Nc)
+              {
+                  const int N_blk     = std::min(Nc, N - j_block);
+                  const int N_blk_pad = blockWithPadding(N_blk, Nr);
+                  for (int k_block = 0; k_block < K; k_block += Kc)
+                  {
+                      const int K_blk = std::min(Kc, K - k_block);
+
+                      reorderRowMajorMatrixPadded<Kc, Nc, Kr, Nr>(
+                        B.data() + static_cast<std::size_t>(N) * k_block + j_block,
+                        N,
+                        bufB,
+                        K_blk,
+                        N_blk);
+
+                      for (int i_block = ibegin; i_block < iend; i_block += Mc)
+                      {
+                          const int M_blk     = std::min(Mc, M - i_block);
+                          const int M_blk_pad = blockWithPadding(M_blk, Mr);
+
+                          reorderColOrderMatrixPadded<Mc, Kc, Mr, Kr>(
+                            A.data() + static_cast<std::size_t>(K) * i_block + k_block,
+                            K,
+                            bufA,
+                            M_blk,
+                            K_blk);
+
+                          const std::size_t c_tile_elems =
+                            static_cast<std::size_t>(M_blk_pad) * N_blk_pad;
+                          std::fill(bufC, bufC + c_tile_elems, T(0));
+
+                          for (int j = 0; j < N_blk_pad; j += Nr)
+                          {
+                              const T* Bc1 = bufB + Kc * j;
+                              for (int i = 0; i < M_blk_pad; i += Mr)
+                              {
+                                  T*       Cc0 = bufC + static_cast<std::size_t>(N_blk_pad) * i + j;
+                                  const T* Ac0 = bufA + Kc * i;
+
+                                  if constexpr (std::is_same_v<T, mm::bfloat16_t>)
+                                  {
+                                      kernels::zen5_packed_kernel_bf16<Nr, Mr, Kc>(
+                                        Ac0, Bc1, Cc0, N_blk_pad);
+                                  }
+                                  else
+                                  {
+                                      xkernels::zen5_packed_kernel<Nr, Mr>(
+                                        Ac0, Bc1, Cc0, N_blk_pad, Kc);
+                                  }
+                              }
+                          }
+
+                          for (int ii = 0; ii < M_blk; ++ii)
+                          {
+                              const int row_idx = i_block + ii;
+                              if (row_idx >= iend)
+                                  break;
+
+                              T* c_row = C.data() + static_cast<std::size_t>(N) * row_idx + j_block;
+                              const T* tile_row = bufC + static_cast<std::size_t>(N_blk_pad) * ii;
+                              for (int jj = 0; jj < N_blk; ++jj)
+                              {
+                                  const int col_idx = j_block + jj;
+                                  if (col_idx >= jend)
+                                      break;
+                                  c_row[jj] += tile_row[jj];
+                              }
+                          }
+                      }
+                  }
+              }
+          });
+    }
+}
+
+template<typename T>
 void matMulZen5MTBlockingTails(const Matrix<T>& A, const Matrix<T>& B, Matrix<T>& C)
 {
     constexpr int Nc = 96;

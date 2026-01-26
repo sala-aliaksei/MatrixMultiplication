@@ -14,7 +14,7 @@ class MatrixMulZen5Test : public testing::Test
       : a(generateRandomMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
       , b(generateRandomMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
       , c(GetMatrixDimFromEnv(), GetMatrixDimFromEnv())
-      , valid_res(generateIotaMatrix<double>(GetMatrixDimFromEnv(), GetMatrixDimFromEnv()))
+      , valid_res(GetMatrixDimFromEnv(), GetMatrixDimFromEnv())
     {
         mm::tpi::matrixMulOpenBlas(a, b, valid_res);
     }
@@ -51,10 +51,34 @@ TEST_F(MatrixMulZen5Test, mmblocking)
     EXPECT_EQ((valid_res == c), true);
 }
 
+TEST_F(MatrixMulZen5Test, mmPadding)
+{
+    mm::zen5::matMulZen5Padding(a, b, c);
+    EXPECT_EQ((valid_res == c), true);
+}
+
+TEST_F(MatrixMulZen5Test, mmPaddingSmall)
+{
+    std::size_t M = 100;
+    std::size_t N = 100;
+    std::size_t K = 100;
+
+    Matrix<double> a_small = generateIotaMatrix<double>(M, K);
+    Matrix<double> b_small = generateIotaMatrix<double>(K, N);
+    Matrix<double> c_small(M, N);
+    Matrix<double> valid_small(M, N);
+
+    mm::tpi::matrixMulOpenBlas(a_small, b_small, valid_small);
+    mm::zen5::matMulZen5Padding(a_small, b_small, c_small);
+
+    EXPECT_EQ((valid_small == c_small), true);
+}
+
 TEST_F(MatrixMulZen5Test, submatrix)
 {
     constexpr std::size_t N  = 512;
     constexpr std::size_t Mc = 128;
+
     constexpr std::size_t Kc = 128;
 
     Matrix<double> at = generateRandomMatrix<double>(N, N);

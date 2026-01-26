@@ -14,12 +14,14 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math -march=native  -fdiagnostics-color  -g")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ferror-limit=1")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ferror-limit=1")
+    add_compile_definitions(_LIBCPP_ENABLE_EXPERIMENTAL)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fmax-errors=1")
+endif()
 
 # GCC option -Wno-interference-size -fmax-errors=1
-
-
-add_compile_definitions(_LIBCPP_ENABLE_EXPERIMENTAL)
 include(cmake/dependencies.cmake)
 
 
@@ -72,6 +74,7 @@ add_library(${PROJECT_NAME} SHARED
     code/mm/matmul/matMulZen5.hpp
     code/mm/matmul/matMulHyper.cpp
     code/mm/matmul/matMulHyper.hpp
+    code/mm/matmul/matMulStrassen.hpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC Core)
@@ -266,6 +269,9 @@ if(ENABLE_UNIT_TESTS)
 
     add_executable(TestMMHyper code/tests/TestMatMulHyper.cpp)
     target_link_libraries(TestMMHyper ${PROJECT_NAME} TPI UnitTestUtils SanitizerFlags)
+
+    add_executable(TestMatMulStrassen code/tests/TestMatMulStrassen.cpp)
+    target_link_libraries(TestMatMulStrassen ${PROJECT_NAME} TPI UnitTestUtils SanitizerFlags)
 
     if(ENABLE_GPU_BUILD)
         add_executable(TestMatmulGpu code/tests/TestMatmulGpu.cpp)

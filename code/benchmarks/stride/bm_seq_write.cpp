@@ -268,7 +268,7 @@ static void BM_WriteToArray(benchmark::State& state)
     for (auto _ : state)
     {
         {
-            ZoneScoped;
+            // ZoneScoped;
             for (int i = 0; i < size; i++)
             {
                 a[i] = i;
@@ -277,9 +277,9 @@ static void BM_WriteToArray(benchmark::State& state)
 
         benchmark::ClobberMemory();
 
-        l1_cache_miss_tracer.update();
-        l2_cache_miss_tracer.update();
-        llc_cache_miss_tracer.update();
+        // l1_cache_miss_tracer.update();
+        // l2_cache_miss_tracer.update();
+        // llc_cache_miss_tracer.update();
     }
     // add column to benchamrk results: operations per second
     state.counters["MemBW"] =
